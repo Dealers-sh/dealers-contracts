@@ -19,9 +19,9 @@ interface IDealersExeCore {
     function initializeDealer(uint256 tokenId) external;
     function getDealerData(uint256 tokenId) external view returns (
         uint8 currentArea,
-        uint256 reputation,           // ← match your Core (uint256), prevents decode bugs
-        bool pvpEnabled,
-        uint8 dailyPlaysRemaining,
+        uint256 reputation,
+        uint8 dailyAttemptsRemaining,
+        uint8 heatLevel,
         uint32 lastPlayTimestamp,
         bool isInitialized
     );
@@ -302,8 +302,8 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         try IDealersExeCore(core).getDealerData(tokenId) returns (
             uint8 currentArea,
             uint256 reputation,
-            bool pvpEnabled,
-            uint8 /* dailyPlaysRemaining */,
+            uint8 /* dailyAttemptsRemaining */,
+            uint8 heatLevel,
             uint32 /* lastPlayTimestamp */,
             bool isInitialized
         ) {
@@ -311,7 +311,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
             return abi.encodePacked(
                 '{"trait_type":"Area","value":"', currentArea.toString(), '"},',
                 '{"trait_type":"Reputation","value":"', reputation.toString(), '"},',
-                '{"trait_type":"PvP Status","value":"', (pvpEnabled ? "Enabled" : "Disabled"), '"}'
+                '{"trait_type":"Heat Level","value":"', heatLevel.toString(), '"}'
             );
         } catch {
             return "";

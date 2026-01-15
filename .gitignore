@@ -1,22 +1,16 @@
-# Node modules
-/node_modules
-
-# Compilation output
-/dist
-
-# pnpm deploy output
-/bundle
-
-# Hardhat Build Artifacts
-/artifacts
-
-# Hardhat compilation (v2) support directory
+# Foundry
+/out
 /cache
+/broadcast
 
-# Typechain output
-/types
+# Dependencies
+/lib
 
-# Hardhat coverage reports
-/coverage
-
+# Environment
 .env
+
+# Deployment state
+script/deployed-addresses.env
+
+# OS
+.DS_Store
