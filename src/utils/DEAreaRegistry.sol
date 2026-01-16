@@ -6,12 +6,12 @@ import "./IAreaRegistry.sol";
 import "./IDrugRegistry.sol";
 
 /**
- * @title DealersExeAreaRegistry - Area and Drug Pricing Registry
+ * @title DEAreaRegistry - Area and Drug Pricing Registry
  * @dev Manages area definitions, drug availability per area, and buy/sell pricing
  *      Supports flexible drug configurations per area (not limited to 3)
  * @author Dealers.Exe Team
  */
-contract DealersExeAreaRegistry is Ownable, IAreaRegistry {
+contract DEAreaRegistry is Ownable, IAreaRegistry {
     // =============================================================
     //                            CONSTANTS
     // =============================================================

@@ -3,14 +3,18 @@ pragma solidity ^0.8.20;
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "./IDrugRegistry.sol";
-import "./IAreaRegistry.sol";
-import "./IERC721Minimal.sol";
-import "./IDEPaymentHandler.sol";
-import "./IDERandomness.sol";
+import "../utils/IDrugRegistry.sol";
+import "../utils/IAreaRegistry.sol";
+import "../utils/IERC721Minimal.sol";
+import "../utils/IDEPaymentHandler.sol";
+import "../utils/IDERandomness.sol";
 
 /**
  * @title DealersExeCore - Game State Management Hub
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
  * @dev Centralized data management contract for all game modules
  *      Uses external DrugRegistry and AreaRegistry for configuration
  * @author Dealers.Exe Team

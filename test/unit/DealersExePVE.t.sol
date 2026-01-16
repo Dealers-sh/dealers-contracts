@@ -2,13 +2,13 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../../src/DealersExeCore.sol";
-import "../../src/DealersExeNFT.sol";
-import "../../src/DealersExePVE.sol";
-import "../../src/DealersExeDrugRegistry.sol";
-import "../../src/DealersExeAreaRegistry.sol";
-import "../../src/DEPaymentHandler.sol";
-import "../../src/DERandomness.sol";
+import "../../src/core/DealersExeCore.sol";
+import "../../src/nft/DealersExeNFT.sol";
+import "../../src/core/DealersExePVE.sol";
+import "../../src/utils/DEDrugRegistry.sol";
+import "../../src/utils/DEAreaRegistry.sol";
+import "../../src/utils/DEPaymentHandler.sol";
+import "../../src/utils/DERandomness.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 contract DealersExePVETest is Test, IERC721Receiver {
@@ -18,8 +18,8 @@ contract DealersExePVETest is Test, IERC721Receiver {
     DealersExeCore public core;
     DealersExeNFT public nft;
     DealersExePVE public pve;
-    DealersExeDrugRegistry public drugRegistry;
-    DealersExeAreaRegistry public areaRegistry;
+    DEDrugRegistry public drugRegistry;
+    DEAreaRegistry public areaRegistry;
     DEPaymentHandler public paymentHandler;
     DERandomness public randomness;
 
@@ -57,8 +57,8 @@ contract DealersExePVETest is Test, IERC721Receiver {
         vm.deal(player1, 100 ether);
         vm.deal(player2, 100 ether);
 
-        drugRegistry = new DealersExeDrugRegistry();
-        areaRegistry = new DealersExeAreaRegistry(address(drugRegistry));
+        drugRegistry = new DEDrugRegistry();
+        areaRegistry = new DEAreaRegistry(address(drugRegistry));
         paymentHandler = new DEPaymentHandler(devWallet, bankVault);
         randomness = new DERandomness();
 

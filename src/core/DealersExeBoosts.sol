@@ -4,14 +4,18 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import "./IDealersExeCore.sol";
-import "./IERC721Minimal.sol";
-import "./IDEPaymentHandler.sol";
+import "../utils/IERC721Minimal.sol";
+import "../utils/IDEPaymentHandler.sol";
 
 /**
  * @title DealersExeBoosts - Boost Purchase Module
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
  * @dev Allows players to purchase temporary boosts for their dealers
  *      Boosts provide drug/rep multipliers, extra attempts, and special abilities
- * @author Dealers.Exe Team
+ * @author berny-art
  */
 contract DealersExeBoosts is ReentrancyGuard, Ownable {
     // =============================================================

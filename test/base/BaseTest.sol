@@ -4,19 +4,19 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
-import "../../src/DealersExeCore.sol";
-import "../../src/DealersExeNFT.sol";
-import "../../src/DealersExePVE.sol";
-import "../../src/DealersExePVP.sol";
-import "../../src/DealersExeBoosts.sol";
-import "../../src/DEPaymentHandler.sol";
-import "../../src/DealersExeDrugRegistry.sol";
-import "../../src/DealersExeAreaRegistry.sol";
-import "../../src/DERandomness.sol";
+import "../../src/core/DealersExeCore.sol";
+import "../../src/nft/DealersExeNFT.sol";
+import "../../src/core/DealersExePVE.sol";
+import "../../src/core/DealersExePVP.sol";
+import "../../src/core/DealersExeBoosts.sol";
+import "../../src/utils/DEPaymentHandler.sol";
+import "../../src/utils/DEDrugRegistry.sol";
+import "../../src/utils/DEAreaRegistry.sol";
+import "../../src/utils/DERandomness.sol";
 
 abstract contract BaseTest is Test, IERC721Receiver {
-    DealersExeDrugRegistry public drugRegistry;
-    DealersExeAreaRegistry public areaRegistry;
+    DEDrugRegistry public drugRegistry;
+    DEAreaRegistry public areaRegistry;
     DEPaymentHandler public paymentHandler;
     DERandomness public randomness;
     DealersExeCore public core;
@@ -56,9 +56,9 @@ abstract contract BaseTest is Test, IERC721Receiver {
     function _deployContracts() internal {
         vm.startPrank(owner);
 
-        drugRegistry = new DealersExeDrugRegistry();
+        drugRegistry = new DEDrugRegistry();
 
-        areaRegistry = new DealersExeAreaRegistry(address(drugRegistry));
+        areaRegistry = new DEAreaRegistry(address(drugRegistry));
 
         paymentHandler = new DEPaymentHandler(devWallet, bankVault);
 

@@ -2,16 +2,16 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import {DealersExeCore} from "../../src/DealersExeCore.sol";
-import {DealersExeNFT} from "../../src/DealersExeNFT.sol";
-import {DealersExePVE} from "../../src/DealersExePVE.sol";
-import {DealersExePVP} from "../../src/DealersExePVP.sol";
-import {DealersExeBoosts} from "../../src/DealersExeBoosts.sol";
-import {DealersExeDrugRegistry} from "../../src/DealersExeDrugRegistry.sol";
-import {DealersExeAreaRegistry} from "../../src/DealersExeAreaRegistry.sol";
-import {DEPaymentHandler} from "../../src/DEPaymentHandler.sol";
-import {DERandomness} from "../../src/DERandomness.sol";
-import {IDealersExeCore} from "../../src/IDealersExeCore.sol";
+import {DealersExeCore} from "../../src/core/DealersExeCore.sol";
+import {DealersExeNFT} from "../../src/nft/DealersExeNFT.sol";
+import {DealersExePVE} from "../../src/core/DealersExePVE.sol";
+import {DealersExePVP} from "../../src/core/DealersExePVP.sol";
+import {DealersExeBoosts} from "../../src/core/DealersExeBoosts.sol";
+import {DEDrugRegistry} from "../../src/utils/DEDrugRegistry.sol";
+import {DEAreaRegistry} from "../../src/utils/DEAreaRegistry.sol";
+import {DEPaymentHandler} from "../../src/utils/DEPaymentHandler.sol";
+import {DERandomness} from "../../src/utils/DERandomness.sol";
+import {IDealersExeCore} from "../../src/core/IDealersExeCore.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 contract MockEOA is IERC721Receiver {
@@ -31,8 +31,8 @@ abstract contract BaseTest is Test, IERC721Receiver {
     DealersExePVE public pve;
     DealersExePVP public pvp;
     DealersExeBoosts public boosts;
-    DealersExeDrugRegistry public drugRegistry;
-    DealersExeAreaRegistry public areaRegistry;
+    DEDrugRegistry public drugRegistry;
+    DEAreaRegistry public areaRegistry;
     DEPaymentHandler public paymentHandler;
     DERandomness public randomness;
 
@@ -68,8 +68,8 @@ abstract contract BaseTest is Test, IERC721Receiver {
     }
 
     function _deployContracts() internal {
-        drugRegistry = new DealersExeDrugRegistry();
-        areaRegistry = new DealersExeAreaRegistry(address(drugRegistry));
+        drugRegistry = new DEDrugRegistry();
+        areaRegistry = new DEAreaRegistry(address(drugRegistry));
         paymentHandler = new DEPaymentHandler(devWallet, bankVault);
         randomness = new DERandomness();
 

@@ -3,6 +3,10 @@ pragma solidity ^0.8.20;
 
 /**
  * @title IDealersExeCore - Interface for DealersExeCore
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
  * @dev Interface for all game modules to interact with core state
  *      Drug and Area configuration has been moved to separate registries
  */

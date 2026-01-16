@@ -18,8 +18,8 @@ import "forge-std/Script.sol";
  * - DealersExePVE (player vs environment gameplay)
  * - DealersExePVP (player vs player combat)
  * - DealersExeBoosts (premium boost purchases)
- * - DealersExeDrugRegistry (global drug definitions)
- * - DealersExeAreaRegistry (area & pricing config)
+ * - DEDrugRegistry (global drug definitions)
+ * - DEAreaRegistry (area & pricing config)
  * - DEPaymentHandler (ETH fee distribution)
  *
  * Phase 2 contracts (Items, Heist, Gangs) will be added later and have their
@@ -107,7 +107,7 @@ interface IDealersExeCore {
 }
 
 /**
- * @dev Minimal interface for DealersExeDrugRegistry authorization
+ * @dev Minimal interface for DEDrugRegistry authorization
  */
 interface IDrugRegistry {
     function authorizeContract(address contractAddress, bool authorized) external;

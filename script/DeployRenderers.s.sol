@@ -2,8 +2,8 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
-import "../src/DealerRendererSVG.sol";
-import "../src/DealerRendererHTML.sol";
+import "../src/nft/DealerRendererSVG.sol";
+import "../src/nft/DealerRendererHTML.sol";
 
 /**
  * @title DeployRenderers - EVM Bytecode Deployment Script for Renderer Contracts

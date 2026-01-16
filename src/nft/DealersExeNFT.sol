@@ -14,8 +14,8 @@ import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {LibString} from "solady/src/utils/LibString.sol";
 import {Base64} from "solady/src/utils/Base64.sol";
-import "./IDealersExeCore.sol";
-import "./IDERandomness.sol";
+import "../core/IDealersExeCore.sol";
+import "../utils/IDERandomness.sol";
 
 interface IDealersExeRendererSVG {
     function getSVG(uint256 tokenId, uint256 seed) external view returns (string memory);

@@ -5,12 +5,12 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
 import "./IDrugRegistry.sol";
 
 /**
- * @title DealersExeDrugRegistry - Global Drug Registry
+ * @title DEDrugRegistry - Global Drug Registry
  * @dev Manages all drug definitions, supply tracking, and base values
  *      Designed to support 15+ drug types with different rarities
  * @author Dealers.Exe Team
  */
-contract DealersExeDrugRegistry is Ownable, IDrugRegistry {
+contract DEDrugRegistry is Ownable, IDrugRegistry {
     // =============================================================
     //                            CONSTANTS
     // =============================================================

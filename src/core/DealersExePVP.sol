@@ -4,12 +4,16 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import "./IDealersExeCore.sol";
-import "./IAreaRegistry.sol";
-import "./IERC721Minimal.sol";
-import "./IDERandomness.sol";
+import "../utils/IAreaRegistry.sol";
+import "../utils/IERC721Minimal.sol";
+import "../utils/IDERandomness.sol";
 
 /**
  * @title DealersExePVP - Player vs Player Combat Module
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
  * @dev Handles PVP gameplay with stat-based win chances, drug stealing, and cooldowns
  *      Uses AreaRegistry for drug availability per area
  * @author Dealers.Exe Team
