@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/*
-  (banner omitted for brevity)
-*/
-
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -30,20 +26,35 @@ interface IDealersExeRendererHTML {
     function getHTML(string memory svg) external view returns (string memory);
 }
 
+/**
+ * @title DealersExeNFT
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
+ * @dev ERC721 with dynamic on-chain metadata and embedded HTML gameplay UI
+ * @author Dealers.Exe Team
+ */
 contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
     using LibString for uint256;
     using LibString for uint8;
 
-    // -------- Constants
+    // =============================================================
+    //                            CONSTANTS
+    // =============================================================
+
     uint256 public constant MAX_SUPPLY = 8888;
     uint256 public constant RESERVE_SUPPLY = 200;
     uint256 public constant ROYALTY_PERCENTAGE = 500; // 5%
     uint256 public constant MINT_PRICE = 0.01 ether;
     uint256 public constant MAX_PER_WALLET = 10;
 
-    // -------- Storage
+    // =============================================================
+    //                            STORAGE
+    // =============================================================
+
     enum MintStatus { DISABLED, FAMILY, WHITELIST, PUBLIC }
     MintStatus public mintStatus = MintStatus.DISABLED;
 
@@ -65,7 +76,10 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     IDealersExeRendererHTML public contractRendererHTML;
     IDERandomness public randomness;
 
-    // -------- Events
+    // =============================================================
+    //                            EVENTS
+    // =============================================================
+
     event MintStatusChanged(MintStatus newStatus);
     event DealerInitialized(uint256 indexed tokenId, address indexed owner);
     event RendererSVGChanged(address indexed newAddress);
@@ -75,7 +89,10 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     event DistributionInitialized(uint256 seed);
     event RandomnessUpdated(address indexed newAddress);
 
-    // -------- Errors
+    // =============================================================
+    //                            ERRORS
+    // =============================================================
+
     error InvalidMint();
     error TotalSupplyReached();
     error NotFamilyMint();
@@ -91,6 +108,10 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     error DistributionAlreadyInitialized();
     error RendererNotSet();
 
+    // =============================================================
+    //                          CONSTRUCTOR
+    // =============================================================
+
     constructor(address _signerAddress, address _royaltyReceiver)
         ERC721("Drug Wars Dealers", "DEALERS")
     {
@@ -100,7 +121,10 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         reserve(RESERVE_SUPPLY);
     }
 
-    // -------- Modifiers
+    // =============================================================
+    //                           MODIFIERS
+    // =============================================================
+
     modifier onlyFamilyMint() { if (mintStatus != MintStatus.FAMILY) revert NotFamilyMint(); _; }
     modifier onlyWhitelistMint() { if (mintStatus != MintStatus.WHITELIST) revert NotWhitelistMint(); _; }
     modifier onlyPublicMint() { if (mintStatus != MintStatus.PUBLIC) revert NotPublicMint(); _; }
@@ -123,6 +147,10 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     //                           MINTING
     // =============================================================
 
+    /**
+     * @notice Reserve NFTs to the owner address
+     * @param nftAmount Number of NFTs to reserve
+     */
     function reserve(uint256 nftAmount)
         public
         onlyOwner
@@ -131,6 +159,11 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         _mintDealer(msg.sender, nftAmount);
     }
 
+    /**
+     * @notice Reserve NFTs to a specific recipient address
+     * @param nftAmount Number of NFTs to reserve
+     * @param recipient Address to receive the reserved NFTs
+     */
     function reserveTo(uint256 nftAmount, address recipient)
         public
         onlyOwner
@@ -139,6 +172,11 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         _mintDealer(recipient, nftAmount);
     }
 
+    /**
+     * @notice Reserve NFTs to multiple recipient addresses
+     * @param nftAmount Number of NFTs per recipient
+     * @param recipients Array of addresses to receive NFTs
+     */
     function reserveToMany(uint256 nftAmount, address[] memory recipients) public onlyOwner {
         uint256 len = recipients.length;
         for (uint256 i; i < len; ) {
@@ -147,6 +185,12 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         }
     }
 
+    /**
+     * @notice Mint NFTs during family phase with signature verification
+     * @param dest Destination address for minted NFTs
+     * @param count Number of NFTs to mint
+     * @param signature Authorization signature from signer
+     */
     function mintFamily(address dest, uint256 count, bytes calldata signature)
         external
         payable
@@ -167,6 +211,12 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         _mintDealer(dest, count);
     }
 
+    /**
+     * @notice Mint NFTs during whitelist phase with signature verification
+     * @param dest Destination address for minted NFTs
+     * @param count Number of NFTs to mint
+     * @param signature Authorization signature from signer
+     */
     function mintWhitelist(address dest, uint256 count, bytes calldata signature)
         external
         payable
@@ -186,6 +236,11 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         _mintDealer(dest, count);
     }
 
+    /**
+     * @notice Mint NFTs during public phase
+     * @param dest Destination address for minted NFTs
+     * @param count Number of NFTs to mint
+     */
     function mintPublic(address dest, uint256 count)
         external
         payable
@@ -231,9 +286,14 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     }
 
     // =============================================================
-    //                         METADATA / URI
+    //                           METADATA
     // =============================================================
 
+    /**
+     * @notice Get the raw JSON metadata for a token
+     * @param tokenId The token ID to get metadata for
+     * @return JSON string containing token metadata
+     */
     function tokenJson(uint256 tokenId) public view returns (string memory) {
         if (!_exists(tokenId)) revert TokenDoesNotExist();
 
@@ -264,6 +324,11 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         return string(json);
     }
 
+    /**
+     * @notice Get the base64-encoded data URI for a token
+     * @param tokenId The token ID to get URI for
+     * @return Base64-encoded data URI containing token metadata
+     */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         return string(
             abi.encodePacked(
@@ -330,6 +395,10 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     //                    RENDERER INTEGRATION
     // =============================================================
 
+    /**
+     * @notice Initialize the character type distribution in the renderer
+     * @param seed Random seed for distribution initialization
+     */
     function initializeRendererDistribution(uint256 seed) external onlyOwner {
         IDealersExeRendererSVG svgRenderer = contractRendererSVG;
         if (address(svgRenderer) == address(0)) revert RendererNotSet();
@@ -344,6 +413,11 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         }
     }
 
+    /**
+     * @notice Get the character type for a specific token
+     * @param tokenId The token ID to query
+     * @return Character type identifier (0 if renderer not set)
+     */
     function getCharacterType(uint256 tokenId) external view returns (uint8) {
         if (!_exists(tokenId)) revert TokenDoesNotExist();
         IDealersExeRendererSVG svgRenderer = contractRendererSVG;
@@ -355,6 +429,10 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         }
     }
 
+    /**
+     * @notice Check if the renderer distribution has been initialized
+     * @return True if distribution is initialized, false otherwise
+     */
     function isDistributionInitialized() external view returns (bool) {
         IDealersExeRendererSVG svgRenderer = contractRendererSVG;
         if (address(svgRenderer) == address(0)) return false;
@@ -369,49 +447,85 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     //                           ADMIN
     // =============================================================
 
+    /**
+     * @notice Set the DealersExeCore contract address
+     * @param _core Address of the core game contract
+     */
     function setDealersExeCore(address _core) external onlyOwner {
         if (_core == address(0)) revert InvalidAddress();
         dealersExeCore = _core;
         emit DealersExeCoreUpdated(_core);
     }
 
+    /**
+     * @notice Set the SVG renderer contract address
+     * @param newAddress Address of the SVG renderer contract
+     */
     function setContractRendererSVG(address newAddress) external onlyOwner {
         contractRendererSVG = IDealersExeRendererSVG(newAddress);
         emit RendererSVGChanged(newAddress);
         emit BatchMetadataUpdate(1, MAX_SUPPLY);
     }
 
+    /**
+     * @notice Set the HTML renderer contract address
+     * @param newAddress Address of the HTML renderer contract
+     */
     function setContractRendererHTML(address newAddress) external onlyOwner {
         contractRendererHTML = IDealersExeRendererHTML(newAddress);
         emit RendererHTMLChanged(newAddress);
         emit BatchMetadataUpdate(1, MAX_SUPPLY);
     }
 
+    /**
+     * @notice Set the randomness provider contract address
+     * @param newAddress Address of the randomness contract
+     */
     function setRandomness(address newAddress) external onlyOwner {
         if (newAddress == address(0)) revert InvalidAddress();
         randomness = IDERandomness(newAddress);
         emit RandomnessUpdated(newAddress);
     }
 
+    /**
+     * @notice Set the current minting phase status
+     * @param newStatus New mint status (DISABLED, FAMILY, WHITELIST, PUBLIC)
+     */
     function setMintStatus(MintStatus newStatus) external onlyOwner {
         mintStatus = newStatus;
         emit MintStatusChanged(newStatus);
     }
 
+    /**
+     * @notice Set the signer address for signature verification
+     * @param _signer Address authorized to sign mint allowances
+     */
     function setSignerAddress(address _signer) external onlyOwner {
         if (_signer == address(0)) revert InvalidAddress();
         signerAddress = _signer;
     }
 
+    /**
+     * @notice Set the royalty receiver address for EIP-2981
+     * @param _receiver Address to receive royalty payments
+     */
     function setRoyaltyReceiver(address _receiver) external onlyOwner {
         if (_receiver == address(0)) revert InvalidAddress();
         royaltyReceiver = _receiver;
     }
 
+    /**
+     * @notice Emit metadata update event for all tokens
+     */
     function refreshMetadata() external onlyOwner {
         emit BatchMetadataUpdate(1, MAX_SUPPLY);
     }
 
+    /**
+     * @notice Withdraw a specific amount of ETH to a recipient
+     * @param to Recipient address
+     * @param amount Amount of ETH to withdraw in wei
+     */
     function withdrawAmount(address to, uint256 amount) external onlyOwner {
         if (to == address(0)) revert InvalidAddress();
         if (amount > address(this).balance) revert InsufficientBalance();
@@ -419,6 +533,9 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         if (!ok) revert TransferFailed();
     }
 
+    /**
+     * @notice Withdraw all ETH to the contract owner
+     */
     function withdrawAll() external onlyOwner {
         uint256 bal = address(this).balance;
         if (bal == 0) revert InsufficientBalance();
@@ -430,17 +547,40 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     //                            VIEWS
     // =============================================================
 
+    /**
+     * @notice Get the public mint price in ETH
+     * @return Mint price in wei
+     */
     function getPricePublicETH() external pure returns (uint256) { return MINT_PRICE; }
 
+    /**
+     * @notice Get the number of NFTs minted by an account
+     * @param account Address to check
+     * @return Number of NFTs minted
+     */
     function getNumMinted(address account) external view returns (uint256) {
         return mintCount[account];
     }
 
+    /**
+     * @notice Get the random seed for a token
+     * @param tokenId Token ID to query
+     * @return Seed value used for trait generation
+     */
     function getTokenSeed(uint256 tokenId) external view returns (uint256) {
         if (!_exists(tokenId)) revert TokenDoesNotExist();
         return tokenSeeds[tokenId];
     }
 
+    /**
+     * @notice Get the current mint configuration
+     * @return status Current mint phase status
+     * @return price Mint price in wei
+     * @return maxPerWallet Maximum NFTs per wallet
+     * @return currentSupply Current total supply
+     * @return maxSupply Maximum total supply
+     * @return reserveSupply Reserved supply for team
+     */
     function getMintConfig() external view returns (
         MintStatus status,
         uint256 price,
@@ -457,14 +597,28 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         reserveSupply = RESERVE_SUPPLY;
     }
 
+    /**
+     * @notice Get all external contract addresses
+     * @return SVG renderer, HTML renderer, and core contract addresses
+     */
     function getContractAddresses() external view returns (address, address, address) {
         return (address(contractRendererSVG), address(contractRendererHTML), dealersExeCore);
     }
 
+    /**
+     * @notice Check if a signature has already been used for minting
+     * @param signature Signature bytes to check
+     * @return True if signature has been used
+     */
     function isSignatureUsed(bytes calldata signature) external view returns (bool) {
         return usedSignaturesHash[keccak256(signature)];
     }
 
+    /**
+     * @notice Get all token IDs owned by an address
+     * @param owner_ Address to query
+     * @return Array of token IDs owned by the address
+     */
     function tokensOfOwner(address owner_) external view returns (uint256[] memory) {
         uint256 n = balanceOf(owner_);
         if (n == 0) return new uint256[](0);
@@ -477,9 +631,15 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     }
 
     // =============================================================
-    //                        ROYALTIES / INTERFACES
+    //                          ROYALTIES
     // =============================================================
 
+    /**
+     * @notice Get royalty information for a token sale (EIP-2981)
+     * @param salePrice Sale price to calculate royalty from
+     * @return receiver Address to receive royalty payment
+     * @return royaltyAmount Royalty amount in wei
+     */
     function royaltyInfo(uint256 /*tokenId*/, uint256 salePrice)
         external
         view
@@ -490,6 +650,11 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         royaltyAmount = (salePrice * ROYALTY_PERCENTAGE) / 10000;
     }
 
+    /**
+     * @notice Check if contract supports an interface (ERC165)
+     * @param interfaceId Interface identifier to check
+     * @return True if interface is supported
+     */
     function supportsInterface(bytes4 interfaceId)
         public
         view

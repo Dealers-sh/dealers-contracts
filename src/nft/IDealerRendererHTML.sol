@@ -1,7 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+/**
+ * @title IDealerRendererHTML - Interface for HTML Rendering
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
+ * @dev Interface for HTML wrapper generation around dealer SVGs
+ * @author Dealers.Exe Team
+ */
 interface IDealerRendererHTML {
-  // svg rendering
-  function getHTML(string memory svg) external view returns (string memory);
+    // =============================================================
+    //                      VIEW FUNCTIONS
+    // =============================================================
+
+    /// @notice Generate HTML wrapper for an SVG
+    function getHTML(string memory svg) external view returns (string memory);
 }

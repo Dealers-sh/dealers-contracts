@@ -3,7 +3,11 @@ pragma solidity ^0.8.20;
 
 /**
  * @title IDrugRegistry - Interface for Drug Registry
- * @dev Manages global drug definitions, supply tracking, and base values
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
+ * @dev Interface for global drug definitions, supply tracking, and base values
  * @author Dealers.Exe Team
  */
 interface IDrugRegistry {
@@ -19,12 +23,6 @@ interface IDrugRegistry {
 
     /**
      * @dev Drug information structure
-     * @param name Display name of the drug
-     * @param rarity Rarity level (0=Common, 1=Uncommon, 2=Rare, 3=Legendary)
-     * @param baseCashValue Base $CASH value for trading calculations
-     * @param totalSupply Current total circulating supply
-     * @param supplyCap Maximum allowed supply for this drug
-     * @param isActive Whether this drug can currently be obtained
      */
     struct DrugInfo {
         string name;
@@ -79,7 +77,7 @@ interface IDrugRegistry {
     function isValidDrug(uint256 drugId) external view returns (bool);
 
     // =============================================================
-    //                    SUPPLY MANAGEMENT (Authorized)
+    //                    STATE-MODIFYING FUNCTIONS
     // =============================================================
 
     /// @notice Increment drug supply (called when drugs are minted/awarded)
@@ -89,7 +87,7 @@ interface IDrugRegistry {
     function decrementSupply(uint256 drugId, uint256 amount) external;
 
     // =============================================================
-    //                      CONSTANTS
+    //                          CONSTANTS
     // =============================================================
 
     /// @notice Common drug supply cap
@@ -104,8 +102,12 @@ interface IDrugRegistry {
     /// @notice Legendary drug supply cap
     function LEGENDARY_SUPPLY_CAP() external view returns (uint256);
 
-    // Global drug ID constants (initial 3 drugs)
+    /// @notice Weed drug ID
     function DRUG_WEED() external view returns (uint256);
+
+    /// @notice XTC drug ID
     function DRUG_XTC() external view returns (uint256);
+
+    /// @notice Cocaine drug ID
     function DRUG_COCAINE() external view returns (uint256);
 }

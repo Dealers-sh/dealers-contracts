@@ -2,13 +2,16 @@
 pragma solidity ^0.8.20;
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
-import "./IAreaRegistry.sol";
-import "./IDrugRegistry.sol";
+import {IAreaRegistry} from "./IAreaRegistry.sol";
+import {IDrugRegistry} from "./IDrugRegistry.sol";
 
 /**
  * @title DEAreaRegistry - Area and Drug Pricing Registry
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
  * @dev Manages area definitions, drug availability per area, and buy/sell pricing
- *      Supports flexible drug configurations per area (not limited to 3)
  * @author Dealers.Exe Team
  */
 contract DEAreaRegistry is Ownable, IAreaRegistry {
@@ -27,10 +30,10 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
     // =============================================================
 
     /// @notice Area ID => Area Info
-    mapping(uint8 => AreaInfo) private _areas;
+    mapping(uint8 => IAreaRegistry.AreaInfo) private _areas;
 
     /// @notice Area ID => Drug ID => Drug Config
-    mapping(uint8 => mapping(uint256 => AreaDrugConfig)) private _areaDrugs;
+    mapping(uint8 => mapping(uint256 => IAreaRegistry.AreaDrugConfig)) private _areaDrugs;
 
     /// @notice Area ID => Array of drug IDs available in that area
     mapping(uint8 => uint256[]) private _areaDrugIds;
@@ -83,114 +86,11 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
     }
 
     // =============================================================
-    //                        INITIALIZATION
-    // =============================================================
-
-    /**
-     * @notice Create the Safe House area (ID 0)
-     */
-    function _createSafeHouse() private {
-        _areas[SAFE_HOUSE_AREA] = AreaInfo({
-            name: "Safe House",
-            movementFee: 0,
-            minReputation: 0,
-            isActive: true,
-            isSafeHouse: true,
-            isJail: false
-        });
-
-        emit AreaCreated(SAFE_HOUSE_AREA, "Safe House", true, false);
-    }
-
-    /**
-     * @notice Create the Jail area (ID 255)
-     */
-    function _createJail() private {
-        _areas[JAIL_AREA] = AreaInfo({
-            name: "Jail",
-            movementFee: 0.005 ether,  // Bail amount
-            minReputation: 0,
-            isActive: true,
-            isSafeHouse: false,
-            isJail: true
-        });
-
-        emit AreaCreated(JAIL_AREA, "Jail", false, true);
-    }
-
-    /**
-     * @notice Create Manhattan as the first regular area (ID 1)
-     */
-    function _createManhattan() private {
-        _totalAreas = 1;
-
-        _areas[1] = AreaInfo({
-            name: "Manhattan",
-            movementFee: 0.001 ether,
-            minReputation: 0,  // Starting area
-            isActive: true,
-            isSafeHouse: false,
-            isJail: false
-        });
-
-        // Configure drugs for Manhattan with pricing
-        // Weed (ID 1): Common - base value 1
-        _configureAreaDrug(1, 1, 1, 1);      // Buy: 1, Sell: 1
-
-        // XTC (ID 2): Uncommon - base value 10, 20% markup
-        _configureAreaDrug(1, 2, 12, 10);    // Buy: 12, Sell: 10
-
-        // Cocaine (ID 3): Rare - base value 100, 20% markup
-        _configureAreaDrug(1, 3, 120, 100);  // Buy: 120, Sell: 100
-
-        emit AreaCreated(1, "Manhattan", false, false);
-    }
-
-    /**
-     * @notice Internal function to configure a drug for an area
-     * @param areaId The area ID
-     * @param drugId The drug ID
-     * @param buyPrice Buy price in $CASH
-     * @param sellPrice Sell price in $CASH
-     */
-    function _configureAreaDrug(
-        uint8 areaId,
-        uint256 drugId,
-        uint256 buyPrice,
-        uint256 sellPrice
-    ) private {
-        _areaDrugs[areaId][drugId] = AreaDrugConfig({
-            drugId: drugId,
-            buyPrice: buyPrice,
-            sellPrice: sellPrice,
-            isAvailable: true
-        });
-
-        _areaDrugIds[areaId].push(drugId);
-
-        emit AreaDrugConfigured(areaId, drugId, buyPrice, sellPrice);
-    }
-
-    /**
-     * @notice Check if an area ID is valid
-     * @param areaId The area ID to check
-     * @return Whether the area ID is valid
-     */
-    function _isValidAreaId(uint8 areaId) private view returns (bool) {
-        // Safe House (0) and Jail (255) are always valid if active
-        if (areaId == SAFE_HOUSE_AREA || areaId == JAIL_AREA) {
-            return true;
-        }
-        // Regular areas: must be between 1 and _totalAreas
-        return areaId > 0 && areaId <= _totalAreas;
-    }
-
-    // =============================================================
     //                        VIEW FUNCTIONS
     // =============================================================
 
     /// @inheritdoc IAreaRegistry
-    function getAreaInfo(uint8 areaId) external view validArea(areaId) returns (AreaInfo memory) {
+    function getAreaInfo(uint8 areaId) external view validArea(areaId) returns (IAreaRegistry.AreaInfo memory) {
         return _areas[areaId];
     }
 
@@ -236,8 +136,8 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
     // =============================================================
 
     /// @inheritdoc IAreaRegistry
-    function getAreaDrugConfig(uint8 areaId, uint256 drugId) external view validArea(areaId) returns (AreaDrugConfig memory) {
-        AreaDrugConfig memory config = _areaDrugs[areaId][drugId];
+    function getAreaDrugConfig(uint8 areaId, uint256 drugId) external view validArea(areaId) returns (IAreaRegistry.AreaDrugConfig memory) {
+        IAreaRegistry.AreaDrugConfig memory config = _areaDrugs[areaId][drugId];
         if (!config.isAvailable) revert DrugNotInArea();
         return config;
     }
@@ -249,7 +149,7 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
 
     /// @inheritdoc IAreaRegistry
     function getDrugPricing(uint8 areaId, uint256 drugId) external view validArea(areaId) returns (uint256 buyPrice, uint256 sellPrice) {
-        AreaDrugConfig memory config = _areaDrugs[areaId][drugId];
+        IAreaRegistry.AreaDrugConfig memory config = _areaDrugs[areaId][drugId];
         if (!config.isAvailable) revert DrugNotInArea();
         return (config.buyPrice, config.sellPrice);
     }
@@ -294,7 +194,7 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
 
         areaId = _totalAreas;
 
-        _areas[areaId] = AreaInfo({
+        _areas[areaId] = IAreaRegistry.AreaInfo({
             name: name,
             movementFee: movementFee,
             minReputation: minReputation,
@@ -331,7 +231,7 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
         // Check if drug already exists in area
         bool exists = _areaDrugs[areaId][drugId].isAvailable;
 
-        _areaDrugs[areaId][drugId] = AreaDrugConfig({
+        _areaDrugs[areaId][drugId] = IAreaRegistry.AreaDrugConfig({
             drugId: drugId,
             buyPrice: buyPrice,
             sellPrice: sellPrice,
@@ -435,5 +335,79 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
      */
     function setDrugRegistry(address _drugRegistry) external onlyOwner {
         drugRegistry = IDrugRegistry(_drugRegistry);
+    }
+
+    // =============================================================
+    //                   INTERNAL/PRIVATE HELPER FUNCTIONS
+    // =============================================================
+
+    function _createSafeHouse() private {
+        _areas[SAFE_HOUSE_AREA] = IAreaRegistry.AreaInfo({
+            name: "Safe House",
+            movementFee: 0,
+            minReputation: 0,
+            isActive: true,
+            isSafeHouse: true,
+            isJail: false
+        });
+
+        emit AreaCreated(SAFE_HOUSE_AREA, "Safe House", true, false);
+    }
+
+    function _createJail() private {
+        _areas[JAIL_AREA] = IAreaRegistry.AreaInfo({
+            name: "Jail",
+            movementFee: 0.005 ether,
+            minReputation: 0,
+            isActive: true,
+            isSafeHouse: false,
+            isJail: true
+        });
+
+        emit AreaCreated(JAIL_AREA, "Jail", false, true);
+    }
+
+    function _createManhattan() private {
+        _totalAreas = 1;
+
+        _areas[1] = IAreaRegistry.AreaInfo({
+            name: "Manhattan",
+            movementFee: 0.001 ether,
+            minReputation: 0,
+            isActive: true,
+            isSafeHouse: false,
+            isJail: false
+        });
+
+        _configureAreaDrug(1, 1, 1, 1);
+        _configureAreaDrug(1, 2, 12, 10);
+        _configureAreaDrug(1, 3, 120, 100);
+
+        emit AreaCreated(1, "Manhattan", false, false);
+    }
+
+    function _configureAreaDrug(
+        uint8 areaId,
+        uint256 drugId,
+        uint256 buyPrice,
+        uint256 sellPrice
+    ) private {
+        _areaDrugs[areaId][drugId] = IAreaRegistry.AreaDrugConfig({
+            drugId: drugId,
+            buyPrice: buyPrice,
+            sellPrice: sellPrice,
+            isAvailable: true
+        });
+
+        _areaDrugIds[areaId].push(drugId);
+
+        emit AreaDrugConfigured(areaId, drugId, buyPrice, sellPrice);
+    }
+
+    function _isValidAreaId(uint8 areaId) private view returns (bool) {
+        if (areaId == SAFE_HOUSE_AREA || areaId == JAIL_AREA) {
+            return true;
+        }
+        return areaId > 0 && areaId <= _totalAreas;
     }
 }

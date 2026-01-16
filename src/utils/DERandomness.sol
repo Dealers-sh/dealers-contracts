@@ -4,8 +4,13 @@ pragma solidity ^0.8.20;
 import {Ownable} from "solady/src/auth/Ownable.sol";
 
 /**
- * @title DERandomness - Centralized Randomness Provider
+ * @title DERandomness
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
  * @dev Provides synchronous randomness using prevrandao, designed for easy VRF upgrade
+ * @author Dealers.Exe Team
  */
 contract DERandomness is Ownable {
 

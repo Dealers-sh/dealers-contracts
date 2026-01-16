@@ -20,10 +20,9 @@ import "../utils/IDERandomness.sol";
  */
 contract DealersExePVE is ReentrancyGuard, Ownable {
     // =============================================================
-    //                            CONSTANTS
+    //                            ENUMS
     // =============================================================
 
-    // Game choices and types
     enum GameChoice { DEAL, THREATEN, BAIL }   // 0,1,2
     enum GameOutcome { WIN, TIE, LOSS }        // 0,1,2
     enum HustleType { BUY, SELL }              // 0=BUY, 1=SELL
@@ -207,7 +206,14 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice Check if dealer gets arrested and process stake loss
+     * @notice Checks if dealer gets arrested and processes stake loss if so
+     * @param tokenId The dealer token ID
+     * @param rng Random number for jail roll
+     * @param hustleType Whether buying or selling
+     * @param drugId The drug being traded
+     * @param amount The amount of drugs/cash at stake
+     * @param stakeValue The cash value of the stake
+     * @return True if arrested, false otherwise
      */
     function _checkAndProcessArrest(
         uint256 tokenId,
@@ -242,7 +248,15 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice Process hustle game outcome
+     * @notice Processes the hustle game outcome after avoiding arrest
+     * @param tokenId The dealer token ID
+     * @param choice The player's game choice
+     * @param hustleType Whether buying or selling
+     * @param drugId The drug being traded
+     * @param amount The amount of drugs being traded
+     * @param buyPrice The buy price per unit
+     * @param sellPrice The sell price per unit
+     * @param rng Random number for outcome determination
      */
     function _processHustleGame(
         uint256 tokenId,
@@ -288,11 +302,14 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     }
 
     // =============================================================
-    //                        INTERNAL FUNCTIONS
+    //                   INTERNAL/PRIVATE HELPER FUNCTIONS
     // =============================================================
 
     /**
      * @notice Calculates the game outcome based on player and house choices
+     * @param playerChoice The player's choice (0=DEAL, 1=THREATEN, 2=BAIL)
+     * @param houseChoice The house's random choice
+     * @return 0=WIN, 1=TIE, 2=LOSS
      */
     function _calculateGameOutcome(uint8 playerChoice, uint8 houseChoice) internal pure returns (uint8) {
         if (playerChoice == houseChoice) return 1; // TIE
@@ -309,10 +326,18 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice Process BUY hustle outcome
-     * WIN: Keep $CASH + Get drugs + Big rep
-     * TIE: Lose $CASH + Get drugs + Small rep
-     * LOSE: Lose $CASH + No drugs + Lose rep
+     * @notice Processes BUY hustle outcome
+     * @dev WIN: Keep $CASH + Get drugs + Big rep
+     *      TIE: Lose $CASH + Get drugs + Small rep
+     *      LOSE: Lose $CASH + No drugs + Lose rep
+     * @param tokenId The dealer token ID
+     * @param outcome The game outcome (0=WIN, 1=TIE, 2=LOSS)
+     * @param drugId The drug being purchased
+     * @param amount The amount of drugs to buy
+     * @param buyPrice The buy price per unit
+     * @return repChange The reputation change applied
+     * @return cashChange The cash change applied
+     * @return drugChange The drug balance change applied
      */
     function _processBuyOutcome(
         uint256 tokenId,
@@ -363,10 +388,18 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice Process SELL hustle outcome
-     * WIN: Keep drugs + Get $CASH + Big rep
-     * TIE: Lose drugs + Get $CASH + Small rep
-     * LOSE: Lose drugs + No $CASH + Lose rep
+     * @notice Processes SELL hustle outcome
+     * @dev WIN: Keep drugs + Get $CASH + Big rep
+     *      TIE: Lose drugs + Get $CASH + Small rep
+     *      LOSE: Lose drugs + No $CASH + Lose rep
+     * @param tokenId The dealer token ID
+     * @param outcome The game outcome (0=WIN, 1=TIE, 2=LOSS)
+     * @param drugId The drug being sold
+     * @param amount The amount of drugs to sell
+     * @param sellPrice The sell price per unit
+     * @return repChange The reputation change applied
+     * @return cashChange The cash change applied
+     * @return drugChange The drug balance change applied
      */
     function _processSellOutcome(
         uint256 tokenId,
@@ -417,7 +450,12 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice Get drug pricing for an area from AreaRegistry
+     * @notice Gets drug pricing for an area from AreaRegistry
+     * @param areaId The area to check pricing for
+     * @param drugId The drug ID to get pricing for
+     * @return buyPrice The buy price per unit
+     * @return sellPrice The sell price per unit
+     * @return found Whether the drug is available in this area
      */
     function _getDrugPricing(uint8 areaId, uint256 drugId)
         private
@@ -435,7 +473,9 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice Updates game statistics
+     * @notice Updates game statistics after a completed game
+     * @param tokenId The dealer token ID
+     * @param outcome The game outcome (0=WIN, 1=TIE, 2=LOSS)
      */
     function _updateStatistics(uint256 tokenId, uint8 outcome) internal {
         unchecked {

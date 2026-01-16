@@ -3,7 +3,11 @@ pragma solidity ^0.8.20;
 
 /**
  * @title IAreaRegistry - Interface for Area Registry
- * @dev Manages area definitions, drug availability per area, and pricing
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
+ * @dev Interface for area definitions, drug availability per area, and pricing
  * @author Dealers.Exe Team
  */
 interface IAreaRegistry {
@@ -13,10 +17,6 @@ interface IAreaRegistry {
 
     /**
      * @dev Area-specific drug pricing configuration
-     * @param drugId Reference to global drug ID
-     * @param buyPrice $CASH cost to buy in this area
-     * @param sellPrice $CASH received when selling in this area
-     * @param isAvailable Whether this drug is available in this area
      */
     struct AreaDrugConfig {
         uint256 drugId;
@@ -27,12 +27,6 @@ interface IAreaRegistry {
 
     /**
      * @dev Area configuration structure
-     * @param name Display name of the area
-     * @param movementFee Cost in wei to move to this area (also bail for Jail)
-     * @param minReputation Minimum total reputation required to enter
-     * @param isActive Whether the area is accessible to players
-     * @param isSafeHouse Whether this is a safe house (cannot farm, one-way exit)
-     * @param isJail Whether this is jail (random event destination, pay bail to exit)
      */
     struct AreaInfo {
         string name;
@@ -100,7 +94,7 @@ interface IAreaRegistry {
     function getAreaDrugCount(uint8 areaId) external view returns (uint256);
 
     // =============================================================
-    //                      CONSTANTS
+    //                          CONSTANTS
     // =============================================================
 
     /// @notice Safe House area ID (always 0)

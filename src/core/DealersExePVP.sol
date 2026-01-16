@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
-import "./IDealersExeCore.sol";
-import "../utils/IAreaRegistry.sol";
-import "../utils/IERC721Minimal.sol";
-import "../utils/IDERandomness.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IDealersExeCore} from "./IDealersExeCore.sol";
+import {IAreaRegistry} from "../utils/IAreaRegistry.sol";
+import {IERC721Minimal} from "../utils/IERC721Minimal.sol";
+import {IDERandomness} from "../utils/IDERandomness.sol";
 
 /**
  * @title DealersExePVP - Player vs Player Combat Module
@@ -161,9 +161,196 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         _executeBattle(attackerId, defenderId, area);
     }
 
+    // =============================================================
+    //                        VIEW FUNCTIONS
+    // =============================================================
+
     /**
-     * @notice Validate that both dealers are not in jail/safe house and are in the same area
+     * @notice Calculate win chance for an attack
+     * @param attackerId The attacker's token ID
+     * @param defenderId The defender's token ID
+     * @return Win chance percentage (25-75)
      */
+    function calculateWinChance(uint256 attackerId, uint256 defenderId) public view returns (uint256) {
+        (uint8 attackerThreat, ) = core.getDealerStats(attackerId);
+        (, uint8 defenderArmor) = core.getDealerStats(defenderId);
+
+        int256 statModifier = int256(uint256(attackerThreat)) - int256(uint256(defenderArmor));
+        int256 finalChance = int256(BASE_WIN_CHANCE) + statModifier;
+
+        if (finalChance < int256(MIN_WIN_CHANCE)) {
+            return MIN_WIN_CHANCE;
+        }
+        if (finalChance > int256(MAX_WIN_CHANCE)) {
+            return MAX_WIN_CHANCE;
+        }
+
+        return uint256(finalChance);
+    }
+
+    /**
+     * @notice Check if an attack is possible between two dealers
+     * @param attackerId The attacker's token ID
+     * @param defenderId The defender's token ID
+     * @return canFight Whether the attack can proceed
+     * @return reason Error code if canFight is false (0=OK, 1=same dealer, 2=attacker not init, etc.)
+     */
+    function canAttack(uint256 attackerId, uint256 defenderId) external view returns (bool canFight, uint8 reason) {
+        if (attackerId == defenderId) return (false, 1);
+
+        (, , uint8 attackerAttempts, , , bool attackerInit) = core.getDealerData(attackerId);
+        if (!attackerInit) return (false, 2);
+
+        (, , , , , bool defenderInit) = core.getDealerData(defenderId);
+        if (!defenderInit) return (false, 3);
+
+        if (core.isInJail(attackerId)) return (false, 4);
+        if (core.isInSafeHouse(attackerId)) return (false, 5);
+        if (core.isInJail(defenderId)) return (false, 6);
+        if (core.isInSafeHouse(defenderId)) return (false, 7);
+
+        (uint8 attackerArea, , , , , ) = core.getDealerData(attackerId);
+        (uint8 defenderArea, , , , , ) = core.getDealerData(defenderId);
+        if (attackerArea != defenderArea) return (false, 8);
+
+        if (block.timestamp < lastAttackTime[attackerId][defenderId] + ATTACK_COOLDOWN) {
+            return (false, 9);
+        }
+
+        if (attackerAttempts == 0) return (false, 10);
+
+        return (true, 0);
+    }
+
+    /**
+     * @notice Get remaining cooldown time for an attack
+     * @param attackerId The attacker's token ID
+     * @param defenderId The defender's token ID
+     * @return Seconds remaining until attack is allowed (0 if ready)
+     */
+    function getCooldownRemaining(uint256 attackerId, uint256 defenderId) external view returns (uint256) {
+        uint256 lastAttack = lastAttackTime[attackerId][defenderId];
+        uint256 cooldownEnd = lastAttack + ATTACK_COOLDOWN;
+
+        if (block.timestamp >= cooldownEnd) {
+            return 0;
+        }
+
+        return cooldownEnd - block.timestamp;
+    }
+
+    /**
+     * @notice Get PVP statistics for a specific dealer
+     * @param tokenId The dealer's token ID
+     */
+    function getPlayerPVPStats(uint256 tokenId) external view returns (
+        uint256 _attacksWon,
+        uint256 _attacksLost,
+        uint256 _defensesWon,
+        uint256 _defensesLost,
+        uint256 _totalDrugsStolen,
+        uint256 _totalDrugsLost,
+        uint256 _timesArrested
+    ) {
+        return (
+            attacksWon[tokenId],
+            attacksLost[tokenId],
+            defensesWon[tokenId],
+            defensesLost[tokenId],
+            totalDrugsStolen[tokenId],
+            totalDrugsLost[tokenId],
+            timesArrested[tokenId]
+        );
+    }
+
+    /**
+     * @notice Get global PVP statistics
+     */
+    function getGlobalStats() external view returns (
+        uint256 _totalBattles,
+        uint256 _totalArrests
+    ) {
+        return (totalPVPBattles, totalArrestsInPVP);
+    }
+
+    /**
+     * @notice Preview battle stats for UI
+     * @param attackerId The attacker's token ID
+     * @param defenderId The defender's token ID
+     */
+    function previewBattle(uint256 attackerId, uint256 defenderId) external view returns (
+        uint8 attackerThreat,
+        uint8 defenderArmor,
+        uint256 winChance,
+        uint256 potentialDrugSteal
+    ) {
+        (attackerThreat, ) = core.getDealerStats(attackerId);
+        (, defenderArmor) = core.getDealerStats(defenderId);
+        winChance = calculateWinChance(attackerId, defenderId);
+
+        (uint8 defenderArea, , , , , ) = core.getDealerData(defenderId);
+        uint256[] memory drugIds = areaRegistry.getAreaDrugIds(defenderArea);
+
+        for (uint256 i = 0; i < drugIds.length; ) {
+            uint256 drugId = drugIds[i];
+            if (drugId != 0) {
+                uint256 balance = core.getDrugBalance(defenderId, drugId);
+                potentialDrugSteal += (balance * DRUG_STEAL_PERCENT) / 100;
+            }
+            unchecked { ++i; }
+        }
+
+        return (attackerThreat, defenderArmor, winChance, potentialDrugSteal);
+    }
+
+    // =============================================================
+    //                        ADMIN FUNCTIONS
+    // =============================================================
+
+    /**
+     * @notice Updates the core contract address
+     * @param _core New core contract address
+     */
+    function setCore(address _core) external onlyOwner {
+        address old = address(core);
+        core = IDealersExeCore(_core);
+        emit CoreContractUpdated(old, _core);
+    }
+
+    /**
+     * @notice Updates the NFT contract address
+     * @param _nftContract New NFT contract address
+     */
+    function setNFTContract(address _nftContract) external onlyOwner {
+        address old = address(nftContract);
+        nftContract = IERC721Minimal(_nftContract);
+        emit NFTContractUpdated(old, _nftContract);
+    }
+
+    /**
+     * @notice Updates the Area Registry address
+     * @param _areaRegistry New Area Registry address
+     */
+    function setAreaRegistry(address _areaRegistry) external onlyOwner {
+        address old = address(areaRegistry);
+        areaRegistry = IAreaRegistry(_areaRegistry);
+        emit AreaRegistryUpdated(old, _areaRegistry);
+    }
+
+    /**
+     * @notice Updates the Randomness contract address
+     * @param _randomness New Randomness contract address
+     */
+    function setRandomness(address _randomness) external onlyOwner {
+        address old = address(randomness);
+        randomness = IDERandomness(_randomness);
+        emit RandomnessUpdated(old, _randomness);
+    }
+
+    // =============================================================
+    //                     INTERNAL/PRIVATE HELPER FUNCTIONS
+    // =============================================================
+
     function _validateLocationsAndGetArea(uint256 attackerId, uint256 defenderId) private view returns (uint8) {
         if (core.isInJail(attackerId)) revert DealerInJail();
         if (core.isInSafeHouse(attackerId)) revert DealerInSafeHouse();
@@ -177,9 +364,6 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         return attackerArea;
     }
 
-    /**
-     * @notice Execute the battle after validations
-     */
     function _executeBattle(uint256 attackerId, uint256 defenderId, uint8 area) private {
         bytes32 seed = keccak256(abi.encodePacked(attackerId, defenderId, msg.sender, totalPVPBattles));
         uint256 battleRandomness = randomness.getRandomness(seed);
@@ -209,13 +393,6 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         );
     }
 
-    // =============================================================
-    //                        INTERNAL FUNCTIONS
-    // =============================================================
-
-    /**
-     * @notice Check if attacker gets arrested
-     */
     function _checkAndProcessArrest(uint256 attackerId, uint256 rng) private returns (bool) {
         uint8 jailChance = core.getJailChance(attackerId);
         uint8 jailRoll = uint8(rng % 100);
@@ -234,9 +411,6 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         return false;
     }
 
-    /**
-     * @notice Process battle outcome
-     */
     function _processBattleOutcome(
         uint256 attackerId,
         uint256 defenderId,
@@ -276,11 +450,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         return (drugsStolen, attackerRepChange, defenderRepChange);
     }
 
-    /**
-     * @notice Steal drugs from loser to winner using AreaRegistry for drug IDs
-     */
     function _stealDrugs(uint256 winnerId, uint256 loserId, uint8 area) private returns (uint256 totalStolen) {
-        // Get area's drug IDs from AreaRegistry
         uint256[] memory drugIds = areaRegistry.getAreaDrugIds(area);
 
         for (uint256 i = 0; i < drugIds.length; ) {
@@ -310,9 +480,6 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         return totalStolen;
     }
 
-    /**
-     * @notice Update battle statistics
-     */
     function _updateStatistics(
         uint256 attackerId,
         uint256 defenderId,
@@ -334,174 +501,5 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
                 totalDrugsLost[attackerId] += drugsStolen;
             }
         }
-    }
-
-    // =============================================================
-    //                        VIEW FUNCTIONS
-    // =============================================================
-
-    /**
-     * @notice Calculate win chance for an attack
-     */
-    function calculateWinChance(uint256 attackerId, uint256 defenderId) public view returns (uint256) {
-        (uint8 attackerThreat, ) = core.getDealerStats(attackerId);
-        (, uint8 defenderArmor) = core.getDealerStats(defenderId);
-
-        int256 statModifier = int256(uint256(attackerThreat)) - int256(uint256(defenderArmor));
-        int256 finalChance = int256(BASE_WIN_CHANCE) + statModifier;
-
-        if (finalChance < int256(MIN_WIN_CHANCE)) {
-            return MIN_WIN_CHANCE;
-        }
-        if (finalChance > int256(MAX_WIN_CHANCE)) {
-            return MAX_WIN_CHANCE;
-        }
-
-        return uint256(finalChance);
-    }
-
-    /**
-     * @notice Check if an attack is possible
-     */
-    function canAttack(uint256 attackerId, uint256 defenderId) external view returns (bool canFight, uint8 reason) {
-        if (attackerId == defenderId) return (false, 1);
-
-        (, , uint8 attackerAttempts, , , bool attackerInit) = core.getDealerData(attackerId);
-        if (!attackerInit) return (false, 2);
-
-        (, , , , , bool defenderInit) = core.getDealerData(defenderId);
-        if (!defenderInit) return (false, 3);
-
-        if (core.isInJail(attackerId)) return (false, 4);
-        if (core.isInSafeHouse(attackerId)) return (false, 5);
-        if (core.isInJail(defenderId)) return (false, 6);
-        if (core.isInSafeHouse(defenderId)) return (false, 7);
-
-        (uint8 attackerArea, , , , , ) = core.getDealerData(attackerId);
-        (uint8 defenderArea, , , , , ) = core.getDealerData(defenderId);
-        if (attackerArea != defenderArea) return (false, 8);
-
-        if (block.timestamp < lastAttackTime[attackerId][defenderId] + ATTACK_COOLDOWN) {
-            return (false, 9);
-        }
-
-        if (attackerAttempts == 0) return (false, 10);
-
-        return (true, 0);
-    }
-
-    /**
-     * @notice Get remaining cooldown time for an attack
-     */
-    function getCooldownRemaining(uint256 attackerId, uint256 defenderId) external view returns (uint256) {
-        uint256 lastAttack = lastAttackTime[attackerId][defenderId];
-        uint256 cooldownEnd = lastAttack + ATTACK_COOLDOWN;
-
-        if (block.timestamp >= cooldownEnd) {
-            return 0;
-        }
-
-        return cooldownEnd - block.timestamp;
-    }
-
-    /**
-     * @notice Get PVP statistics for a specific dealer
-     */
-    function getPlayerPVPStats(uint256 tokenId) external view returns (
-        uint256 _attacksWon,
-        uint256 _attacksLost,
-        uint256 _defensesWon,
-        uint256 _defensesLost,
-        uint256 _totalDrugsStolen,
-        uint256 _totalDrugsLost,
-        uint256 _timesArrested
-    ) {
-        return (
-            attacksWon[tokenId],
-            attacksLost[tokenId],
-            defensesWon[tokenId],
-            defensesLost[tokenId],
-            totalDrugsStolen[tokenId],
-            totalDrugsLost[tokenId],
-            timesArrested[tokenId]
-        );
-    }
-
-    /**
-     * @notice Get global PVP statistics
-     */
-    function getGlobalStats() external view returns (
-        uint256 _totalBattles,
-        uint256 _totalArrests
-    ) {
-        return (totalPVPBattles, totalArrestsInPVP);
-    }
-
-    /**
-     * @notice Preview battle stats for UI
-     */
-    function previewBattle(uint256 attackerId, uint256 defenderId) external view returns (
-        uint8 attackerThreat,
-        uint8 defenderArmor,
-        uint256 winChance,
-        uint256 potentialDrugSteal
-    ) {
-        (attackerThreat, ) = core.getDealerStats(attackerId);
-        (, defenderArmor) = core.getDealerStats(defenderId);
-        winChance = calculateWinChance(attackerId, defenderId);
-
-        (uint8 defenderArea, , , , , ) = core.getDealerData(defenderId);
-        uint256[] memory drugIds = areaRegistry.getAreaDrugIds(defenderArea);
-
-        for (uint256 i = 0; i < drugIds.length; ) {
-            uint256 drugId = drugIds[i];
-            if (drugId != 0) {
-                uint256 balance = core.getDrugBalance(defenderId, drugId);
-                potentialDrugSteal += (balance * DRUG_STEAL_PERCENT) / 100;
-            }
-            unchecked { ++i; }
-        }
-
-        return (attackerThreat, defenderArmor, winChance, potentialDrugSteal);
-    }
-
-    // =============================================================
-    //                        ADMIN FUNCTIONS
-    // =============================================================
-
-    /**
-     * @notice Updates the core contract address
-     */
-    function setCore(address _core) external onlyOwner {
-        address old = address(core);
-        core = IDealersExeCore(_core);
-        emit CoreContractUpdated(old, _core);
-    }
-
-    /**
-     * @notice Updates the NFT contract address
-     */
-    function setNFTContract(address _nftContract) external onlyOwner {
-        address old = address(nftContract);
-        nftContract = IERC721Minimal(_nftContract);
-        emit NFTContractUpdated(old, _nftContract);
-    }
-
-    /**
-     * @notice Updates the Area Registry address
-     */
-    function setAreaRegistry(address _areaRegistry) external onlyOwner {
-        address old = address(areaRegistry);
-        areaRegistry = IAreaRegistry(_areaRegistry);
-        emit AreaRegistryUpdated(old, _areaRegistry);
-    }
-
-    /**
-     * @notice Updates the Randomness contract address
-     */
-    function setRandomness(address _randomness) external onlyOwner {
-        address old = address(randomness);
-        randomness = IDERandomness(_randomness);
-        emit RandomnessUpdated(old, _randomness);
     }
 }

@@ -2,12 +2,15 @@
 pragma solidity ^0.8.20;
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
-import "./IDrugRegistry.sol";
+import {IDrugRegistry} from "./IDrugRegistry.sol";
 
 /**
  * @title DEDrugRegistry - Global Drug Registry
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
  * @dev Manages all drug definitions, supply tracking, and base values
- *      Designed to support 15+ drug types with different rarities
  * @author Dealers.Exe Team
  */
 contract DEDrugRegistry is Ownable, IDrugRegistry {
@@ -86,75 +89,17 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
     }
 
     // =============================================================
-    //                        INITIALIZATION
-    // =============================================================
-
-    /**
-     * @notice Create the initial 3 drugs
-     * @dev Called during construction
-     */
-    function _createInitialDrugs() private {
-        // Drug 1: Weed - Common, baseCashValue: 1
-        _createDrug("Weed", DrugRarity.COMMON, 1);
-
-        // Drug 2: XTC - Uncommon, baseCashValue: 10
-        _createDrug("XTC", DrugRarity.UNCOMMON, 10);
-
-        // Drug 3: Cocaine - Rare, baseCashValue: 100
-        _createDrug("Cocaine", DrugRarity.RARE, 100);
-    }
-
-    /**
-     * @notice Internal function to create a drug
-     * @param name Drug display name
-     * @param rarity Drug rarity tier
-     * @param baseCashValue Base $CASH value for trading
-     */
-    function _createDrug(
-        string memory name,
-        DrugRarity rarity,
-        uint256 baseCashValue
-    ) private {
-        if (bytes(name).length > 32) revert DrugNameTooLong();
-        if (baseCashValue == 0) revert InvalidBaseCashValue();
-
-        uint256 supplyCap = _getSupplyCapForRarity(rarity);
-
-        unchecked {
-            ++_totalDrugs;
-        }
-
-        uint256 drugId = _totalDrugs;
-
-        _drugs[drugId] = DrugInfo({
-            name: name,
-            rarity: rarity,
-            baseCashValue: baseCashValue,
-            totalSupply: 0,
-            supplyCap: supplyCap,
-            isActive: true
-        });
-
-        _drugIds.push(drugId);
-
-        emit DrugCreated(drugId, name, rarity, baseCashValue);
-    }
-
-    /**
-     * @notice Get supply cap based on rarity
-     * @param rarity The drug rarity
-     * @return The supply cap for that rarity
-     */
-    function _getSupplyCapForRarity(DrugRarity rarity) private pure returns (uint256) {
-        if (rarity == DrugRarity.COMMON) return COMMON_SUPPLY_CAP;
-        if (rarity == DrugRarity.UNCOMMON) return UNCOMMON_SUPPLY_CAP;
-        if (rarity == DrugRarity.RARE) return RARE_SUPPLY_CAP;
-        return LEGENDARY_SUPPLY_CAP;
-    }
-
-    // =============================================================
     //                        VIEW FUNCTIONS
     // =============================================================
+
+    /**
+     * @notice Check if a contract is authorized to modify supply
+     * @param contractAddress The contract to check
+     * @return Whether the contract is authorized
+     */
+    function isAuthorized(address contractAddress) external view returns (bool) {
+        return authorizedContracts[contractAddress] || contractAddress == owner();
+    }
 
     /// @inheritdoc IDrugRegistry
     function getDrugInfo(uint256 drugId) external view validDrug(drugId) returns (DrugInfo memory) {
@@ -201,22 +146,30 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
     function getDrugsByRarity(DrugRarity rarity) external view returns (uint256[] memory) {
         // First pass: count matching drugs
         uint256 count = 0;
-        for (uint256 i = 0; i < _drugIds.length; ) {
+        for (uint256 i = 0; i < _drugIds.length;) {
             if (_drugs[_drugIds[i]].rarity == rarity && _drugs[_drugIds[i]].isActive) {
-                unchecked { ++count; }
+                unchecked {
+                    ++count;
+                }
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         // Second pass: populate array
         uint256[] memory result = new uint256[](count);
         uint256 index = 0;
-        for (uint256 i = 0; i < _drugIds.length; ) {
+        for (uint256 i = 0; i < _drugIds.length;) {
             if (_drugs[_drugIds[i]].rarity == rarity && _drugs[_drugIds[i]].isActive) {
                 result[index] = _drugIds[i];
-                unchecked { ++index; }
+                unchecked {
+                    ++index;
+                }
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         return result;
@@ -269,11 +222,11 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
      * @param baseCashValue Base $CASH value for trading
      * @return drugId The ID of the newly created drug
      */
-    function createDrug(
-        string calldata name,
-        DrugRarity rarity,
-        uint256 baseCashValue
-    ) external onlyOwner returns (uint256 drugId) {
+    function createDrug(string calldata name, DrugRarity rarity, uint256 baseCashValue)
+        external
+        onlyOwner
+        returns (uint256 drugId)
+    {
         _createDrug(name, rarity, baseCashValue);
         return _totalDrugs;
     }
@@ -323,12 +276,60 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
         authorizedContracts[contractAddress] = authorized;
     }
 
+    // =============================================================
+    //                    INTERNAL HELPER FUNCTIONS
+    // =============================================================
+
     /**
-     * @notice Check if a contract is authorized
-     * @param contractAddress The contract to check
-     * @return Whether the contract is authorized
+     * @dev Create the initial 3 drugs during construction
      */
-    function isAuthorized(address contractAddress) external view returns (bool) {
-        return authorizedContracts[contractAddress] || contractAddress == owner();
+    function _createInitialDrugs() private {
+        _createDrug("Weed", DrugRarity.COMMON, 1);
+        _createDrug("XTC", DrugRarity.UNCOMMON, 10);
+        _createDrug("Cocaine", DrugRarity.RARE, 100);
+    }
+
+    /**
+     * @dev Internal function to create a drug
+     * @param name Drug display name
+     * @param rarity Drug rarity tier
+     * @param baseCashValue Base $CASH value for trading
+     */
+    function _createDrug(string memory name, DrugRarity rarity, uint256 baseCashValue) private {
+        if (bytes(name).length > 32) revert DrugNameTooLong();
+        if (baseCashValue == 0) revert InvalidBaseCashValue();
+
+        uint256 supplyCap = _getSupplyCapForRarity(rarity);
+
+        unchecked {
+            ++_totalDrugs;
+        }
+
+        uint256 drugId = _totalDrugs;
+
+        _drugs[drugId] = DrugInfo({
+            name: name,
+            rarity: rarity,
+            baseCashValue: baseCashValue,
+            totalSupply: 0,
+            supplyCap: supplyCap,
+            isActive: true
+        });
+
+        _drugIds.push(drugId);
+
+        emit DrugCreated(drugId, name, rarity, baseCashValue);
+    }
+
+    /**
+     * @dev Get supply cap based on rarity tier
+     * @param rarity The drug rarity
+     * @return The supply cap for that rarity
+     */
+    function _getSupplyCapForRarity(DrugRarity rarity) private pure returns (uint256) {
+        if (rarity == DrugRarity.COMMON) return COMMON_SUPPLY_CAP;
+        if (rarity == DrugRarity.UNCOMMON) return UNCOMMON_SUPPLY_CAP;
+        if (rarity == DrugRarity.RARE) return RARE_SUPPLY_CAP;
+        return LEGENDARY_SUPPLY_CAP;
     }
 }

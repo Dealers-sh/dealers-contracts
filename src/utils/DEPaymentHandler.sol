@@ -5,11 +5,14 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 
 /**
- * @title DEPaymentHandler - ETH Management and Fee Distribution
+ * @title DEPaymentHandler
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
  * @dev Handles all monetary transactions and fee splitting for the game ecosystem
- * Abstract Chain Compatible - Uses .call() instead of .transfer()
+ * @author Dealers.Exe Team
  */
-
 contract DEPaymentHandler is ReentrancyGuard, Ownable {
 
     // =============================================================
