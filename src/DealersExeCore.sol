@@ -5,15 +5,9 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./IDrugRegistry.sol";
 import "./IAreaRegistry.sol";
-
-interface IERC721Minimal {
-    function ownerOf(uint256 tokenId) external view returns (address);
-}
-
-interface IDEPaymentHandler {
-    function processGameFee(uint256 amount) external payable;
-    function processMarketplaceFee(uint256 amount) external payable;
-}
+import "./IERC721Minimal.sol";
+import "./IDEPaymentHandler.sol";
+import "./IDERandomness.sol";
 
 /**
  * @title DealersExeCore - Game State Management Hub
@@ -131,6 +125,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     IDEPaymentHandler public paymentHandler;
     IDrugRegistry public drugRegistry;
     IAreaRegistry public areaRegistry;
+    IDERandomness public randomness;
 
     // =============================================================
     //                            EVENTS
@@ -159,6 +154,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     event PaymentHandlerUpdated(address indexed newAddress);
     event DrugRegistryUpdated(address indexed newAddress);
     event AreaRegistryUpdated(address indexed newAddress);
+    event RandomnessUpdated(address indexed newAddress);
 
     event CashUpdated(uint256 indexed tokenId, uint256 newBalance, int256 change);
     event CashPurchased(uint256 indexed tokenId, uint256 amount, uint256 ethPaid);
@@ -721,12 +717,8 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
         unchecked { d.dailyAttemptsRemaining--; }
 
-        uint256 roll = uint256(keccak256(abi.encodePacked(
-            block.prevrandao,
-            block.timestamp,
-            tokenId,
-            "WANTED_POSTER"
-        ))) % 100;
+        bytes32 seed = keccak256(abi.encodePacked(tokenId, "WANTED_POSTER"));
+        uint256 roll = randomness.getRandomness(seed) % 100;
 
         if (roll < WANTED_POSTER_SUCCESS_CHANCE) {
             d.heatLevel--;
@@ -1021,6 +1013,15 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         if (_areaRegistry == address(0)) revert InvalidAddress();
         areaRegistry = IAreaRegistry(_areaRegistry);
         emit AreaRegistryUpdated(_areaRegistry);
+    }
+
+    /**
+     * @notice Set the Randomness contract reference
+     */
+    function setRandomness(address _randomness) external onlyOwner {
+        if (_randomness == address(0)) revert InvalidAddress();
+        randomness = IDERandomness(_randomness);
+        emit RandomnessUpdated(_randomness);
     }
 
     // =============================================================

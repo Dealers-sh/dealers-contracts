@@ -4,10 +4,8 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import "../IDealersExeCore.sol";
-
-interface IERC721Minimal {
-    function ownerOf(uint256 tokenId) external view returns (address);
-}
+import "../IERC721Minimal.sol";
+import "../IDERandomness.sol";
 
 /**
  * @title DealersExeHeist - Heist Lottery Module
@@ -96,6 +94,7 @@ contract DealersExeHeist is ReentrancyGuard, Ownable {
     // External contract references
     IDealersExeCore public dealersExeCore;
     IERC721Minimal public dealersExeNFT;
+    IDERandomness public randomness;
 
     // Heist rounds
     mapping(uint256 => HeistRound) public heists;              // roundId => HeistRound
@@ -156,6 +155,7 @@ contract DealersExeHeist is ReentrancyGuard, Ownable {
 
     event CoreContractUpdated(address indexed oldCore, address indexed newCore);
     event NFTContractUpdated(address indexed oldNFT, address indexed newNFT);
+    event RandomnessUpdated(address indexed oldRandomness, address indexed newRandomness);
 
     // =============================================================
     //                            ERRORS
@@ -200,7 +200,11 @@ contract DealersExeHeist is ReentrancyGuard, Ownable {
     // =============================================================
 
     modifier contractsSet() {
-        if (address(dealersExeCore) == address(0) || address(dealersExeNFT) == address(0)) {
+        if (
+            address(dealersExeCore) == address(0) ||
+            address(dealersExeNFT) == address(0) ||
+            address(randomness) == address(0)
+        ) {
             revert ContractNotSet();
         }
         _;
@@ -272,9 +276,9 @@ contract DealersExeHeist is ReentrancyGuard, Ownable {
 
     /**
      * @notice Draw the winner (after draw delay)
-     * @dev Uses prevrandao for randomness (same pattern as PVE/PVP)
+     * @dev Uses centralized randomness provider
      */
-    function drawWinner() external onlyOwner nonReentrant {
+    function drawWinner() external onlyOwner nonReentrant contractsSet {
         HeistRound storage heist = heists[currentRoundId];
 
         if (heist.status != HeistStatus.CLOSED) revert HeistNotClosed();
@@ -283,14 +287,9 @@ contract DealersExeHeist is ReentrancyGuard, Ownable {
 
         heist.status = HeistStatus.DRAWING;
 
-        // Generate random winner index using prevrandao
-        uint256 winnerIndex = uint256(keccak256(abi.encodePacked(
-            block.prevrandao,
-            block.timestamp,
-            heist.prizePool,
-            heist.entryCount,
-            currentRoundId
-        ))) % roundEntries[currentRoundId].length;
+        // Generate random winner index using centralized randomness
+        bytes32 seed = keccak256(abi.encodePacked(heist.prizePool, heist.entryCount, currentRoundId));
+        uint256 winnerIndex = randomness.getRandomness(seed) % roundEntries[currentRoundId].length;
 
         EntryData memory winner = roundEntries[currentRoundId][winnerIndex];
 
@@ -404,13 +403,8 @@ contract DealersExeHeist is ReentrancyGuard, Ownable {
 
         // Check if arrested (heat level % chance)
         uint8 jailChance = dealersExeCore.getJailChance(dealerId);
-        uint256 jailRoll = uint256(keccak256(abi.encodePacked(
-            block.prevrandao,
-            block.timestamp,
-            dealerId,
-            currentRoundId,
-            "HEIST_JAIL"
-        ))) % 100;
+        bytes32 jailSeed = keccak256(abi.encodePacked(dealerId, currentRoundId, "HEIST_JAIL"));
+        uint256 jailRoll = randomness.getRandomness(jailSeed) % 100;
 
         if (jailRoll < jailChance) {
             dealersExeCore.sendToJail(dealerId);
@@ -517,14 +511,8 @@ contract DealersExeHeist is ReentrancyGuard, Ownable {
 
             // Check if arrested
             uint8 jailChance = dealersExeCore.getJailChance(dealerId);
-            uint256 jailRoll = uint256(keccak256(abi.encodePacked(
-                block.prevrandao,
-                block.timestamp,
-                dealerId,
-                currentRoundId,
-                i,
-                "HEIST_JAIL_BATCH"
-            ))) % 100;
+            bytes32 jailSeed = keccak256(abi.encodePacked(dealerId, currentRoundId, i, "HEIST_JAIL_BATCH"));
+            uint256 jailRoll = randomness.getRandomness(jailSeed) % 100;
 
             if (jailRoll < jailChance) {
                 dealersExeCore.sendToJail(dealerId);
@@ -737,6 +725,17 @@ contract DealersExeHeist is ReentrancyGuard, Ownable {
         address old = address(dealersExeNFT);
         dealersExeNFT = IERC721Minimal(_dealersExeNFT);
         emit NFTContractUpdated(old, _dealersExeNFT);
+    }
+
+    /**
+     * @notice Updates the Randomness contract address
+     * @param _randomness The new Randomness contract address
+     */
+    function setRandomness(address _randomness) external onlyOwner {
+        if (_randomness == address(0)) revert InvalidAddress();
+        address old = address(randomness);
+        randomness = IDERandomness(_randomness);
+        emit RandomnessUpdated(old, _randomness);
     }
 
     /**

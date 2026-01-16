@@ -5,10 +5,8 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import "./IDealersExeCore.sol";
 import "./IAreaRegistry.sol";
-
-interface IERC721Minimal {
-    function ownerOf(uint256 tokenId) external view returns (address);
-}
+import "./IERC721Minimal.sol";
+import "./IDERandomness.sol";
 
 /**
  * @title DealersExePVE - Simplified Player vs Environment Game Module
@@ -33,6 +31,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     IDealersExeCore public dealersExeCore;
     IERC721Minimal public dealersExeNFT;
     IAreaRegistry public areaRegistry;
+    IDERandomness public randomness;
 
     // Statistics
     mapping(uint256 => uint256) public playerGamesPlayed;   // tokenId => total games
@@ -68,6 +67,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     event CoreContractUpdated(address indexed oldCore, address indexed newCore);
     event NFTContractUpdated(address indexed oldNFT, address indexed newNFT);
     event AreaRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
+    event RandomnessUpdated(address indexed oldRandomness, address indexed newRandomness);
 
     // =============================================================
     //                            ERRORS
@@ -111,7 +111,8 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         if (
             address(dealersExeCore) == address(0) ||
             address(dealersExeNFT) == address(0) ||
-            address(areaRegistry) == address(0)
+            address(areaRegistry) == address(0) ||
+            address(randomness) == address(0)
         ) {
             revert ContractNotSet();
         }
@@ -189,28 +190,16 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         dealersExeCore.incrementHeatLevel(tokenId);
 
         // 7. Generate randomness
-        uint256 randomness = _generateRandomness(tokenId);
+        bytes32 seed = keccak256(abi.encodePacked(tokenId, msg.sender, totalGamesPlayed));
+        uint256 gameRandomness = randomness.getRandomness(seed);
 
         // 8. Check jail - if arrested, lose stake
-        if (_checkAndProcessArrest(tokenId, randomness, hustleType, drugId, amount, stakeValue)) {
+        if (_checkAndProcessArrest(tokenId, gameRandomness, hustleType, drugId, amount, stakeValue)) {
             return;
         }
 
         // 9. Process game outcome
-        _processHustleGame(tokenId, choice, hustleType, drugId, amount, buyPrice, sellPrice, randomness);
-    }
-
-    /**
-     * @notice Generate randomness for game
-     */
-    function _generateRandomness(uint256 tokenId) private view returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(
-            block.prevrandao,
-            block.timestamp,
-            tokenId,
-            msg.sender,
-            totalGamesPlayed
-        )));
+        _processHustleGame(tokenId, choice, hustleType, drugId, amount, buyPrice, sellPrice, gameRandomness);
     }
 
     /**
@@ -218,14 +207,14 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
      */
     function _checkAndProcessArrest(
         uint256 tokenId,
-        uint256 randomness,
+        uint256 rng,
         HustleType hustleType,
         uint256 drugId,
         uint256 amount,
         uint256 stakeValue
     ) private returns (bool) {
         uint8 jailChance = dealersExeCore.getJailChance(tokenId);
-        uint8 jailRoll = uint8(randomness % 100);
+        uint8 jailRoll = uint8(rng % 100);
 
         if (jailRoll < jailChance) {
             // Arrested! Lose stake
@@ -259,10 +248,10 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         uint256 amount,
         uint256 buyPrice,
         uint256 sellPrice,
-        uint256 randomness
+        uint256 rng
     ) private {
-        uint256 gameRandomness = uint256(keccak256(abi.encodePacked(randomness, "GAME")));
-        uint8 houseChoice = uint8(gameRandomness % 3);
+        uint256 gameRng = uint256(keccak256(abi.encodePacked(rng, "GAME")));
+        uint8 houseChoice = uint8(gameRng % 3);
         uint8 outcome = _calculateGameOutcome(choice, houseChoice);
 
         int256 repChange;
@@ -553,5 +542,14 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         address old = address(areaRegistry);
         areaRegistry = IAreaRegistry(_areaRegistry);
         emit AreaRegistryUpdated(old, _areaRegistry);
+    }
+
+    /**
+     * @notice Updates the Randomness contract address
+     */
+    function setRandomness(address _randomness) external onlyOwner {
+        address old = address(randomness);
+        randomness = IDERandomness(_randomness);
+        emit RandomnessUpdated(old, _randomness);
     }
 }

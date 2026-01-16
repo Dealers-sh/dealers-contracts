@@ -1,0 +1,201 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "forge-std/Test.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+
+import "../../src/DealersExeCore.sol";
+import "../../src/DealersExeNFT.sol";
+import "../../src/DealersExePVE.sol";
+import "../../src/DealersExePVP.sol";
+import "../../src/DealersExeBoosts.sol";
+import "../../src/DEPaymentHandler.sol";
+import "../../src/DealersExeDrugRegistry.sol";
+import "../../src/DealersExeAreaRegistry.sol";
+import "../../src/DERandomness.sol";
+
+abstract contract BaseTest is Test, IERC721Receiver {
+    DealersExeDrugRegistry public drugRegistry;
+    DealersExeAreaRegistry public areaRegistry;
+    DEPaymentHandler public paymentHandler;
+    DERandomness public randomness;
+    DealersExeCore public core;
+    DealersExeNFT public nft;
+    DealersExePVE public pve;
+    DealersExePVP public pvp;
+    DealersExeBoosts public boosts;
+
+    address public owner;
+    address public player1;
+    address public player2;
+    address public devWallet;
+    address public bankVault;
+    address public signer;
+    uint256 public signerPrivateKey;
+
+    uint256 public constant PLAYER_STARTING_BALANCE = 100 ether;
+
+    function setUp() public virtual {
+        _setupAccounts();
+        _deployContracts();
+        _setupAuthorizations();
+        _fundPlayers();
+    }
+
+    function _setupAccounts() internal {
+        owner = address(this);
+        player1 = makeAddr("player1");
+        player2 = makeAddr("player2");
+        devWallet = makeAddr("devWallet");
+        bankVault = makeAddr("bankVault");
+
+        signerPrivateKey = 0xA11CE;
+        signer = vm.addr(signerPrivateKey);
+    }
+
+    function _deployContracts() internal {
+        vm.startPrank(owner);
+
+        drugRegistry = new DealersExeDrugRegistry();
+
+        areaRegistry = new DealersExeAreaRegistry(address(drugRegistry));
+
+        paymentHandler = new DEPaymentHandler(devWallet, bankVault);
+
+        randomness = new DERandomness();
+
+        core = new DealersExeCore();
+
+        nft = new DealersExeNFT(signer, devWallet);
+
+        pve = new DealersExePVE(address(core), address(nft), address(areaRegistry));
+
+        pvp = new DealersExePVP(address(core), address(nft), address(areaRegistry));
+
+        boosts = new DealersExeBoosts(address(core), address(nft), address(paymentHandler));
+
+        core.setDrugRegistry(address(drugRegistry));
+        core.setAreaRegistry(address(areaRegistry));
+        core.setNFTContract(address(nft));
+        core.setPaymentHandler(address(paymentHandler));
+        core.setRandomness(address(randomness));
+
+        nft.setDealersExeCore(address(core));
+        nft.setRandomness(address(randomness));
+
+        pve.setRandomness(address(randomness));
+        pvp.setRandomness(address(randomness));
+
+        vm.stopPrank();
+    }
+
+    function _setupAuthorizations() internal {
+        vm.startPrank(owner);
+
+        core.authorizeContract(address(nft), true);
+        core.authorizeContract(address(pve), true);
+        core.authorizeContract(address(pvp), true);
+        core.authorizeContract(address(boosts), true);
+
+        drugRegistry.authorizeContract(address(core), true);
+
+        paymentHandler.authorizeContract(address(core), true);
+        paymentHandler.authorizeContract(address(pve), true);
+        paymentHandler.authorizeContract(address(pvp), true);
+        paymentHandler.authorizeContract(address(boosts), true);
+
+        randomness.authorizeResolver(address(core), true);
+        randomness.authorizeResolver(address(nft), true);
+        randomness.authorizeResolver(address(pve), true);
+        randomness.authorizeResolver(address(pvp), true);
+
+        _setupReputationTiers();
+
+        vm.stopPrank();
+    }
+
+    function _setupReputationTiers() internal {
+        DealersExeCore.ReputationTier[] memory tiers = new DealersExeCore.ReputationTier[](5);
+
+        tiers[0] = DealersExeCore.ReputationTier({
+            minReputation: 0,
+            winBonus: 5,
+            tieBonus: 2,
+            lossPenalty: -3,
+            tierName: "Street Rat",
+            canHeist: false,
+            pvpRange: 50
+        });
+
+        tiers[1] = DealersExeCore.ReputationTier({
+            minReputation: 50,
+            winBonus: 8,
+            tieBonus: 3,
+            lossPenalty: -4,
+            tierName: "Corner Boy",
+            canHeist: false,
+            pvpRange: 75
+        });
+
+        tiers[2] = DealersExeCore.ReputationTier({
+            minReputation: 150,
+            winBonus: 12,
+            tieBonus: 5,
+            lossPenalty: -5,
+            tierName: "Hustler",
+            canHeist: true,
+            pvpRange: 100
+        });
+
+        tiers[3] = DealersExeCore.ReputationTier({
+            minReputation: 400,
+            winBonus: 18,
+            tieBonus: 7,
+            lossPenalty: -6,
+            tierName: "Shot Caller",
+            canHeist: true,
+            pvpRange: 150
+        });
+
+        tiers[4] = DealersExeCore.ReputationTier({
+            minReputation: 800,
+            winBonus: 25,
+            tieBonus: 10,
+            lossPenalty: -8,
+            tierName: "Kingpin",
+            canHeist: true,
+            pvpRange: 200
+        });
+
+        core.setReputationTiers(tiers);
+    }
+
+    function _fundPlayers() internal {
+        vm.deal(player1, PLAYER_STARTING_BALANCE);
+        vm.deal(player2, PLAYER_STARTING_BALANCE);
+    }
+
+    function _mintAndInitialize(address to) internal returns (uint256 tokenId) {
+        vm.prank(owner);
+        nft.reserveTo(1, to);
+        tokenId = nft.currentTokenId() - 1;
+    }
+
+    function _moveOutOfSafeHouse(uint256 tokenId) internal {
+        uint8 manhattanArea = 1;
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
+        core.moveToArea(tokenId, manhattanArea);
+        vm.prank(owner);
+        core.authorizeContract(address(this), false);
+    }
+
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external pure override returns (bytes4) {
+        return IERC721Receiver.onERC721Received.selector;
+    }
+}

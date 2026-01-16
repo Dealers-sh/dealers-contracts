@@ -14,19 +14,8 @@ import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {LibString} from "solady/src/utils/LibString.sol";
 import {Base64} from "solady/src/utils/Base64.sol";
-
-interface IDealersExeCore {
-    function initializeDealer(uint256 tokenId) external;
-    function getDealerData(uint256 tokenId) external view returns (
-        uint8 currentArea,
-        uint256 reputation,
-        uint8 dailyAttemptsRemaining,
-        uint8 heatLevel,
-        uint32 lastPlayTimestamp,
-        bool isInitialized
-    );
-    function getReputationTitle(uint256 reputation) external view returns (string memory);
-}
+import "./IDealersExeCore.sol";
+import "./IDERandomness.sol";
 
 interface IDealersExeRendererSVG {
     function getSVG(uint256 tokenId, uint256 seed) external view returns (string memory);
@@ -74,6 +63,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
 
     IDealersExeRendererSVG  public contractRendererSVG;
     IDealersExeRendererHTML public contractRendererHTML;
+    IDERandomness public randomness;
 
     // -------- Events
     event MintStatusChanged(MintStatus newStatus);
@@ -83,6 +73,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     event DealersExeCoreUpdated(address indexed newCore);
     event BatchMetadataUpdate(uint256 _fromTokenId, uint256 _toTokenId);
     event DistributionInitialized(uint256 seed);
+    event RandomnessUpdated(address indexed newAddress);
 
     // -------- Errors
     error InvalidMint();
@@ -209,17 +200,24 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
 
     function _mintDealer(address to, uint256 nftAmount) private {
         address core = dealersExeCore; // cache
+        IDERandomness rng = randomness; // cache
         uint256 id = currentTokenId;
 
         for (uint256 i; i < nftAmount; ) {
             uint256 tokenId = id;
 
-            // per-token seed (varied by tokenId)
-            tokenSeeds[tokenId] = uint256(
-                keccak256(
-                    abi.encodePacked(tokenId, address(this), block.timestamp, block.prevrandao)
-                )
-            );
+            // per-token seed using centralized randomness if available
+            if (address(rng) != address(0)) {
+                bytes32 seed = keccak256(abi.encodePacked(tokenId, address(this)));
+                tokenSeeds[tokenId] = rng.getRandomness(seed);
+            } else {
+                // Fallback for initial deploy before randomness is set
+                tokenSeeds[tokenId] = uint256(
+                    keccak256(
+                        abi.encodePacked(tokenId, address(this), block.timestamp, block.prevrandao)
+                    )
+                );
+            }
 
             _safeMint(to, tokenId);
             unchecked { ++id; ++i; }
@@ -387,6 +385,12 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         contractRendererHTML = IDealersExeRendererHTML(newAddress);
         emit RendererHTMLChanged(newAddress);
         emit BatchMetadataUpdate(1, MAX_SUPPLY);
+    }
+
+    function setRandomness(address newAddress) external onlyOwner {
+        if (newAddress == address(0)) revert InvalidAddress();
+        randomness = IDERandomness(newAddress);
+        emit RandomnessUpdated(newAddress);
     }
 
     function setMintStatus(MintStatus newStatus) external onlyOwner {

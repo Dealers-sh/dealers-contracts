@@ -9,14 +9,8 @@ import {Base64} from "solady/src/utils/Base64.sol";
 import "../IDealersExeCore.sol";
 import "../IDrugRegistry.sol";
 import "../IAreaRegistry.sol";
-
-interface IERC721Minimal {
-    function ownerOf(uint256 tokenId) external view returns (address);
-}
-
-interface IDEPaymentHandler {
-    function processMarketplaceFee(uint256 amount) external payable;
-}
+import "../IERC721Minimal.sol";
+import "../IDEPaymentHandler.sol";
 
 /**
  * @title DealersExeItems - ERC-1155 Equipment System

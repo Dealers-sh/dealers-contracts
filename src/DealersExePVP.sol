@@ -5,10 +5,8 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import "./IDealersExeCore.sol";
 import "./IAreaRegistry.sol";
-
-interface IERC721Minimal {
-    function ownerOf(uint256 tokenId) external view returns (address);
-}
+import "./IERC721Minimal.sol";
+import "./IDERandomness.sol";
 
 /**
  * @title DealersExePVP - Player vs Player Combat Module
@@ -34,6 +32,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     IDealersExeCore public core;
     IERC721Minimal public nftContract;
     IAreaRegistry public areaRegistry;
+    IDERandomness public randomness;
 
     mapping(uint256 => mapping(uint256 => uint256)) public lastAttackTime;
 
@@ -67,6 +66,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     event CoreContractUpdated(address indexed oldCore, address indexed newCore);
     event NFTContractUpdated(address indexed oldNFT, address indexed newNFT);
     event AreaRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
+    event RandomnessUpdated(address indexed oldRandomness, address indexed newRandomness);
 
     // =============================================================
     //                            ERRORS
@@ -107,7 +107,8 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         if (
             address(core) == address(0) ||
             address(nftContract) == address(0) ||
-            address(areaRegistry) == address(0)
+            address(areaRegistry) == address(0) ||
+            address(randomness) == address(0)
         ) {
             revert ContractNotSet();
         }
@@ -176,15 +177,16 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
      * @notice Execute the battle after validations
      */
     function _executeBattle(uint256 attackerId, uint256 defenderId, uint8 area) private {
-        uint256 randomness = _generateRandomness(attackerId, defenderId);
+        bytes32 seed = keccak256(abi.encodePacked(attackerId, defenderId, msg.sender, totalPVPBattles));
+        uint256 battleRandomness = randomness.getRandomness(seed);
 
-        if (_checkAndProcessArrest(attackerId, randomness)) {
+        if (_checkAndProcessArrest(attackerId, battleRandomness)) {
             lastAttackTime[attackerId][defenderId] = block.timestamp;
             return;
         }
 
         uint256 winChance = calculateWinChance(attackerId, defenderId);
-        bool attackerWon = ((randomness >> 8) % 100) < winChance;
+        bool attackerWon = ((battleRandomness >> 8) % 100) < winChance;
 
         (uint256 drugsStolen, int16 attackerRepChange, int16 defenderRepChange) =
             _processBattleOutcome(attackerId, defenderId, attackerWon, area);
@@ -208,25 +210,11 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     // =============================================================
 
     /**
-     * @notice Generate randomness for battle
-     */
-    function _generateRandomness(uint256 attackerId, uint256 defenderId) private view returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(
-            block.prevrandao,
-            block.timestamp,
-            attackerId,
-            defenderId,
-            msg.sender,
-            totalPVPBattles
-        )));
-    }
-
-    /**
      * @notice Check if attacker gets arrested
      */
-    function _checkAndProcessArrest(uint256 attackerId, uint256 randomness) private returns (bool) {
+    function _checkAndProcessArrest(uint256 attackerId, uint256 rng) private returns (bool) {
         uint8 jailChance = core.getJailChance(attackerId);
-        uint8 jailRoll = uint8(randomness % 100);
+        uint8 jailRoll = uint8(rng % 100);
 
         if (jailRoll < jailChance) {
             core.sendToJail(attackerId);
@@ -502,5 +490,14 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         address old = address(areaRegistry);
         areaRegistry = IAreaRegistry(_areaRegistry);
         emit AreaRegistryUpdated(old, _areaRegistry);
+    }
+
+    /**
+     * @notice Updates the Randomness contract address
+     */
+    function setRandomness(address _randomness) external onlyOwner {
+        address old = address(randomness);
+        randomness = IDERandomness(_randomness);
+        emit RandomnessUpdated(old, _randomness);
     }
 }

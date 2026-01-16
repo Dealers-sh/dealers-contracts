@@ -3,25 +3,9 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
-
-interface IERC721Minimal {
-    function ownerOf(uint256 tokenId) external view returns (address);
-}
-
-interface IDEPaymentHandler {
-    function processMarketplaceFee(uint256 amount) external payable;
-}
-
-interface IDealersExeCoreMinimal {
-    function getDealerData(uint256 tokenId) external view returns (
-        uint8 currentArea,
-        uint256 reputation,
-        uint8 dailyAttemptsRemaining,
-        uint8 heatLevel,
-        uint32 lastPlayTimestamp,
-        bool isInitialized
-    );
-}
+import "../IERC721Minimal.sol";
+import "../IDEPaymentHandler.sol";
+import "../IDealersExeCore.sol";
 
 /**
  * @title DealersExeGangs - Gang Management Contract
@@ -117,7 +101,7 @@ contract DealersExeGangs is ReentrancyGuard, Ownable {
     // =============================================================
 
     // Contract references
-    IDealersExeCoreMinimal public dealersExeCore;
+    IDealersExeCore public dealersExeCore;
     IERC721Minimal public dealersExeNFT;
     IDEPaymentHandler public paymentHandler;
 
@@ -231,7 +215,7 @@ contract DealersExeGangs is ReentrancyGuard, Ownable {
         address _paymentHandler
     ) {
         _initializeOwner(msg.sender);
-        dealersExeCore = IDealersExeCoreMinimal(_dealersExeCore);
+        dealersExeCore = IDealersExeCore(_dealersExeCore);
         dealersExeNFT = IERC721Minimal(_dealersExeNFT);
         paymentHandler = IDEPaymentHandler(_paymentHandler);
     }
@@ -980,7 +964,7 @@ contract DealersExeGangs is ReentrancyGuard, Ownable {
     function setDealersExeCore(address _dealersExeCore) external onlyOwner {
         if (_dealersExeCore == address(0)) revert InvalidAddress();
         address old = address(dealersExeCore);
-        dealersExeCore = IDealersExeCoreMinimal(_dealersExeCore);
+        dealersExeCore = IDealersExeCore(_dealersExeCore);
         emit CoreContractUpdated(old, _dealersExeCore);
     }
 

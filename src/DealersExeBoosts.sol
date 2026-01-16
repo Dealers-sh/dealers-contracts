@@ -4,14 +4,8 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import "./IDealersExeCore.sol";
-
-interface IERC721Minimal {
-    function ownerOf(uint256 tokenId) external view returns (address);
-}
-
-interface IDEPaymentHandler {
-    function processMarketplaceFee(uint256 amount) external payable;
-}
+import "./IERC721Minimal.sol";
+import "./IDEPaymentHandler.sol";
 
 /**
  * @title DealersExeBoosts - Boost Purchase Module
