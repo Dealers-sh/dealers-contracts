@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {IAreaRegistry} from "./IAreaRegistry.sol";
@@ -57,6 +57,9 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
     error DrugRegistryNotSet();
     error DrugAlreadyInArea();
     error InvalidPricing();
+    error MaxAreasReached();
+    error InvalidAddress();
+    error ArrayLengthMismatch();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -187,6 +190,7 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
         bool isJailArea
     ) external onlyOwner returns (uint8 areaId) {
         if (bytes(name).length > 32) revert AreaNameTooLong();
+        if (_totalAreas >= 254) revert MaxAreasReached();
 
         unchecked {
             ++_totalAreas;
@@ -334,7 +338,57 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
      * @param _drugRegistry The new Drug Registry address
      */
     function setDrugRegistry(address _drugRegistry) external onlyOwner {
+        if (_drugRegistry == address(0)) revert InvalidAddress();
+        address oldRegistry = address(drugRegistry);
         drugRegistry = IDrugRegistry(_drugRegistry);
+        emit DrugRegistryUpdated(oldRegistry, _drugRegistry);
+    }
+
+    /**
+     * @notice Batch configure multiple drugs for an area
+     * @dev Only callable by owner. Validates drugs exist in DrugRegistry
+     * @param areaId The area ID
+     * @param drugIds Array of drug IDs (must exist in DrugRegistry)
+     * @param buyPrices Array of buy prices in $CASH
+     * @param sellPrices Array of sell prices in $CASH
+     */
+    function batchConfigureAreaDrugs(
+        uint8 areaId,
+        uint256[] calldata drugIds,
+        uint256[] calldata buyPrices,
+        uint256[] calldata sellPrices
+    ) external onlyOwner validArea(areaId) {
+        uint256 length = drugIds.length;
+        if (length != buyPrices.length || length != sellPrices.length) {
+            revert ArrayLengthMismatch();
+        }
+        if (address(drugRegistry) == address(0)) revert DrugRegistryNotSet();
+
+        for (uint256 i = 0; i < length; ) {
+            uint256 drugId = drugIds[i];
+            uint256 buyPrice = buyPrices[i];
+            uint256 sellPrice = sellPrices[i];
+
+            if (!drugRegistry.isValidDrug(drugId)) revert InvalidDrugId();
+            if (buyPrice == 0 || sellPrice == 0) revert InvalidPricing();
+
+            bool exists = _areaDrugs[areaId][drugId].isAvailable;
+
+            _areaDrugs[areaId][drugId] = IAreaRegistry.AreaDrugConfig({
+                drugId: drugId,
+                buyPrice: buyPrice,
+                sellPrice: sellPrice,
+                isAvailable: true
+            });
+
+            if (!exists) {
+                _areaDrugIds[areaId].push(drugId);
+            }
+
+            emit AreaDrugConfigured(areaId, drugId, buyPrice, sellPrice);
+
+            unchecked { ++i; }
+        }
     }
 
     // =============================================================

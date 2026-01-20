@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 /**
  * @title IAreaRegistry - Interface for Area Registry
@@ -45,6 +45,7 @@ interface IAreaRegistry {
     event AreaUpdated(uint8 indexed areaId, uint256 movementFee, uint256 minReputation, bool isActive);
     event AreaDrugConfigured(uint8 indexed areaId, uint256 indexed drugId, uint256 buyPrice, uint256 sellPrice);
     event AreaDrugRemoved(uint8 indexed areaId, uint256 indexed drugId);
+    event DrugRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
 
     // =============================================================
     //                      VIEW FUNCTIONS

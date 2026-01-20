@@ -278,28 +278,33 @@ contract BoostGameplayTest is BaseTest {
         assertFalse(core.hasDoubleHeistEntries(token2), "Hustler should not have double heist");
     }
 
-    function test_boost_extensionStacking() public {
+    function test_boost_cannotStackWhileActive() public {
         vm.startPrank(player1);
 
         boosts.purchaseBoost{value: GRINDER_PRICE}(tokenId, GRINDER_ID);
 
-        DealersExeCore.BoostData memory boost1 = core.getBoost(tokenId);
-        uint64 firstExpiry = boost1.expiresAt;
-
         vm.warp(block.timestamp + 12 hours);
         assertTrue(core.hasActiveBoost(tokenId), "Should still be active after 12 hours");
 
+        vm.expectRevert(DealersExeBoosts.BoostAlreadyActive.selector);
         boosts.purchaseBoost{value: GRINDER_PRICE}(tokenId, GRINDER_ID);
 
-        DealersExeCore.BoostData memory boost2 = core.getBoost(tokenId);
-        uint64 secondExpiry = boost2.expiresAt;
+        vm.stopPrank();
+    }
 
-        assertGt(secondExpiry, firstExpiry, "Second expiry should extend from first");
-        assertEq(
-            secondExpiry,
-            firstExpiry + 24 hours,
-            "Should add 24 hours to existing expiry"
-        );
+    function test_boost_canPurchaseAfterExpiry() public {
+        vm.startPrank(player1);
+
+        boosts.purchaseBoost{value: GRINDER_PRICE}(tokenId, GRINDER_ID);
+        uint64 firstExpiry = core.getBoost(tokenId).expiresAt;
+
+        vm.warp(block.timestamp + 25 hours);
+        assertFalse(core.hasActiveBoost(tokenId), "Boost should be expired after 25 hours");
+
+        boosts.purchaseBoost{value: GRINDER_PRICE}(tokenId, GRINDER_ID);
+        uint64 secondExpiry = core.getBoost(tokenId).expiresAt;
+
+        assertGt(secondExpiry, firstExpiry, "Second expiry should be after first");
 
         vm.stopPrank();
     }

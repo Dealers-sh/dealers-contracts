@@ -18,13 +18,12 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     // =============================================================
     //                            CONSTANTS
     // =============================================================
-    
+
     // Game outcomes
-    uint8 public constant WIN = 0;
-    uint8 public constant TIE = 1;
-    uint8 public constant LOSS = 2;
-    
+    enum Outcome { WIN, TIE, LOSS }
+
     // Fee structure (basis points - 10000 = 100%)
+    uint256 public constant MIN_AMOUNT = 0.001 ether;
     uint256 public constant GAME_FEE_PERCENT = 1000;    // 10% total fee
     uint256 public constant DEV_FEE_PERCENT = 500;      // 5% to dev wallet
     uint256 public constant BANK_FEE_PERCENT = 500;     // 5% to bank vault
@@ -41,20 +40,21 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     address public bankVault;
     
     // Financial tracking
-    uint256 public totalProcessed;       // Total ETH processed
+    uint256 public totalProcessed;       // Total ETH processed through fee functions
     uint256 public totalDevFees;        // Total fees to dev wallet
     uint256 public totalBankFees;       // Total fees to bank vault
     uint256 public totalPayouts;        // Total payouts to players
-    
+    uint256 public totalDirectDeposits; // Total ETH received via receive()/fallback()
+
     // Pending withdrawals for dev wallet
     uint256 public pendingDevWithdrawal;
 
     // =============================================================
     //                            EVENTS
     // =============================================================
-    
+
     event StakedBetProcessed(address indexed player, uint256 amount, uint256 devFee, uint256 bankFee);
-    event GamePayoutProcessed(address indexed player, uint8 outcome, uint256 stakeAmount, uint256 payout);
+    event GamePayoutProcessed(address indexed player, Outcome outcome, uint256 stakeAmount, uint256 payout);
     event MovementFeeProcessed(address indexed player, uint256 fee, uint256 devFee, uint256 bankFee);
     event MarketplaceFeeProcessed(address indexed player, uint256 fee, uint256 devFee, uint256 bankFee);
     event DevFeesWithdrawn(address indexed devWallet, uint256 amount);
@@ -62,6 +62,7 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     event DevWalletUpdated(address indexed oldWallet, address indexed newWallet);
     event BankVaultUpdated(address indexed oldVault, address indexed newVault);
     event EmergencyWithdrawal(address indexed to, uint256 amount);
+    event DirectDeposit(address indexed sender, uint256 amount);
 
     // =============================================================
     //                            ERRORS
@@ -70,6 +71,7 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     error NotAuthorized();
     error InvalidAddress();
     error InvalidAmount();
+    error AmountTooSmall();
     error TransferFailed();
     error InsufficientBalance();
     error NoFeesToWithdraw();
@@ -120,114 +122,124 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     
     /**
      * @notice Process staked bet payment and split fees
+     * @dev DEPRECATED: Not currently used by any game module. Kept for future PvP betting features.
+     *      If used, must be called BEFORE processGamePayout to ensure correct fee handling.
+     *      The payout calculation assumes fees were already deducted in this function.
+     * @param player The player address placing the bet (for event tracking)
      * @param amount Bet amount in wei
      */
-    function processStakedBet(uint256 amount) external payable onlyAuthorized nonReentrant {
+    function processStakedBet(address player, uint256 amount) external payable onlyAuthorized nonReentrant {
         if (msg.value != amount || amount == 0) revert InvalidAmount();
-        
+        if (amount < MIN_AMOUNT) revert AmountTooSmall();
+
         // Calculate fees
         uint256 devFee = (amount * DEV_FEE_PERCENT) / 10000;
         uint256 bankFee = (amount * BANK_FEE_PERCENT) / 10000;
-        
+
         // Update tracking
         totalProcessed += amount;
         totalDevFees += devFee;
         totalBankFees += bankFee;
         pendingDevWithdrawal += devFee;
-        
+
         // Send bank fee immediately to vault using Abstract-compatible transfer
         if (bankFee > 0) {
             _safeTransferETH(bankVault, bankFee);
         }
-        
-        emit StakedBetProcessed(tx.origin, amount, devFee, bankFee);
+
+        emit StakedBetProcessed(player, amount, devFee, bankFee);
     }
     
     /**
      * @notice Process game payout based on outcome
+     * @dev DEPRECATED: Not currently used by any game module. Kept for future PvP betting features.
+     *      IMPORTANT: processStakedBet MUST be called before this function to ensure fees
+     *      are correctly deducted. The payout calculation assumes this invariant is maintained
+     *      by the calling contract.
      * @param player Player address to receive payout
-     * @param outcome Game outcome (0=WIN, 1=TIE, 2=LOSS)
+     * @param outcome Game outcome (WIN, TIE, or LOSS)
      * @param stakeAmount Original stake amount
      */
     function processGamePayout(
-        address player, 
-        uint8 outcome, 
+        address player,
+        Outcome outcome,
         uint256 stakeAmount
     ) external onlyAuthorized nonReentrant {
         if (player == address(0)) revert InvalidAddress();
         if (stakeAmount == 0) revert InvalidAmount();
-        
+
         uint256 payout = 0;
-        
-        if (outcome == WIN) {
-            // WIN: 2x stake minus total fee (already deducted in processStakedBet)
+
+        if (outcome == Outcome.WIN) {
             uint256 totalFee = (stakeAmount * GAME_FEE_PERCENT) / 10000;
             payout = (stakeAmount * 2) - totalFee;
-        } else if (outcome == TIE) {
-            // TIE: Return stake minus total fee
+        } else if (outcome == Outcome.TIE) {
             uint256 totalFee = (stakeAmount * GAME_FEE_PERCENT) / 10000;
             payout = stakeAmount - totalFee;
         }
-        // LOSS: No payout (house keeps the stake)
-        
+
         if (payout > 0) {
             if (address(this).balance < payout) revert InsufficientBalance();
-            
+
             totalPayouts += payout;
             _safeTransferETH(player, payout);
         }
-        
+
         emit GamePayoutProcessed(player, outcome, stakeAmount, payout);
     }
     
     /**
      * @notice Process area movement fee
+     * @param player The player address making the movement (for event tracking)
      * @param amount Movement fee amount
      */
-    function processMovementFee(uint256 amount) external payable onlyAuthorized nonReentrant {
+    function processMovementFee(address player, uint256 amount) external payable onlyAuthorized nonReentrant {
         if (msg.value != amount || amount == 0) revert InvalidAmount();
-        
+        if (amount < MIN_AMOUNT) revert AmountTooSmall();
+
         // Split movement fee same as game fees
         uint256 devFee = (amount * DEV_FEE_PERCENT) / 10000;
         uint256 bankFee = (amount * BANK_FEE_PERCENT) / 10000;
-        
+
         // Update tracking
         totalProcessed += amount;
         totalDevFees += devFee;
         totalBankFees += bankFee;
         pendingDevWithdrawal += devFee;
-        
+
         // Send bank fee to vault
         if (bankFee > 0) {
             _safeTransferETH(bankVault, bankFee);
         }
-        
-        emit MovementFeeProcessed(tx.origin, amount, devFee, bankFee);
+
+        emit MovementFeeProcessed(player, amount, devFee, bankFee);
     }
     
     /**
      * @notice Process marketplace transaction fee
+     * @param player The player address involved in the marketplace transaction (for event tracking)
      * @param amount Marketplace fee amount (10% of sale price)
      */
-    function processMarketplaceFee(uint256 amount) external payable onlyAuthorized nonReentrant {
+    function processMarketplaceFee(address player, uint256 amount) external payable onlyAuthorized nonReentrant {
         if (msg.value != amount || amount == 0) revert InvalidAmount();
-        
+        if (amount < MIN_AMOUNT) revert AmountTooSmall();
+
         // Split marketplace fee same as game fees
         uint256 devFee = (amount * DEV_FEE_PERCENT) / 10000;
         uint256 bankFee = (amount * BANK_FEE_PERCENT) / 10000;
-        
+
         // Update tracking
         totalProcessed += amount;
         totalDevFees += devFee;
         totalBankFees += bankFee;
         pendingDevWithdrawal += devFee;
-        
+
         // Send bank fee to vault
         if (bankFee > 0) {
             _safeTransferETH(bankVault, bankFee);
         }
-        
-        emit MarketplaceFeeProcessed(tx.origin, amount, devFee, bankFee);
+
+        emit MarketplaceFeeProcessed(player, amount, devFee, bankFee);
     }
 
     // =============================================================
@@ -327,15 +339,15 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     /**
      * @notice Calculate payout for a stake and outcome
      */
-    function calculatePayout(uint256 stakeAmount, uint8 outcome) external pure returns (uint256 payout) {
-        if (outcome == WIN) {
+    function calculatePayout(uint256 stakeAmount, Outcome outcome) external pure returns (uint256 payout) {
+        if (outcome == Outcome.WIN) {
             uint256 totalFee = (stakeAmount * GAME_FEE_PERCENT) / 10000;
             payout = (stakeAmount * 2) - totalFee;
-        } else if (outcome == TIE) {
+        } else if (outcome == Outcome.TIE) {
             uint256 totalFee = (stakeAmount * GAME_FEE_PERCENT) / 10000;
             payout = stakeAmount - totalFee;
         } else {
-            payout = 0; // LOSS
+            payout = 0;
         }
     }
 
@@ -381,20 +393,20 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     // =============================================================
     //                        FALLBACK FUNCTIONS
     // =============================================================
-    
+
     /**
-     * @notice Accept ETH deposits
+     * @notice Accept direct ETH deposits (not fee-split payments)
      */
     receive() external payable {
-        // Allow contract to receive ETH
-        totalProcessed += msg.value;
+        totalDirectDeposits += msg.value;
+        emit DirectDeposit(msg.sender, msg.value);
     }
-    
+
     /**
-     * @notice Fallback function
+     * @notice Fallback for direct ETH deposits (not fee-split payments)
      */
     fallback() external payable {
-        // Allow contract to receive ETH via fallback
-        totalProcessed += msg.value;
+        totalDirectDeposits += msg.value;
+        emit DirectDeposit(msg.sender, msg.value);
     }
 }

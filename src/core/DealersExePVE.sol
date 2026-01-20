@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
@@ -44,6 +44,9 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     uint256 public totalGamesWon;
     uint256 public totalArrestsInPVE;
 
+    // Pause state
+    bool public paused;
+
     // =============================================================
     //                            EVENTS
     // =============================================================
@@ -72,11 +75,15 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     event AreaRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
     event RandomnessUpdated(address indexed oldRandomness, address indexed newRandomness);
 
+    event Paused(address account);
+    event Unpaused(address account);
+
     // =============================================================
     //                            ERRORS
     // =============================================================
 
     error ContractNotSet();
+    error ContractPaused();
     error InvalidGameChoice();
     error DealerNotInitialized();
     error DealerInJail();
@@ -88,6 +95,8 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     error InvalidDrug();
     error DrugNotAvailableInArea();
     error InvalidAmount();
+    error RandomnessError();
+    error InvalidAddress();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -138,6 +147,11 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         _;
     }
 
+    modifier whenNotPaused() {
+        if (paused) revert ContractPaused();
+        _;
+    }
+
     // =============================================================
     //                        PVE GAME FUNCTION
     // =============================================================
@@ -159,6 +173,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     )
         external
         nonReentrant
+        whenNotPaused
         contractsSet
         dealerExists(tokenId)
         validChoice(choice)
@@ -195,6 +210,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         // 7. Generate randomness
         bytes32 seed = keccak256(abi.encodePacked(tokenId, msg.sender, totalGamesPlayed));
         uint256 gameRandomness = randomness.getRandomness(seed);
+        if (gameRandomness == 0) revert RandomnessError();
 
         // 8. Check jail - if arrested, lose stake
         if (_checkAndProcessArrest(tokenId, gameRandomness, hustleType, drugId, amount, stakeValue)) {
@@ -565,6 +581,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
      * @notice Updates the core dealers contract address
      */
     function setDealersExeCore(address _dealersExeCore) external onlyOwner {
+        if (_dealersExeCore == address(0)) revert InvalidAddress();
         address old = address(dealersExeCore);
         dealersExeCore = IDealersExeCore(_dealersExeCore);
         emit CoreContractUpdated(old, _dealersExeCore);
@@ -574,6 +591,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
      * @notice Updates the NFT contract address
      */
     function setDealersExeNFT(address _dealersExeNFT) external onlyOwner {
+        if (_dealersExeNFT == address(0)) revert InvalidAddress();
         address old = address(dealersExeNFT);
         dealersExeNFT = IERC721Minimal(_dealersExeNFT);
         emit NFTContractUpdated(old, _dealersExeNFT);
@@ -583,6 +601,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
      * @notice Updates the Area Registry address
      */
     function setAreaRegistry(address _areaRegistry) external onlyOwner {
+        if (_areaRegistry == address(0)) revert InvalidAddress();
         address old = address(areaRegistry);
         areaRegistry = IAreaRegistry(_areaRegistry);
         emit AreaRegistryUpdated(old, _areaRegistry);
@@ -592,8 +611,25 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
      * @notice Updates the Randomness contract address
      */
     function setRandomness(address _randomness) external onlyOwner {
+        if (_randomness == address(0)) revert InvalidAddress();
         address old = address(randomness);
         randomness = IDERandomness(_randomness);
         emit RandomnessUpdated(old, _randomness);
+    }
+
+    /**
+     * @notice Pauses the contract
+     */
+    function pause() external onlyOwner {
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    /**
+     * @notice Unpauses the contract
+     */
+    function unpause() external onlyOwner {
+        paused = false;
+        emit Unpaused(msg.sender);
     }
 }

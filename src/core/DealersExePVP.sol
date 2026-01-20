@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -28,6 +28,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     uint256 public constant MAX_WIN_CHANCE = 75;
     uint256 public constant DRUG_STEAL_PERCENT = 10;
     uint256 public constant ATTACK_COOLDOWN = 1 hours;
+    uint256 public constant MAX_ATTACKS_PER_DAY = 5;
 
     // =============================================================
     //                            STORAGE
@@ -38,7 +39,12 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     IAreaRegistry public areaRegistry;
     IDERandomness public randomness;
 
+    bool public paused;
+
     mapping(uint256 => mapping(uint256 => uint256)) public lastAttackTime;
+
+    mapping(uint256 => uint256) public lastAttackDay;
+    mapping(uint256 => uint256) public attacksReceivedToday;
 
     // Statistics per dealer
     mapping(uint256 => uint256) public attacksWon;
@@ -71,6 +77,8 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     event NFTContractUpdated(address indexed oldNFT, address indexed newNFT);
     event AreaRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
     event RandomnessUpdated(address indexed oldRandomness, address indexed newRandomness);
+    event Paused(address account);
+    event Unpaused(address account);
 
     // =============================================================
     //                            ERRORS
@@ -85,6 +93,8 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     error CooldownActive();
     error NoAttemptsRemaining();
     error ContractNotSet();
+    error ContractPaused();
+    error DefenderExhausted();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -97,6 +107,9 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
      * @param _areaRegistry Address of the area registry
      */
     constructor(address _core, address _nftContract, address _areaRegistry) {
+        if (_core == address(0) || _nftContract == address(0) || _areaRegistry == address(0)) {
+            revert ContractNotSet();
+        }
         _initializeOwner(msg.sender);
         core = IDealersExeCore(_core);
         nftContract = IERC721Minimal(_nftContract);
@@ -130,6 +143,11 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         _;
     }
 
+    modifier whenNotPaused() {
+        if (paused) revert ContractPaused();
+        _;
+    }
+
     // =============================================================
     //                        MAIN ATTACK FUNCTION
     // =============================================================
@@ -142,6 +160,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     function attack(uint256 attackerId, uint256 defenderId)
         external
         nonReentrant
+        whenNotPaused
         contractsSet
         dealerExists(attackerId)
         dealerExists(defenderId)
@@ -154,6 +173,8 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         if (block.timestamp < lastAttackTime[attackerId][defenderId] + ATTACK_COOLDOWN) {
             revert CooldownActive();
         }
+
+        _checkDefenderProtection(defenderId);
 
         core.useAttempt(attackerId);
         core.incrementHeatLevel(attackerId);
@@ -312,6 +333,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
      * @param _core New core contract address
      */
     function setCore(address _core) external onlyOwner {
+        if (_core == address(0)) revert ContractNotSet();
         address old = address(core);
         core = IDealersExeCore(_core);
         emit CoreContractUpdated(old, _core);
@@ -322,6 +344,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
      * @param _nftContract New NFT contract address
      */
     function setNFTContract(address _nftContract) external onlyOwner {
+        if (_nftContract == address(0)) revert ContractNotSet();
         address old = address(nftContract);
         nftContract = IERC721Minimal(_nftContract);
         emit NFTContractUpdated(old, _nftContract);
@@ -332,6 +355,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
      * @param _areaRegistry New Area Registry address
      */
     function setAreaRegistry(address _areaRegistry) external onlyOwner {
+        if (_areaRegistry == address(0)) revert ContractNotSet();
         address old = address(areaRegistry);
         areaRegistry = IAreaRegistry(_areaRegistry);
         emit AreaRegistryUpdated(old, _areaRegistry);
@@ -342,9 +366,26 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
      * @param _randomness New Randomness contract address
      */
     function setRandomness(address _randomness) external onlyOwner {
+        if (_randomness == address(0)) revert ContractNotSet();
         address old = address(randomness);
         randomness = IDERandomness(_randomness);
         emit RandomnessUpdated(old, _randomness);
+    }
+
+    /**
+     * @notice Pauses the contract, preventing attacks
+     */
+    function pause() external onlyOwner {
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    /**
+     * @notice Unpauses the contract, allowing attacks
+     */
+    function unpause() external onlyOwner {
+        paused = false;
+        emit Unpaused(msg.sender);
     }
 
     // =============================================================
@@ -364,8 +405,24 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         return attackerArea;
     }
 
+    function _checkDefenderProtection(uint256 defenderId) private {
+        uint256 currentDay = block.timestamp / 1 days;
+
+        if (lastAttackDay[defenderId] != currentDay) {
+            lastAttackDay[defenderId] = currentDay;
+            attacksReceivedToday[defenderId] = 1;
+        } else {
+            if (attacksReceivedToday[defenderId] >= MAX_ATTACKS_PER_DAY) {
+                revert DefenderExhausted();
+            }
+            unchecked {
+                ++attacksReceivedToday[defenderId];
+            }
+        }
+    }
+
     function _executeBattle(uint256 attackerId, uint256 defenderId, uint8 area) private {
-        bytes32 seed = keccak256(abi.encodePacked(attackerId, defenderId, msg.sender, totalPVPBattles));
+        bytes32 seed = keccak256(abi.encodePacked(attackerId, defenderId, totalPVPBattles));
         uint256 battleRandomness = randomness.getRandomness(seed);
 
         if (_checkAndProcessArrest(attackerId, battleRandomness)) {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -53,6 +53,9 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
     // Starter drug amount
     uint256 public constant STARTER_DRUG_AMOUNT = 50;
+
+    // Configuration limits
+    uint256 public constant MAX_TIERS = 20;
 
     // =============================================================
     //                            STRUCTS
@@ -113,6 +116,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     // Updateable parameters
     uint32 public lastGlobalReset;
     uint256 public MAX_REPUTATION = 1200;
+    bool public paused;
 
     // Boosts
     mapping(uint256 => BoostData) public dealerBoosts;                    // tokenId => boost data
@@ -162,6 +166,9 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
     event CashUpdated(uint256 indexed tokenId, uint256 newBalance, int256 change);
     event CashPurchased(uint256 indexed tokenId, uint256 amount, uint256 ethPaid);
+    event MaxReputationUpdated(uint256 oldMax, uint256 newMax);
+    event Paused(address account);
+    event Unpaused(address account);
 
     // =============================================================
     //                            ERRORS
@@ -195,6 +202,12 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     error CashBalanceTooHigh();
     error InsufficientCash();
     error InsufficientReputation();
+    error ETHTransferFailed();
+    error NoTiersConfigured();
+    error InvalidBoostMultiplier();
+    error TooManyTiers();
+    error TiersNotSorted();
+    error ContractPaused();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -230,6 +243,11 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         _;
     }
 
+    modifier whenNotPaused() {
+        if (paused) revert ContractPaused();
+        _;
+    }
+
     // =============================================================
     //                        INITIALIZATION
     // =============================================================
@@ -239,7 +257,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
      * @dev Dealers start in Safe House with starter $CASH and drugs
      * @param tokenId The token ID to initialize as a dealer
      */
-    function initializeDealer(uint256 tokenId) external onlyAuthorized registriesSet {
+    function initializeDealer(uint256 tokenId) external onlyAuthorized registriesSet whenNotPaused {
         if (dealers[tokenId].isInitialized) revert DealerAlreadyInitialized();
 
         dealers[tokenId] = DealerData({
@@ -302,6 +320,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
      * @notice Get the current reputation tier for a given reputation score
      */
     function getCurrentTier(uint256 reputation) public view returns (ReputationTier memory) {
+        if (reputationTiers.length == 0) revert NoTiersConfigured();
         ReputationTier memory currentTier = reputationTiers[0];
         for (uint256 i = reputationTiers.length; i > 0; ) {
             if (reputation >= reputationTiers[i - 1].minReputation) {
@@ -385,14 +404,20 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         external
         onlyAuthorized
         dealerExists(tokenId)
+        whenNotPaused
     {
         DealerData storage d = dealers[tokenId];
 
         if (change < 0) {
             uint256 dec = uint256(-change);
-            d.reputation = dec >= d.reputation ? 0 : d.reputation - dec;
+            unchecked {
+                d.reputation = dec >= d.reputation ? 0 : d.reputation - dec;
+            }
         } else if (change > 0) {
-            d.reputation += uint256(change);
+            unchecked {
+                d.reputation += uint256(change);
+            }
+            if (d.reputation > MAX_REPUTATION) d.reputation = MAX_REPUTATION;
         }
         emit ReputationUpdated(tokenId, d.reputation, change);
     }
@@ -406,6 +431,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         onlyAuthorized
         dealerExists(tokenId)
         registriesSet
+        whenNotPaused
     {
         if (!drugRegistry.isValidDrug(drugId)) revert InvalidDrug();
 
@@ -434,6 +460,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         onlyAuthorized
         dealerExists(tokenId)
         registriesSet
+        whenNotPaused
     {
         if (!areaRegistry.isValidArea(newAreaId)) revert InvalidArea();
         if (areaRegistry.isSafeHouse(newAreaId)) revert CannotEnterSafeHouse();
@@ -460,6 +487,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         external
         onlyAuthorized
         dealerExists(tokenId)
+        whenNotPaused
     {
         DealerData storage d = dealers[tokenId];
         d.dailyAttemptsRemaining = attemptsUsed > d.dailyAttemptsRemaining ? 0 : d.dailyAttemptsRemaining - attemptsUsed;
@@ -484,8 +512,17 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
      * @notice Set the reputation tier system
      */
     function setReputationTiers(ReputationTier[] calldata _tiers) external onlyOwner {
-        delete reputationTiers;
         uint256 len = _tiers.length;
+        if (len > MAX_TIERS) revert TooManyTiers();
+
+        for (uint256 i = 1; i < len; ) {
+            if (_tiers[i].minReputation <= _tiers[i - 1].minReputation) {
+                revert TiersNotSorted();
+            }
+            unchecked { ++i; }
+        }
+
+        delete reputationTiers;
         for (uint256 i = 0; i < len; ) {
             reputationTiers.push(_tiers[i]);
             unchecked {
@@ -500,7 +537,9 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
      */
     function setMaxReputation(uint256 newMax) external onlyOwner {
         if (newMax < 1000) revert InvalidMaxReputation();
+        uint256 oldMax = MAX_REPUTATION;
         MAX_REPUTATION = newMax;
+        emit MaxReputationUpdated(oldMax, newMax);
     }
 
     /**
@@ -510,6 +549,22 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         uint32 nowTs = uint32(block.timestamp);
         lastGlobalReset = nowTs;
         emit GlobalDailyReset(nowTs);
+    }
+
+    /**
+     * @notice Pause the contract, disabling state-changing functions
+     */
+    function pause() external onlyOwner {
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    /**
+     * @notice Unpause the contract, re-enabling state-changing functions
+     */
+    function unpause() external onlyOwner {
+        paused = false;
+        emit Unpaused(msg.sender);
     }
 
     // =============================================================
@@ -534,6 +589,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         external
         onlyAuthorized
         dealerExists(tokenId)
+        whenNotPaused
     {
         DealerData storage d = dealers[tokenId];
         if (d.dailyAttemptsRemaining == 0) revert NoAttemptsRemaining();
@@ -551,6 +607,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         external
         onlyAuthorized
         dealerExists(tokenId)
+        whenNotPaused
     {
         DealerData storage d = dealers[tokenId];
         if (d.heatLevel < MAX_HEAT_LEVEL) {
@@ -590,6 +647,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         external
         onlyAuthorized
         dealerExists(tokenId)
+        whenNotPaused
     {
         DealerData storage d = dealers[tokenId];
 
@@ -621,6 +679,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         nonReentrant
         dealerExists(tokenId)
         registriesSet
+        whenNotPaused
     {
         DealerData storage d = dealers[tokenId];
 
@@ -641,7 +700,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         d.currentArea = exitArea;
 
         if (address(paymentHandler) != address(0) && bail > 0) {
-            paymentHandler.processGameFee{value: bail}(bail);
+            paymentHandler.processMovementFee{value: bail}(msg.sender, bail);
         }
 
         if (msg.value > bail) {
@@ -683,6 +742,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         payable
         nonReentrant
         dealerExists(tokenId)
+        whenNotPaused
     {
         if (msg.value < BRIBE_COP_FEE) revert InsufficientPayment();
 
@@ -692,7 +752,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         dealers[tokenId].heatLevel = 0;
 
         if (address(paymentHandler) != address(0)) {
-            paymentHandler.processMarketplaceFee{value: BRIBE_COP_FEE}(BRIBE_COP_FEE);
+            paymentHandler.processMarketplaceFee{value: BRIBE_COP_FEE}(msg.sender, BRIBE_COP_FEE);
         }
 
         if (msg.value > BRIBE_COP_FEE) {
@@ -710,8 +770,10 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         external
         nonReentrant
         dealerExists(tokenId)
+        whenNotPaused
     {
         if (address(nftContract) == address(0)) revert NFTContractNotSet();
+        if (address(randomness) == address(0)) revert RegistryNotSet();
         if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
 
         DealerData storage d = dealers[tokenId];
@@ -721,7 +783,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
         unchecked { d.dailyAttemptsRemaining--; }
 
-        bytes32 seed = keccak256(abi.encodePacked(tokenId, "WANTED_POSTER"));
+        bytes32 seed = keccak256(abi.encodePacked(tokenId, "WANTED_POSTER", block.timestamp, block.prevrandao));
         uint256 roll = randomness.getRandomness(seed) % 100;
 
         if (roll < WANTED_POSTER_SUCCESS_CHANCE) {
@@ -756,6 +818,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         payable
         nonReentrant
         dealerExists(tokenId)
+        whenNotPaused
     {
         if (msg.value < ATTEMPT_RESET_FEE) revert InsufficientPayment();
 
@@ -765,7 +828,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         dealers[tokenId].dailyAttemptsRemaining = getMaxAttempts(tokenId);
 
         if (address(paymentHandler) != address(0)) {
-            paymentHandler.processGameFee{value: ATTEMPT_RESET_FEE}(ATTEMPT_RESET_FEE);
+            paymentHandler.processMarketplaceFee{value: ATTEMPT_RESET_FEE}(msg.sender, ATTEMPT_RESET_FEE);
         }
 
         if (msg.value > ATTEMPT_RESET_FEE) {
@@ -795,7 +858,12 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         external
         onlyAuthorized
         dealerExists(tokenId)
+        whenNotPaused
     {
+        if (drugMultiplier < 100 || repMultiplier < 100 || cashMultiplier < 100) {
+            revert InvalidBoostMultiplier();
+        }
+
         BoostData storage boost = dealerBoosts[tokenId];
 
         uint64 newExpiry;
@@ -884,6 +952,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         external
         onlyAuthorized
         dealerExists(tokenId)
+        whenNotPaused
     {
         if (threat > MAX_STAT_MODIFIER) threat = MAX_STAT_MODIFIER;
         if (armor > MAX_STAT_MODIFIER) armor = MAX_STAT_MODIFIER;
@@ -924,6 +993,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         external
         onlyAuthorized
         dealerExists(tokenId)
+        whenNotPaused
     {
         dealerCash[tokenId] += amount;
         emit CashUpdated(tokenId, dealerCash[tokenId], int256(amount));
@@ -936,6 +1006,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         external
         onlyAuthorized
         dealerExists(tokenId)
+        whenNotPaused
     {
         if (dealerCash[tokenId] < amount) revert InsufficientCash();
         dealerCash[tokenId] -= amount;
@@ -950,6 +1021,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         payable
         nonReentrant
         dealerExists(tokenId)
+        whenNotPaused
     {
         if (address(nftContract) == address(0)) revert NFTContractNotSet();
         if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
@@ -963,7 +1035,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         emit CashUpdated(tokenId, dealerCash[tokenId], int256(CASH_TOPUP_AMOUNT));
 
         if (address(paymentHandler) != address(0)) {
-            paymentHandler.processGameFee{value: CASH_TOPUP_PRICE}(CASH_TOPUP_PRICE);
+            paymentHandler.processMarketplaceFee{value: CASH_TOPUP_PRICE}(msg.sender, CASH_TOPUP_PRICE);
         }
 
         if (msg.value > CASH_TOPUP_PRICE) {
@@ -1040,6 +1112,6 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         if (to == address(0)) revert InvalidAddress();
 
         (bool success, ) = to.call{value: amount}("");
-        if (!success) revert InvalidAddress();
+        if (!success) revert ETHTransferFailed();
     }
 }

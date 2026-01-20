@@ -110,20 +110,33 @@ contract DealersExeBoostsTest is BaseTest {
         assertEq(boost.expiresAt, uint64(block.timestamp + DURATION_24_HOURS));
     }
 
-    function test_purchaseBoost_extendsExisting() public {
+    function test_purchaseBoost_revertsWhenActiveBoost() public {
+        vm.startPrank(player1);
+
+        boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
+        assertTrue(core.hasActiveBoost(dealer1));
+
+        vm.expectRevert(DealersExeBoosts.BoostAlreadyActive.selector);
+        boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
+
+        vm.stopPrank();
+    }
+
+    function test_purchaseBoost_allowedAfterExpiry() public {
         vm.startPrank(player1);
 
         boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
         uint64 firstExpiry = core.getBoost(dealer1).expiresAt;
 
-        vm.warp(block.timestamp + 12 hours);
+        vm.warp(block.timestamp + DURATION_24_HOURS + 1);
+        assertFalse(core.hasActiveBoost(dealer1));
 
         boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
         uint64 secondExpiry = core.getBoost(dealer1).expiresAt;
 
         vm.stopPrank();
 
-        assertEq(secondExpiry, firstExpiry + DURATION_24_HOURS);
+        assertGt(secondExpiry, firstExpiry);
     }
 
     function test_purchaseBoost_revertInsufficientPayment() public {
@@ -201,19 +214,21 @@ contract DealersExeBoostsTest is BaseTest {
         assertFalse(core.hasActiveBoost(dealer3));
     }
 
-    function test_purchaseBoostBatch_handlesDuplicates() public {
+    function test_purchaseBoostBatch_skipsDuplicates() public {
         uint256[] memory dealerIds = new uint256[](2);
         dealerIds[0] = dealer1;
         dealerIds[1] = dealer1;
 
         uint256 totalCost = GRINDER_PRICE * 2;
+        uint256 balanceBefore = player1.balance;
 
         vm.prank(player1);
         boosts.purchaseBoostBatch{value: totalCost}(dealerIds, GRINDER_TIER);
 
         assertTrue(core.hasActiveBoost(dealer1));
         DealersExeCore.BoostData memory boost = core.getBoost(dealer1);
-        assertEq(boost.expiresAt, uint64(block.timestamp + DURATION_24_HOURS * 2));
+        assertEq(boost.expiresAt, uint64(block.timestamp + DURATION_24_HOURS));
+        assertEq(balanceBefore - player1.balance, GRINDER_PRICE);
     }
 
     function test_purchaseBoostBatch_refundsForSkipped() public {
@@ -278,10 +293,11 @@ contract DealersExeBoostsTest is BaseTest {
     }
 
     function test_getSalesStats_returnsCorrect() public {
-        vm.startPrank(player1);
+        vm.prank(player1);
         boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
-        boosts.purchaseBoost{value: HUSTLER_PRICE}(dealer1, HUSTLER_TIER);
-        vm.stopPrank();
+
+        vm.prank(player1);
+        boosts.purchaseBoost{value: HUSTLER_PRICE}(dealer2, HUSTLER_TIER);
 
         vm.prank(player2);
         boosts.purchaseBoost{value: KINGPIN_PRICE}(dealer3, KINGPIN_TIER);

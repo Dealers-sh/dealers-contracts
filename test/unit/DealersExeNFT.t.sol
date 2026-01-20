@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import "../base/BaseTest.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
@@ -19,7 +19,7 @@ contract DealersExeNFTTest is BaseTest {
         address dest,
         uint256 count
     ) internal view returns (bytes memory) {
-        bytes32 msgHash = keccak256(abi.encodePacked(tag, sender, dest, count))
+        bytes32 msgHash = keccak256(abi.encodePacked(tag, block.chainid, address(nft), sender, dest, count))
             .toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPrivateKey, msgHash);
         return abi.encodePacked(r, s, v);
@@ -137,7 +137,7 @@ contract DealersExeNFTTest is BaseTest {
         nft.setMintStatus(DealersExeNFT.MintStatus.WHITELIST);
 
         uint256 wrongPrivateKey = 0xBAD;
-        bytes32 msgHash = keccak256(abi.encodePacked("WHITELIST", player1, player1, uint256(1)))
+        bytes32 msgHash = keccak256(abi.encodePacked("WHITELIST", block.chainid, address(nft), player1, player1, uint256(1)))
             .toEthSignedMessageHash();
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongPrivateKey, msgHash);
         bytes memory wrongSig = abi.encodePacked(r, s, v);

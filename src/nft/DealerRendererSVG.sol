@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {IDealerRendererSVG} from "./IDealerRendererSVG.sol";
 import {LibString} from "solady/src/utils/LibString.sol";
 import {SSTORE2} from "solady/src/utils/SSTORE2.sol";
+import {Ownable} from "solady/src/auth/Ownable.sol";
 
 /**
  * @title DealerRendererSVG - On-Chain SVG Generator
@@ -16,7 +17,7 @@ import {SSTORE2} from "solady/src/utils/SSTORE2.sol";
  *      Uses SSTORE2 for gas-efficient on-chain SVG storage.
  * @author Dealers.Exe Team
  */
-contract DealerRendererSVG is IDealerRendererSVG {
+contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     using LibString for uint256;
 
     // =============================================================
@@ -84,47 +85,34 @@ contract DealerRendererSVG is IDealerRendererSVG {
         "Ear Accessory", "Mouth", "Chin", "Neck", "Accessory"
     ];
 
-    address public owner;
-
     // =============================================================
     //                            EVENTS
     // =============================================================
 
     event DistributionInitialized();
     event CharacterTypeAssigned(uint256 indexed tokenId, CharacterType characterType);
-    event TraitAdded(uint8 indexed characterType, uint8 indexed category, uint8 indexed traitIndex, string name, uint16 probability);
+    event TraitAdded(uint8 indexed characterType, uint8 indexed category, uint256 traitIndex, string name, uint16 probability);
     event OneOfOneSet(uint256 indexed tokenId, string characterName);
-    event OwnershipTransferred(address indexed oldOwner, address indexed newOwner);
 
     // =============================================================
     //                            ERRORS
     // =============================================================
 
-    error NotOwner();
-    error AlreadyInitialized();
+    error NotInitialized();
     error InvalidTokenId();
+    error InvalidTokenType();
     error InvalidCharacterType();
     error InvalidCategory();
+    error InvalidTraitIndex();
     error InvalidProbability();
     error ArrayLengthMismatch();
-    error ZeroAddress();
 
     // =============================================================
     //                            CONSTRUCTOR
     // =============================================================
 
     constructor() {
-        owner = msg.sender;
-        emit OwnershipTransferred(address(0), msg.sender);
-    }
-
-    // =============================================================
-    //                            MODIFIERS
-    // =============================================================
-
-    modifier onlyOwner() {
-        if (msg.sender != owner) revert NotOwner();
-        _;
+        _initializeOwner(msg.sender);
     }
 
     // =============================================================
@@ -183,10 +171,10 @@ contract DealerRendererSVG is IDealerRendererSVG {
      * @return Character type as uint8 (0=Normal, 1=Special, 2=OneOfOne)
      */
     function getCharacterType(uint256 tokenId) public view returns (uint8) {
+        if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
         if (!distributionInitialized) {
             return uint8(CharacterType.NORMAL);
         }
-        if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
         return uint8(tokenTypeAssignments[tokenId]);
     }
 
@@ -266,7 +254,7 @@ contract DealerRendererSVG is IDealerRendererSVG {
         TraitConfig[] storage arr = traits[characterType][category];
         arr.push(TraitConfig({name: name, probability: probability, svgContract: ptr}));
 
-        emit TraitAdded(characterType, category, uint8(arr.length - 1), name, probability);
+        emit TraitAdded(characterType, category, arr.length - 1, name, probability);
     }
 
     /**
@@ -303,7 +291,7 @@ contract DealerRendererSVG is IDealerRendererSVG {
             TraitConfig[] storage arr = traits[ctype][cat];
             arr.push(TraitConfig({name: names[i], probability: probabilities[i], svgContract: ptr}));
 
-            emit TraitAdded(ctype, cat, uint8(arr.length - 1), names[i], probabilities[i]);
+            emit TraitAdded(ctype, cat, arr.length - 1, names[i], probabilities[i]);
             unchecked { ++i; }
         }
     }
@@ -320,6 +308,9 @@ contract DealerRendererSVG is IDealerRendererSVG {
         bytes calldata completeSvgData
     ) external onlyOwner {
         if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
+        if (distributionInitialized && tokenTypeAssignments[tokenId] != CharacterType.ONE_OF_ONE) {
+            revert InvalidTokenType();
+        }
 
         address ptr = SSTORE2.write(completeSvgData);
         oneOfOnes[tokenId] = OneOfOneData({
@@ -348,6 +339,9 @@ contract DealerRendererSVG is IDealerRendererSVG {
         for (uint256 i; i < len; ) {
             uint256 tid = tokenIds[i];
             if (tid == 0 || tid > MAX_SUPPLY) revert InvalidTokenId();
+            if (distributionInitialized && tokenTypeAssignments[tid] != CharacterType.ONE_OF_ONE) {
+                revert InvalidTokenType();
+            }
 
             address ptr = SSTORE2.write(completeSvgDataArray[i]);
             oneOfOnes[tid] = OneOfOneData({
@@ -371,7 +365,7 @@ contract DealerRendererSVG is IDealerRendererSVG {
      * @return The character type enum value
      */
     function previewCharacterType(uint256 tokenId) external view returns (CharacterType) {
-        if (!distributionInitialized) revert AlreadyInitialized();
+        if (!distributionInitialized) revert NotInitialized();
         if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
         return tokenTypeAssignments[tokenId];
     }
@@ -388,7 +382,7 @@ contract DealerRendererSVG is IDealerRendererSVG {
         view
         returns (uint256[] memory tokenIds)
     {
-        if (!distributionInitialized) revert AlreadyInitialized();
+        if (!distributionInitialized) revert NotInitialized();
 
         uint256[] memory res = new uint256[](limit);
         uint256 found;
@@ -438,7 +432,9 @@ contract DealerRendererSVG is IDealerRendererSVG {
     {
         if (characterType > uint8(CharacterType.ONE_OF_ONE)) revert InvalidCharacterType();
         if (category >= 11) revert InvalidCategory();
-        TraitConfig storage tr = traits[characterType][category][traitIndex];
+        TraitConfig[] storage arr = traits[characterType][category];
+        if (traitIndex >= arr.length) revert InvalidTraitIndex();
+        TraitConfig storage tr = arr[traitIndex];
         return (tr.name, tr.probability, tr.svgContract);
     }
 
@@ -471,21 +467,6 @@ contract DealerRendererSVG is IDealerRendererSVG {
         returns (uint256 maxSupply, uint256 normalCount, uint256 specialCount, uint256 oneOfOneCount)
     {
         return (MAX_SUPPLY, NORMAL_COUNT, SPECIAL_COUNT, ONE_OF_ONE_COUNT);
-    }
-
-    // =============================================================
-    //                         ADMIN FUNCTIONS
-    // =============================================================
-
-    /**
-     * @notice Transfer ownership of the contract
-     * @param newOwner Address of the new owner
-     */
-    function transferOwnership(address newOwner) external onlyOwner {
-        if (newOwner == address(0)) revert ZeroAddress();
-        address old = owner;
-        owner = newOwner;
-        emit OwnershipTransferred(old, newOwner);
     }
 
     // =============================================================

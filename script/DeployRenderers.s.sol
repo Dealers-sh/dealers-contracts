@@ -35,7 +35,7 @@ import "../src/nft/DealerRendererHTML.sol";
  * DealerRendererHTML:
  *   - Wraps SVG in interactive HTML for animation_url
  *   - Uses FileStore at 0xFe1411d6864592549AdE050215482e4385dFa0FB
- *   - Constructor sets msg.sender as deployer and hardcodes FileStore address
+ *   - Constructor takes FileStore address as param and sets msg.sender as owner
  *
  * ============================================================================
  *                          USAGE INSTRUCTIONS
@@ -81,9 +81,10 @@ contract DeployRenderers is Script {
         console.log("");
 
         console.log("Step 2: Deploying DealerRendererHTML...");
-        DealerRendererHTML rendererHTML = new DealerRendererHTML();
+        address fileStoreAddress = 0xFe1411d6864592549AdE050215482e4385dFa0FB;
+        DealerRendererHTML rendererHTML = new DealerRendererHTML(fileStoreAddress);
         console.log("  DealerRendererHTML deployed at:", address(rendererHTML));
-        console.log("  Deployer:", rendererHTML.deployer());
+        console.log("  Owner:", rendererHTML.owner());
         console.log("  FileStore:", address(rendererHTML.fileStore()));
         console.log("");
 

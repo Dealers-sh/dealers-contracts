@@ -8,9 +8,9 @@ contract DEPaymentHandlerTest is BaseTest {
     uint256 public constant BANK_FEE_PERCENT = 500;
     uint256 public constant GAME_FEE_PERCENT = 1000;
 
-    uint8 public constant WIN = 0;
-    uint8 public constant TIE = 1;
-    uint8 public constant LOSS = 2;
+    DEPaymentHandler.Outcome constant WIN = DEPaymentHandler.Outcome.WIN;
+    DEPaymentHandler.Outcome constant TIE = DEPaymentHandler.Outcome.TIE;
+    DEPaymentHandler.Outcome constant LOSS = DEPaymentHandler.Outcome.LOSS;
 
     address public authorizedCaller;
 
@@ -116,7 +116,7 @@ contract DEPaymentHandlerTest is BaseTest {
         uint256 bankBalanceBefore = bankVault.balance;
 
         vm.prank(authorizedCaller);
-        paymentHandler.processStakedBet{value: amount}(amount);
+        paymentHandler.processStakedBet{value: amount}(player1, amount);
 
         assertEq(paymentHandler.totalDevFees(), expectedDevFee);
         assertEq(paymentHandler.totalBankFees(), expectedBankFee);
@@ -130,7 +130,7 @@ contract DEPaymentHandlerTest is BaseTest {
         uint256 bankBalanceBefore = bankVault.balance;
 
         vm.prank(authorizedCaller);
-        paymentHandler.processStakedBet{value: amount}(amount);
+        paymentHandler.processStakedBet{value: amount}(player1, amount);
 
         assertEq(bankVault.balance, bankBalanceBefore + expectedBankFee);
     }
@@ -140,7 +140,7 @@ contract DEPaymentHandlerTest is BaseTest {
         uint256 expectedDevFee = (amount * DEV_FEE_PERCENT) / 10000;
 
         vm.prank(authorizedCaller);
-        paymentHandler.processStakedBet{value: amount}(amount);
+        paymentHandler.processStakedBet{value: amount}(player1, amount);
 
         assertEq(paymentHandler.pendingDevWithdrawal(), expectedDevFee);
         assertEq(paymentHandler.getPendingDevFees(), expectedDevFee);
@@ -153,7 +153,7 @@ contract DEPaymentHandlerTest is BaseTest {
 
         vm.prank(unauthorized);
         vm.expectRevert(DEPaymentHandler.NotAuthorized.selector);
-        paymentHandler.processStakedBet{value: amount}(amount);
+        paymentHandler.processStakedBet{value: amount}(player1, amount);
     }
 
     function test_processStakedBet_revertWrongAmount() public {
@@ -162,7 +162,15 @@ contract DEPaymentHandlerTest is BaseTest {
 
         vm.prank(authorizedCaller);
         vm.expectRevert(DEPaymentHandler.InvalidAmount.selector);
-        paymentHandler.processStakedBet{value: sentAmount}(declaredAmount);
+        paymentHandler.processStakedBet{value: sentAmount}(player1, declaredAmount);
+    }
+
+    function test_processStakedBet_revertAmountTooSmall() public {
+        uint256 amount = 0.0001 ether;
+
+        vm.prank(authorizedCaller);
+        vm.expectRevert(DEPaymentHandler.AmountTooSmall.selector);
+        paymentHandler.processStakedBet{value: amount}(player1, amount);
     }
 
     // =============================================================
@@ -232,7 +240,7 @@ contract DEPaymentHandlerTest is BaseTest {
         uint256 expectedDevFee = (amount * DEV_FEE_PERCENT) / 10000;
 
         vm.prank(authorizedCaller);
-        paymentHandler.processStakedBet{value: amount}(amount);
+        paymentHandler.processStakedBet{value: amount}(player1, amount);
 
         uint256 devBalanceBefore = devWallet.balance;
 
@@ -246,7 +254,7 @@ contract DEPaymentHandlerTest is BaseTest {
         uint256 amount = 1 ether;
 
         vm.prank(authorizedCaller);
-        paymentHandler.processStakedBet{value: amount}(amount);
+        paymentHandler.processStakedBet{value: amount}(player1, amount);
 
         assertTrue(paymentHandler.pendingDevWithdrawal() > 0);
 
@@ -266,7 +274,7 @@ contract DEPaymentHandlerTest is BaseTest {
         uint256 amount = 1 ether;
 
         vm.prank(authorizedCaller);
-        paymentHandler.processStakedBet{value: amount}(amount);
+        paymentHandler.processStakedBet{value: amount}(player1, amount);
 
         address unauthorized = makeAddr("unauthorized");
         vm.prank(unauthorized);
@@ -298,7 +306,7 @@ contract DEPaymentHandlerTest is BaseTest {
         assertTrue(paymentHandler.authorizedContracts(newContract));
 
         vm.prank(newContract);
-        paymentHandler.processStakedBet{value: 1 ether}(1 ether);
+        paymentHandler.processStakedBet{value: 1 ether}(player1, 1 ether);
     }
 
     function test_authorizeContract_revokesAccess() public {
@@ -311,7 +319,7 @@ contract DEPaymentHandlerTest is BaseTest {
 
         vm.prank(authorizedCaller);
         vm.expectRevert(DEPaymentHandler.NotAuthorized.selector);
-        paymentHandler.processStakedBet{value: 1 ether}(1 ether);
+        paymentHandler.processStakedBet{value: 1 ether}(player1, 1 ether);
     }
 
     function test_setDevWallet_changes() public {

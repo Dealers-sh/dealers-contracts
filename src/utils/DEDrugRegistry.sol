@@ -24,6 +24,9 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
     uint256 public constant RARE_SUPPLY_CAP = 100_000;
     uint256 public constant LEGENDARY_SUPPLY_CAP = 10_000;
 
+    /// @notice Maximum length for drug names
+    uint256 public constant MAX_DRUG_NAME_LENGTH = 32;
+
     /// @notice Initial drug IDs (for backward compatibility)
     uint256 public constant DRUG_WEED = 1;
     uint256 public constant DRUG_XTC = 2;
@@ -57,6 +60,15 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
     error InsufficientSupply();
     error InvalidBaseCashValue();
     error DrugNameTooLong();
+    error InvalidAddress();
+    error InvalidSupplyCap();
+
+    // =============================================================
+    //                            EVENTS
+    // =============================================================
+
+    event SupplyCapUpdated(uint256 indexed drugId, uint256 oldCap, uint256 newCap);
+    event ContractAuthorizationChanged(address indexed contractAddress, bool authorized);
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -189,12 +201,10 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
     function incrementSupply(uint256 drugId, uint256 amount) external onlyAuthorized validDrug(drugId) {
         DrugInfo storage drug = _drugs[drugId];
 
-        uint256 newSupply = drug.totalSupply + amount;
-        if (newSupply > drug.supplyCap) revert SupplyCapExceeded();
+        if (amount > drug.supplyCap - drug.totalSupply) revert SupplyCapExceeded();
+        drug.totalSupply += amount;
 
-        drug.totalSupply = newSupply;
-
-        emit SupplyIncremented(drugId, amount, newSupply);
+        emit SupplyIncremented(drugId, amount, drug.totalSupply);
     }
 
     /// @inheritdoc IDrugRegistry
@@ -263,7 +273,10 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
      */
     function updateSupplyCap(uint256 drugId, uint256 newCap) external onlyOwner {
         if (drugId == 0 || drugId > _totalDrugs) revert InvalidDrugId();
+        if (newCap < _drugs[drugId].totalSupply) revert InvalidSupplyCap();
+        uint256 oldCap = _drugs[drugId].supplyCap;
         _drugs[drugId].supplyCap = newCap;
+        emit SupplyCapUpdated(drugId, oldCap, newCap);
     }
 
     /**
@@ -273,7 +286,9 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
      * @param authorized Whether to grant or revoke authorization
      */
     function authorizeContract(address contractAddress, bool authorized) external onlyOwner {
+        if (contractAddress == address(0)) revert InvalidAddress();
         authorizedContracts[contractAddress] = authorized;
+        emit ContractAuthorizationChanged(contractAddress, authorized);
     }
 
     // =============================================================
@@ -296,14 +311,12 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
      * @param baseCashValue Base $CASH value for trading
      */
     function _createDrug(string memory name, DrugRarity rarity, uint256 baseCashValue) private {
-        if (bytes(name).length > 32) revert DrugNameTooLong();
+        if (bytes(name).length > MAX_DRUG_NAME_LENGTH) revert DrugNameTooLong();
         if (baseCashValue == 0) revert InvalidBaseCashValue();
 
         uint256 supplyCap = _getSupplyCapForRarity(rarity);
 
-        unchecked {
-            ++_totalDrugs;
-        }
+        ++_totalDrugs;
 
         uint256 drugId = _totalDrugs;
 

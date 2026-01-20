@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
 import "../../src/core/DealersExeCore.sol";
@@ -1160,5 +1160,63 @@ contract DealersExePVETest is Test, IERC721Receiver {
         assertEq(lossRep, -5, "Loss rep for Street Dealer tier");
         assertEq(cashValueOnSell, amount * SELL_PRICE_WEED, "Sell value calculation");
         assertEq(cashCostOnBuy, amount * BUY_PRICE_WEED, "Buy cost calculation");
+    }
+
+    // =============================================================
+    //                    SECURITY FEATURES (6 tests)
+    // =============================================================
+
+    function test_pause_revertsOnPlay() public {
+        _setupDealerForPlay(DEALER_ID_1, player1);
+
+        pve.pause();
+
+        vm.prank(player1);
+        vm.expectRevert(DealersExePVE.ContractPaused.selector);
+        pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.BUY, DRUG_WEED, 10);
+    }
+
+    function test_pause_unpause_allowsPlay() public {
+        _setupDealerForPlay(DEALER_ID_1, player1);
+
+        pve.pause();
+        pve.unpause();
+
+        vm.prank(player1);
+        pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.BUY, DRUG_WEED, 10);
+    }
+
+    function test_pause_onlyOwner() public {
+        vm.prank(player1);
+        vm.expectRevert();
+        pve.pause();
+    }
+
+    function test_unpause_onlyOwner() public {
+        pve.pause();
+
+        vm.prank(player1);
+        vm.expectRevert();
+        pve.unpause();
+    }
+
+    function test_setDealersExeCore_revertZeroAddress() public {
+        vm.expectRevert(DealersExePVE.InvalidAddress.selector);
+        pve.setDealersExeCore(address(0));
+    }
+
+    function test_setDealersExeNFT_revertZeroAddress() public {
+        vm.expectRevert(DealersExePVE.InvalidAddress.selector);
+        pve.setDealersExeNFT(address(0));
+    }
+
+    function test_setAreaRegistry_revertZeroAddress() public {
+        vm.expectRevert(DealersExePVE.InvalidAddress.selector);
+        pve.setAreaRegistry(address(0));
+    }
+
+    function test_setRandomness_revertZeroAddress() public {
+        vm.expectRevert(DealersExePVE.InvalidAddress.selector);
+        pve.setRandomness(address(0));
     }
 }

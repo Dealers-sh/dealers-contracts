@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
 
@@ -9,7 +9,7 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
  * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
- * @dev Provides synchronous randomness using prevrandao, designed for easy VRF upgrade
+ * @dev Provides synchronous randomness using prevrandao for gaming applications
  * @author Dealers.Exe Team
  */
 contract DERandomness is Ownable {
@@ -21,18 +21,11 @@ contract DERandomness is Ownable {
     mapping(address => bool) public authorizedResolvers;
     uint256 private nonce;
 
-    // Future VRF support (ready for upgrade)
-    bool public vrfEnabled = false;
-    address public vrfCoordinator;
-    uint256 public vrfThreshold = 0.005 ether;
-
     // =============================================================
     //                            EVENTS
     // =============================================================
 
     event ResolverAuthorized(address indexed resolver, bool authorized);
-    event VRFEnabled(address indexed coordinator, uint256 threshold);
-    event VRFConfigUpdated(address indexed coordinator, uint256 threshold);
 
     // =============================================================
     //                            ERRORS
@@ -40,7 +33,6 @@ contract DERandomness is Ownable {
 
     error NotAuthorized();
     error InvalidAddress();
-    error VRFNotEnabled();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -56,6 +48,11 @@ contract DERandomness is Ownable {
 
     /**
      * @notice Get randomness using prevrandao and additional entropy
+     * @dev WARNING: This randomness is NOT suitable for high-stakes financial applications.
+     * Limitations:
+     * - Block proposers can know prevrandao one block ahead
+     * - On L2, sequencer has timing control
+     * - Use only for gaming with in-game assets
      * @param seed Context-specific seed for additional entropy
      * @return Deterministic randomness value
      */
@@ -75,48 +72,6 @@ contract DERandomness is Ownable {
     }
 
     // =============================================================
-    //                        FUTURE VRF SUPPORT
-    // =============================================================
-
-    /**
-     * @notice Enable VRF for high-stakes games (future upgrade)
-     * @param _vrfCoordinator VRF coordinator address
-     * @param _threshold Minimum stake amount to trigger VRF
-     */
-    function enableVRF(address _vrfCoordinator, uint256 _threshold) external onlyOwner {
-        if (_vrfCoordinator == address(0)) revert InvalidAddress();
-
-        vrfCoordinator = _vrfCoordinator;
-        vrfThreshold = _threshold;
-        vrfEnabled = true;
-
-        emit VRFEnabled(_vrfCoordinator, _threshold);
-    }
-
-    /**
-     * @notice Update VRF configuration
-     * @param _vrfCoordinator New VRF coordinator address
-     * @param _threshold New threshold for VRF usage
-     */
-    function updateVRFConfig(address _vrfCoordinator, uint256 _threshold) external onlyOwner {
-        if (!vrfEnabled) revert VRFNotEnabled();
-        if (_vrfCoordinator == address(0)) revert InvalidAddress();
-
-        vrfCoordinator = _vrfCoordinator;
-        vrfThreshold = _threshold;
-
-        emit VRFConfigUpdated(_vrfCoordinator, _threshold);
-    }
-
-    /**
-     * @notice Disable VRF and fall back to pseudo-randomness
-     */
-    function disableVRF() external onlyOwner {
-        vrfEnabled = false;
-        vrfCoordinator = address(0);
-    }
-
-    // =============================================================
     //                        VIEW FUNCTIONS
     // =============================================================
 
@@ -127,30 +82,6 @@ contract DERandomness is Ownable {
      */
     function isAuthorizedResolver(address resolver) external view returns (bool) {
         return authorizedResolvers[resolver];
-    }
-
-    /**
-     * @notice Get VRF configuration
-     * @return enabled Whether VRF is enabled
-     * @return coordinator VRF coordinator address
-     * @return threshold Minimum stake for VRF usage
-     */
-    function getVRFConfig() external view returns (
-        bool enabled,
-        address coordinator,
-        uint256 threshold
-    ) {
-        enabled = vrfEnabled;
-        coordinator = vrfCoordinator;
-        threshold = vrfThreshold;
-    }
-
-    /**
-     * @notice Get current nonce (for entropy verification)
-     * @return Current nonce value
-     */
-    function getCurrentNonce() external view returns (uint256) {
-        return nonce;
     }
 
     // =============================================================
@@ -175,11 +106,11 @@ contract DERandomness is Ownable {
      * @param authorized Authorization status for all
      */
     function batchAuthorizeResolvers(address[] calldata resolvers, bool authorized) external onlyOwner {
-        for (uint256 i = 0; i < resolvers.length; i++) {
-            if (resolvers[i] != address(0)) {
-                authorizedResolvers[resolvers[i]] = authorized;
-                emit ResolverAuthorized(resolvers[i], authorized);
-            }
+        for (uint256 i = 0; i < resolvers.length;) {
+            if (resolvers[i] == address(0)) revert InvalidAddress();
+            authorizedResolvers[resolvers[i]] = authorized;
+            emit ResolverAuthorized(resolvers[i], authorized);
+            unchecked { ++i; }
         }
     }
 }

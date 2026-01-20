@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import "../base/BaseTest.sol";
 
@@ -598,5 +598,116 @@ contract DealersExePVPTest is BaseTest {
         (,,,,,, uint256 arrestedAfter) = pvp.getPlayerPVPStats(attackerToken);
 
         assertEq(arrestedAfter, arrestedBefore + 1, "Times arrested should increment");
+    }
+
+    // =============================================================
+    //                     DEFENDER PROTECTION (3 tests)
+    // =============================================================
+
+    function test_attack_defenderExhaustedAfterMaxAttacks() public {
+        _setupDealersForPVP();
+        _mockJailChance(attackerToken, 0);
+
+        for (uint256 i = 0; i < 5; i++) {
+            uint256 newAttacker = _mintAndInitialize(address(uint160(100 + i)));
+            _moveDealerToArea(newAttacker, AREA_MANHATTAN);
+            _addDrugsToDealer(newAttacker, DRUG_WEED, 1000);
+
+            vm.prank(address(uint160(100 + i)));
+            pvp.attack(newAttacker, defenderToken);
+        }
+
+        uint256 sixthAttacker = _mintAndInitialize(address(uint160(200)));
+        _moveDealerToArea(sixthAttacker, AREA_MANHATTAN);
+        _addDrugsToDealer(sixthAttacker, DRUG_WEED, 1000);
+
+        vm.prank(address(uint160(200)));
+        vm.expectRevert(DealersExePVP.DefenderExhausted.selector);
+        pvp.attack(sixthAttacker, defenderToken);
+    }
+
+    function test_attack_defenderProtectionResetsNextDay() public {
+        _setupDealersForPVP();
+        _mockJailChance(attackerToken, 0);
+
+        for (uint256 i = 0; i < 5; i++) {
+            uint256 newAttacker = _mintAndInitialize(address(uint160(100 + i)));
+            _moveDealerToArea(newAttacker, AREA_MANHATTAN);
+            _addDrugsToDealer(newAttacker, DRUG_WEED, 1000);
+
+            vm.prank(address(uint160(100 + i)));
+            pvp.attack(newAttacker, defenderToken);
+        }
+
+        vm.warp(block.timestamp + 1 days);
+
+        uint256 newAttacker = _mintAndInitialize(address(uint160(300)));
+        _moveDealerToArea(newAttacker, AREA_MANHATTAN);
+        _addDrugsToDealer(newAttacker, DRUG_WEED, 1000);
+
+        vm.prank(address(uint160(300)));
+        pvp.attack(newAttacker, defenderToken);
+
+        assertEq(pvp.attacksReceivedToday(defenderToken), 1, "Attacks should reset on new day");
+    }
+
+    // =============================================================
+    //                     PAUSE (2 tests)
+    // =============================================================
+
+    function test_attack_revertWhenPaused() public {
+        _setupDealersForPVP();
+
+        vm.prank(owner);
+        pvp.pause();
+
+        vm.prank(player1);
+        vm.expectRevert(DealersExePVP.ContractPaused.selector);
+        pvp.attack(attackerToken, defenderToken);
+    }
+
+    function test_attack_allowedAfterUnpause() public {
+        _setupDealersForPVP();
+        _mockJailChance(attackerToken, 0);
+
+        vm.prank(owner);
+        pvp.pause();
+
+        vm.prank(owner);
+        pvp.unpause();
+
+        uint256 prevrandao = _findPrevrandaoForOutcome(true, false);
+        require(prevrandao > 0, "Could not find valid prevrandao for win");
+        _executeAttackWithPrevrandao(prevrandao);
+
+        assertEq(pvp.totalPVPBattles(), 1, "Attack should succeed after unpause");
+    }
+
+    // =============================================================
+    //                     SETTER VALIDATION (4 tests)
+    // =============================================================
+
+    function test_setCore_revertZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(DealersExePVP.ContractNotSet.selector);
+        pvp.setCore(address(0));
+    }
+
+    function test_setNFTContract_revertZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(DealersExePVP.ContractNotSet.selector);
+        pvp.setNFTContract(address(0));
+    }
+
+    function test_setAreaRegistry_revertZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(DealersExePVP.ContractNotSet.selector);
+        pvp.setAreaRegistry(address(0));
+    }
+
+    function test_setRandomness_revertZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(DealersExePVP.ContractNotSet.selector);
+        pvp.setRandomness(address(0));
     }
 }

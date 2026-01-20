@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -88,6 +88,8 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     event BatchMetadataUpdate(uint256 _fromTokenId, uint256 _toTokenId);
     event DistributionInitialized(uint256 seed);
     event RandomnessUpdated(address indexed newAddress);
+    event SignerAddressChanged(address indexed oldSigner, address indexed newSigner);
+    event RoyaltyReceiverChanged(address indexed oldReceiver, address indexed newReceiver);
 
     // =============================================================
     //                            ERRORS
@@ -107,6 +109,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     error InsufficientBalance();
     error DistributionAlreadyInitialized();
     error RendererNotSet();
+    error ETHTransferFailed();
 
     // =============================================================
     //                          CONSTRUCTOR
@@ -177,7 +180,11 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      * @param nftAmount Number of NFTs per recipient
      * @param recipients Array of addresses to receive NFTs
      */
-    function reserveToMany(uint256 nftAmount, address[] memory recipients) public onlyOwner {
+    function reserveToMany(uint256 nftAmount, address[] memory recipients)
+        public
+        onlyOwner
+        checkAndUpdateTotalMinted(nftAmount * recipients.length)
+    {
         uint256 len = recipients.length;
         for (uint256 i; i < len; ) {
             _mintDealer(recipients[i], nftAmount);
@@ -199,16 +206,21 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         checkAndUpdateBuyerMintCount(count)
         checkAndUpdateTotalMinted(count)
     {
-        if (msg.value < MINT_PRICE * count) revert InsufficientETH();
+        uint256 requiredPayment = MINT_PRICE * count;
+        if (msg.value < requiredPayment) revert InsufficientETH();
         bytes32 sigH = keccak256(signature);
         if (usedSignaturesHash[sigH]) revert SignatureAlreadyUsed();
 
-        // EOA allowance encoded; include sender, dest, count, and domain tag
-        bytes32 msgHash = keccak256(abi.encodePacked("FAMILY", msg.sender, dest, count)).toEthSignedMessageHash();
+        bytes32 msgHash = keccak256(abi.encodePacked("FAMILY", block.chainid, address(this), msg.sender, dest, count)).toEthSignedMessageHash();
         if (msgHash.recover(signature) != signerAddress) revert InvalidSignature();
 
         usedSignaturesHash[sigH] = true;
         _mintDealer(dest, count);
+
+        if (msg.value > requiredPayment) {
+            (bool success, ) = msg.sender.call{value: msg.value - requiredPayment}("");
+            if (!success) revert ETHTransferFailed();
+        }
     }
 
     /**
@@ -225,15 +237,21 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         checkAndUpdateBuyerMintCount(count)
         checkAndUpdateTotalMinted(count)
     {
-        if (msg.value < MINT_PRICE * count) revert InsufficientETH();
+        uint256 requiredPayment = MINT_PRICE * count;
+        if (msg.value < requiredPayment) revert InsufficientETH();
         bytes32 sigH = keccak256(signature);
         if (usedSignaturesHash[sigH]) revert SignatureAlreadyUsed();
 
-        bytes32 msgHash = keccak256(abi.encodePacked("WHITELIST", msg.sender, dest, count)).toEthSignedMessageHash();
+        bytes32 msgHash = keccak256(abi.encodePacked("WHITELIST", block.chainid, address(this), msg.sender, dest, count)).toEthSignedMessageHash();
         if (msgHash.recover(signature) != signerAddress) revert InvalidSignature();
 
         usedSignaturesHash[sigH] = true;
         _mintDealer(dest, count);
+
+        if (msg.value > requiredPayment) {
+            (bool success, ) = msg.sender.call{value: msg.value - requiredPayment}("");
+            if (!success) revert ETHTransferFailed();
+        }
     }
 
     /**
@@ -249,8 +267,14 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         checkAndUpdateBuyerMintCount(count)
         checkAndUpdateTotalMinted(count)
     {
-        if (msg.value < MINT_PRICE * count) revert InsufficientETH();
+        uint256 requiredPayment = MINT_PRICE * count;
+        if (msg.value < requiredPayment) revert InsufficientETH();
         _mintDealer(dest, count);
+
+        if (msg.value > requiredPayment) {
+            (bool success, ) = msg.sender.call{value: msg.value - requiredPayment}("");
+            if (!success) revert ETHTransferFailed();
+        }
     }
 
     function _mintDealer(address to, uint256 nftAmount) private {
@@ -462,6 +486,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      * @param newAddress Address of the SVG renderer contract
      */
     function setContractRendererSVG(address newAddress) external onlyOwner {
+        if (newAddress == address(0)) revert InvalidAddress();
         contractRendererSVG = IDealersExeRendererSVG(newAddress);
         emit RendererSVGChanged(newAddress);
         emit BatchMetadataUpdate(1, MAX_SUPPLY);
@@ -472,6 +497,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      * @param newAddress Address of the HTML renderer contract
      */
     function setContractRendererHTML(address newAddress) external onlyOwner {
+        if (newAddress == address(0)) revert InvalidAddress();
         contractRendererHTML = IDealersExeRendererHTML(newAddress);
         emit RendererHTMLChanged(newAddress);
         emit BatchMetadataUpdate(1, MAX_SUPPLY);
@@ -502,7 +528,9 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      */
     function setSignerAddress(address _signer) external onlyOwner {
         if (_signer == address(0)) revert InvalidAddress();
+        address oldSigner = signerAddress;
         signerAddress = _signer;
+        emit SignerAddressChanged(oldSigner, _signer);
     }
 
     /**
@@ -511,7 +539,9 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      */
     function setRoyaltyReceiver(address _receiver) external onlyOwner {
         if (_receiver == address(0)) revert InvalidAddress();
+        address oldReceiver = royaltyReceiver;
         royaltyReceiver = _receiver;
+        emit RoyaltyReceiverChanged(oldReceiver, _receiver);
     }
 
     /**

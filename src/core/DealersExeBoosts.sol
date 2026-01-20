@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
@@ -26,6 +26,9 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
     uint64 public constant DURATION_24_HOURS = 24 hours;
     uint64 public constant DURATION_7_DAYS = 7 days;
     uint64 public constant DURATION_30_DAYS = 30 days;
+
+    // Maximum number of tiers allowed
+    uint256 public constant MAX_TIERS = 10;
 
     // =============================================================
     //                            STRUCTS
@@ -96,6 +99,8 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
 
     event BoostTierActiveStatusChanged(uint256 indexed tierId, bool isActive);
 
+    event BoostTierPriceUpdated(uint256 indexed tierId, uint256 oldPrice, uint256 newPrice);
+
     event CoreContractUpdated(address indexed oldCore, address indexed newCore);
     event NFTContractUpdated(address indexed oldNFT, address indexed newNFT);
     event PaymentHandlerUpdated(address indexed oldHandler, address indexed newHandler);
@@ -113,6 +118,7 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
     error InvalidAddress();
     error TransferFailed();
     error EmptyBatch();
+    error BoostAlreadyActive();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -129,6 +135,10 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
         address _dealersExeNFT,
         address _paymentHandler
     ) {
+        if (_dealersExeCore == address(0)) revert InvalidAddress();
+        if (_dealersExeNFT == address(0)) revert InvalidAddress();
+        if (_paymentHandler == address(0)) revert InvalidAddress();
+
         _initializeOwner(msg.sender);
         dealersExeCore = IDealersExeCore(_dealersExeCore);
         dealersExeNFT = IERC721Minimal(_dealersExeNFT);
@@ -263,6 +273,9 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
         // Verify ownership
         if (dealersExeNFT.ownerOf(dealerId) != msg.sender) revert NotDealerOwner();
 
+        // Check if dealer already has an active boost
+        if (dealersExeCore.hasActiveBoost(dealerId)) revert BoostAlreadyActive();
+
         BoostTier memory tier = boostTiers[tierId];
 
         // Check payment
@@ -293,7 +306,7 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
         emit BoostPurchased(dealerId, tierId, msg.sender, boost.expiresAt);
 
         // Process payment (5% dev, 5% vault)
-        paymentHandler.processMarketplaceFee{value: tier.price}(tier.price);
+        paymentHandler.processMarketplaceFee{value: tier.price}(msg.sender, tier.price);
 
         // Refund excess
         if (msg.value > tier.price) {
@@ -342,6 +355,12 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
                 continue;
             }
 
+            // Skip if dealer already has an active boost
+            if (dealersExeCore.hasActiveBoost(dealerId)) {
+                unchecked { ++i; }
+                continue;
+            }
+
             // Apply boost
             dealersExeCore.applyBoost(
                 dealerId,
@@ -374,7 +393,7 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
 
         // Process payment for successful purchases
         if (actualCost > 0) {
-            paymentHandler.processMarketplaceFee{value: actualCost}(actualCost);
+            paymentHandler.processMarketplaceFee{value: actualCost}(msg.sender, actualCost);
         }
 
         // Refund excess (including for skipped dealers)
@@ -496,7 +515,10 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
      */
     function setBoostTier(uint256 tierId, BoostTier calldata tier) external onlyOwner {
         if (tierId == 0) revert InvalidTier();
+        if (tierId > MAX_TIERS) revert InvalidTier();
         if (tier.price == 0) revert InvalidTier();
+        if (tier.duration == 0) revert InvalidTier();
+        if (tier.drugMultiplier == 0 || tier.repMultiplier == 0) revert InvalidTier();
 
         // If this is a new tier, update totalTiers
         if (tierId > totalTiers) {
@@ -533,7 +555,9 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
      */
     function setTierPrice(uint256 tierId, uint256 newPrice) external onlyOwner validTier(tierId) {
         if (newPrice == 0) revert InvalidTier();
+        uint256 oldPrice = boostTiers[tierId].price;
         boostTiers[tierId].price = newPrice;
+        emit BoostTierPriceUpdated(tierId, oldPrice, newPrice);
     }
 
     /**
