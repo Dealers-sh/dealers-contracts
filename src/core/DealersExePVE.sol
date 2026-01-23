@@ -36,10 +36,9 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     IAreaRegistry public areaRegistry;
     IDERandomness public randomness;
 
-    // Configurable outcome odds (must sum to 100)
+    // Configurable outcome odds (tie + win <= 100, loss is derived)
     uint8 public tieChance = 50;    // Default 50%
     uint8 public winChance = 25;    // Default 25%
-    uint8 public lossChance = 25;   // Default 25%
 
     // Pause state
     bool public paused;
@@ -74,7 +73,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
 
     event Paused(address account);
     event Unpaused(address account);
-    event OutcomeOddsUpdated(uint8 tieChance, uint8 winChance, uint8 lossChance);
+    event OutcomeOddsUpdated(uint8 tieChance, uint8 winChance);
 
     // =============================================================
     //                            ERRORS
@@ -86,16 +85,14 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     error DealerNotInitialized();
     error DealerInJail();
     error DealerInSafeHouse();
-    error NoAttemptsRemaining();
     error NotDealerOwner();
     error InsufficientCash();
     error InsufficientDrugs();
-    error InvalidDrug();
     error DrugNotAvailableInArea();
     error InvalidAmount();
     error RandomnessError();
     error InvalidAddress();
-    error OddsMustSumTo100();
+    error InvalidOdds();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -568,14 +565,12 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
      * @notice Sets the outcome odds for the biased house choice system
      * @param _tieChance Percentage chance for a tie (0-100)
      * @param _winChance Percentage chance for player win (0-100)
-     * @param _lossChance Percentage chance for player loss (0-100)
      */
-    function setOutcomeOdds(uint8 _tieChance, uint8 _winChance, uint8 _lossChance) external onlyOwner {
-        if (_tieChance + _winChance + _lossChance != 100) revert OddsMustSumTo100();
+    function setOutcomeOdds(uint8 _tieChance, uint8 _winChance) external onlyOwner {
+        if (_tieChance + _winChance > 100) revert InvalidOdds();
         tieChance = _tieChance;
         winChance = _winChance;
-        lossChance = _lossChance;
-        emit OutcomeOddsUpdated(_tieChance, _winChance, _lossChance);
+        emit OutcomeOddsUpdated(_tieChance, _winChance);
     }
 
     /**
