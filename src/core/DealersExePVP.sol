@@ -15,7 +15,7 @@ import {IDERandomness} from "../utils/IDERandomness.sol";
  * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
- * @dev Handles PVP gameplay with stat-based win chances, drug stealing, and cooldowns
+ * @dev Handles PVP gameplay with stat-based win chances, drug/cash stealing, and defender protection
  *      Uses AreaRegistry for drug availability per area
  * @author Dealers.Exe Team
  */
@@ -97,11 +97,9 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     error DealerInSafeHouse();
     error SameDealer();
     error DifferentArea();
-    error NoAttemptsRemaining();
     error ContractNotSet();
     error ContractPaused();
     error DefenderExhausted();
-    error NoDrugsToSteal();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -230,7 +228,9 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
      * @param attackerId The attacker's token ID
      * @param defenderId The defender's token ID
      * @return canFight Whether the attack can proceed
-     * @return reason Error code if canFight is false (0=OK, 1=same dealer, 2=attacker not init, etc.)
+     * @return reason Error code: 0=OK, 1=same dealer, 2=attacker not init, 3=defender not init,
+     *         4=attacker in jail, 5=attacker in safe house, 6=defender in jail, 7=defender in safe house,
+     *         8=different areas, 9=no attempts, 10=defender exhausted
      */
     function canAttack(uint256 attackerId, uint256 defenderId) external view returns (bool canFight, uint8 reason) {
         if (attackerId == defenderId) return (false, 1);
@@ -251,6 +251,11 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         if (attackerArea != defenderArea) return (false, 8);
 
         if (attackerAttempts == 0) return (false, 9);
+
+        uint256 currentDay = block.timestamp / 1 days;
+        if (lastAttackDay[defenderId] == currentDay && attacksReceivedToday[defenderId] >= config.maxAttacksPerDay) {
+            return (false, 10);
+        }
 
         return (true, 0);
     }
@@ -315,13 +320,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
             (uint8 threat, uint8 armor) = core.getDealerStats(tokenId);
             uint256 winChance = calculateWinChance(attackerId, tokenId);
 
-            bool attackable = true;
-            if (core.isInJail(attackerId) || core.isInSafeHouse(attackerId)) attackable = false;
-
-            uint256 currentDay = block.timestamp / 1 days;
-            if (lastAttackDay[tokenId] == currentDay && attacksReceivedToday[tokenId] >= config.maxAttacksPerDay) {
-                attackable = false;
-            }
+            bool attackable = _canAttackTarget(attackerId, tokenId);
 
             tempTargets[matchCount] = PVPTarget({
                 tokenId: tokenId,
@@ -443,6 +442,20 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     // =============================================================
     //                     INTERNAL/PRIVATE HELPER FUNCTIONS
     // =============================================================
+
+    function _canAttackTarget(uint256 attackerId, uint256 defenderId) private view returns (bool) {
+        if (core.isInJail(attackerId) || core.isInSafeHouse(attackerId)) return false;
+
+        (, , uint8 attackerAttempts, , , ) = core.getDealerData(attackerId);
+        if (attackerAttempts == 0) return false;
+
+        uint256 currentDay = block.timestamp / 1 days;
+        if (lastAttackDay[defenderId] == currentDay && attacksReceivedToday[defenderId] >= config.maxAttacksPerDay) {
+            return false;
+        }
+
+        return true;
+    }
 
     function _validateLocationsAndGetArea(uint256 attackerId, uint256 defenderId) private view returns (uint8) {
         if (core.isInJail(attackerId)) revert DealerInJail();
