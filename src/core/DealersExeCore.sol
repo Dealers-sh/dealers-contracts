@@ -117,7 +117,6 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     ReputationTier[] public reputationTiers;
 
     // Updateable parameters
-    uint32 public lastGlobalReset;
     uint256 public MAX_REPUTATION = 1200;
     bool public paused;
 
@@ -148,7 +147,6 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     event AreaMoved(uint256 indexed tokenId, uint8 fromArea, uint8 toArea);
     event ContractAuthorized(address indexed contractAddress, bool authorized);
     event DailyPlaysUpdated(uint256 indexed tokenId, uint8 playsRemaining);
-    event GlobalDailyReset(uint32 timestamp);
     event ReputationTiersUpdated(uint256 tierCount);
 
     event DealerJailed(uint256 indexed tokenId, uint8 previousArea, uint256 repLost);
@@ -225,7 +223,6 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
      */
     constructor() {
         _initializeOwner(msg.sender);
-        lastGlobalReset = uint32(block.timestamp);
     }
 
     // =============================================================
@@ -296,6 +293,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
     /**
      * @notice Get complete dealer data for a token ID
+     * @dev Returns effective attempts remaining (accounts for daily reset)
      */
     function getDealerData(uint256 tokenId)
         external
@@ -310,7 +308,8 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         )
     {
         DealerData memory d = dealers[tokenId];
-        return (d.currentArea, d.reputation, d.dailyAttemptsRemaining, d.heatLevel, d.lastPlayTimestamp, d.isInitialized);
+        uint8 effectiveAttempts = _getEffectiveAttempts(tokenId);
+        return (d.currentArea, d.reputation, effectiveAttempts, d.heatLevel, d.lastPlayTimestamp, d.isInitialized);
     }
 
     /**
@@ -551,15 +550,6 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Reset daily plays for all dealers
-     */
-    function resetDailyPlays() external onlyOwner {
-        uint32 nowTs = uint32(block.timestamp);
-        lastGlobalReset = nowTs;
-        emit GlobalDailyReset(nowTs);
-    }
-
-    /**
      * @notice Pause the contract, disabling state-changing functions
      */
     function pause() external onlyOwner {
@@ -591,7 +581,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     // =============================================================
 
     /**
-     * @notice Use one attempt
+     * @notice Use one attempt (auto-resets at midnight UTC)
      */
     function useAttempt(uint256 tokenId)
         external
@@ -600,6 +590,12 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         whenNotPaused
     {
         DealerData storage d = dealers[tokenId];
+
+        // Lazy reset: if last play was before today, reset attempts
+        if (_shouldResetAttempts(tokenId)) {
+            d.dailyAttemptsRemaining = getMaxAttempts(tokenId);
+        }
+
         if (d.dailyAttemptsRemaining == 0) revert NoAttemptsRemaining();
 
         unchecked { d.dailyAttemptsRemaining--; }
@@ -872,7 +868,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Use 1 attempt for 50% chance to reduce heat to 0
+     * @notice Use 1 attempt for 50% chance to reduce heat to 0 (auto-resets at midnight UTC)
      */
     function removeWantedPoster(uint256 tokenId)
         external
@@ -886,10 +882,16 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
         DealerData storage d = dealers[tokenId];
 
+        // Lazy reset: if last play was before today, reset attempts
+        if (_shouldResetAttempts(tokenId)) {
+            d.dailyAttemptsRemaining = getMaxAttempts(tokenId);
+        }
+
         if (d.dailyAttemptsRemaining == 0) revert NoAttemptsRemaining();
         if (d.heatLevel == 0) revert NoHeatToReduce();
 
         unchecked { d.dailyAttemptsRemaining--; }
+        d.lastPlayTimestamp = uint32(block.timestamp);
 
         bytes32 seed = keccak256(abi.encodePacked(tokenId, "WANTED_POSTER", block.timestamp, block.prevrandao));
         uint256 roll = randomness.getRandomness(seed) % 100;
@@ -933,7 +935,9 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         if (address(nftContract) == address(0)) revert NFTContractNotSet();
         if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
 
-        dealers[tokenId].dailyAttemptsRemaining = getMaxAttempts(tokenId);
+        DealerData storage d = dealers[tokenId];
+        d.dailyAttemptsRemaining = getMaxAttempts(tokenId);
+        d.lastPlayTimestamp = uint32(block.timestamp);
 
         if (address(paymentHandler) != address(0)) {
             paymentHandler.processMarketplaceFee{value: ATTEMPT_RESET_FEE}(msg.sender, ATTEMPT_RESET_FEE);
@@ -1211,6 +1215,34 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     // =============================================================
     //                     INTERNAL HELPER FUNCTIONS
     // =============================================================
+
+    /**
+     * @notice Get the start of the current day (midnight UTC)
+     */
+    function _getDayStart() private view returns (uint256) {
+        return (block.timestamp / 1 days) * 1 days;
+    }
+
+    /**
+     * @notice Check if a dealer's attempts should be reset (new day)
+     * @param tokenId The dealer token ID
+     * @return True if last play was before today
+     */
+    function _shouldResetAttempts(uint256 tokenId) private view returns (bool) {
+        return dealers[tokenId].lastPlayTimestamp < _getDayStart();
+    }
+
+    /**
+     * @notice Get effective attempts remaining (accounts for daily reset)
+     * @param tokenId The dealer token ID
+     * @return Effective attempts remaining
+     */
+    function _getEffectiveAttempts(uint256 tokenId) private view returns (uint8) {
+        if (_shouldResetAttempts(tokenId)) {
+            return getMaxAttempts(tokenId);
+        }
+        return dealers[tokenId].dailyAttemptsRemaining;
+    }
 
     /**
      * @notice Safe ETH transfer using .call()
