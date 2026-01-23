@@ -46,6 +46,8 @@ interface IAreaRegistry {
     event AreaDrugConfigured(uint8 indexed areaId, uint256 indexed drugId, uint256 buyPrice, uint256 sellPrice);
     event AreaDrugRemoved(uint8 indexed areaId, uint256 indexed drugId);
     event DrugRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
+    event DealerLocationUpdated(uint256 indexed tokenId, uint8 indexed oldArea, uint8 indexed newArea);
+    event CoreContractUpdated(address indexed oldCore, address indexed newCore);
 
     // =============================================================
     //                      VIEW FUNCTIONS
@@ -93,6 +95,19 @@ interface IAreaRegistry {
 
     /// @notice Get the number of drugs available in an area
     function getAreaDrugCount(uint8 areaId) external view returns (uint256);
+
+    // =============================================================
+    //                    DEALER LOCATION FUNCTIONS
+    // =============================================================
+
+    /// @notice Update a dealer's location (called by Core contract)
+    function updateDealerLocation(uint256 tokenId, uint8 oldArea, uint8 newArea) external;
+
+    /// @notice Get all dealer token IDs in an area (paginated)
+    function getDealersInArea(uint8 areaId, uint256 offset, uint256 limit) external view returns (uint256[] memory tokenIds, uint256 total);
+
+    /// @notice Get the count of dealers in an area
+    function getDealerCountInArea(uint8 areaId) external view returns (uint256);
 
     // =============================================================
     //                          CONSTANTS

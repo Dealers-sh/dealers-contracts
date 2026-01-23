@@ -71,6 +71,9 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
     mapping(uint256 => BoostTier) public boostTiers;
     uint256 public totalTiers;
 
+    // Pause state
+    bool public paused;
+
     // =============================================================
     //                            EVENTS
     // =============================================================
@@ -96,12 +99,15 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
     event CoreContractUpdated(address indexed oldCore, address indexed newCore);
     event NFTContractUpdated(address indexed oldNFT, address indexed newNFT);
     event PaymentHandlerUpdated(address indexed oldHandler, address indexed newHandler);
+    event Paused(address account);
+    event Unpaused(address account);
 
     // =============================================================
     //                            ERRORS
     // =============================================================
 
     error ContractNotSet();
+    error ContractPaused();
     error InvalidTier();
     error TierNotActive();
     error InsufficientPayment();
@@ -169,6 +175,11 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
     modifier dealerExists(uint256 dealerId) {
         (, , , , , bool isInitialized) = dealersExeCore.getDealerData(dealerId);
         if (!isInitialized) revert DealerNotInitialized();
+        _;
+    }
+
+    modifier whenNotPaused() {
+        if (paused) revert ContractPaused();
         _;
     }
 
@@ -254,6 +265,7 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
         external
         payable
         nonReentrant
+        whenNotPaused
         contractsSet
         validTier(tierId)
         tierActive(tierId)
@@ -306,6 +318,7 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
         external
         payable
         nonReentrant
+        whenNotPaused
         contractsSet
         validTier(tierId)
         tierActive(tierId)
@@ -546,6 +559,22 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
         address old = address(paymentHandler);
         paymentHandler = IDEPaymentHandler(_paymentHandler);
         emit PaymentHandlerUpdated(old, _paymentHandler);
+    }
+
+    /**
+     * @notice Pauses the contract, preventing boost purchases
+     */
+    function pause() external onlyOwner {
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    /**
+     * @notice Unpauses the contract, allowing boost purchases
+     */
+    function unpause() external onlyOwner {
+        paused = false;
+        emit Unpaused(msg.sender);
     }
 
     /**

@@ -44,6 +44,21 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
     /// @notice Reference to the Drug Registry for validation
     IDrugRegistry public drugRegistry;
 
+    /// @notice Reference to the Core contract (authorized to update dealer locations)
+    address public coreContract;
+
+    /// @notice Area ID => Array of dealer tokenIds in that area
+    mapping(uint8 => uint256[]) private _dealersInArea;
+
+    /// @notice TokenId => Index position in the area's dealer array
+    mapping(uint256 => uint256) private _dealerAreaIndex;
+
+    /// @notice TokenId => Current area (to validate oldArea in updates)
+    mapping(uint256 => uint8) private _dealerCurrentArea;
+
+    /// @notice TokenId => Whether dealer has been registered
+    mapping(uint256 => bool) private _dealerRegistered;
+
     // =============================================================
     //                            ERRORS
     // =============================================================
@@ -60,6 +75,8 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
     error MaxAreasReached();
     error InvalidAddress();
     error ArrayLengthMismatch();
+    error NotAuthorized();
+    error CoreContractNotSet();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -85,6 +102,12 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
     modifier validArea(uint8 areaId) {
         if (!_isValidAreaId(areaId)) revert InvalidAreaId();
         if (!_areas[areaId].isActive) revert AreaNotActive();
+        _;
+    }
+
+    modifier onlyCore() {
+        if (coreContract == address(0)) revert CoreContractNotSet();
+        if (msg.sender != coreContract) revert NotAuthorized();
         _;
     }
 
@@ -166,6 +189,64 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
     /// @inheritdoc IAreaRegistry
     function getAreaDrugCount(uint8 areaId) external view validArea(areaId) returns (uint256) {
         return _areaDrugIds[areaId].length;
+    }
+
+    // =============================================================
+    //                   DEALER LOCATION FUNCTIONS
+    // =============================================================
+
+    /// @inheritdoc IAreaRegistry
+    function updateDealerLocation(uint256 tokenId, uint8 oldArea, uint8 newArea) external onlyCore {
+        if (oldArea == newArea) return;
+
+        if (_dealerRegistered[tokenId]) {
+            uint256[] storage oldList = _dealersInArea[oldArea];
+            uint256 index = _dealerAreaIndex[tokenId];
+            uint256 lastIdx = oldList.length - 1;
+
+            if (index != lastIdx) {
+                uint256 lastTokenId = oldList[lastIdx];
+                oldList[index] = lastTokenId;
+                _dealerAreaIndex[lastTokenId] = index;
+            }
+            oldList.pop();
+        }
+
+        _dealersInArea[newArea].push(tokenId);
+        _dealerAreaIndex[tokenId] = _dealersInArea[newArea].length - 1;
+        _dealerCurrentArea[tokenId] = newArea;
+        _dealerRegistered[tokenId] = true;
+
+        emit DealerLocationUpdated(tokenId, oldArea, newArea);
+    }
+
+    /// @inheritdoc IAreaRegistry
+    function getDealersInArea(uint8 areaId, uint256 offset, uint256 limit)
+        external
+        view
+        returns (uint256[] memory tokenIds, uint256 total)
+    {
+        uint256[] storage allInArea = _dealersInArea[areaId];
+        total = allInArea.length;
+
+        if (offset >= total || limit == 0) {
+            return (new uint256[](0), total);
+        }
+
+        uint256 end = offset + limit;
+        if (end > total) end = total;
+        uint256 resultLength = end - offset;
+
+        tokenIds = new uint256[](resultLength);
+        for (uint256 i = 0; i < resultLength;) {
+            tokenIds[i] = allInArea[offset + i];
+            unchecked { ++i; }
+        }
+    }
+
+    /// @inheritdoc IAreaRegistry
+    function getDealerCountInArea(uint8 areaId) external view returns (uint256) {
+        return _dealersInArea[areaId].length;
     }
 
     // =============================================================
@@ -342,6 +423,18 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
         address oldRegistry = address(drugRegistry);
         drugRegistry = IDrugRegistry(_drugRegistry);
         emit DrugRegistryUpdated(oldRegistry, _drugRegistry);
+    }
+
+    /**
+     * @notice Set the Core contract address (authorized to update dealer locations)
+     * @dev Only callable by owner
+     * @param _coreContract The Core contract address
+     */
+    function setCoreContract(address _coreContract) external onlyOwner {
+        if (_coreContract == address(0)) revert InvalidAddress();
+        address oldCore = coreContract;
+        coreContract = _coreContract;
+        emit CoreContractUpdated(oldCore, _coreContract);
     }
 
     /**

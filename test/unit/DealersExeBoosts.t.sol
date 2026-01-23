@@ -385,4 +385,56 @@ contract DealersExeBoostsTest is BaseTest {
         assertEq(recipientBalanceAfter - recipientBalanceBefore, 0.5 ether);
         assertEq(address(boosts).balance, 0.5 ether);
     }
+
+    // =============================================================
+    //                      PAUSE FUNCTIONALITY
+    // =============================================================
+
+    function test_pause_preventsBoostPurchase() public {
+        boosts.pause();
+        assertTrue(boosts.paused());
+
+        vm.prank(player1);
+        vm.expectRevert(DealersExeBoosts.ContractPaused.selector);
+        boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
+    }
+
+    function test_pause_preventsBoostBatchPurchase() public {
+        boosts.pause();
+
+        uint256[] memory dealerIds = new uint256[](2);
+        dealerIds[0] = dealer1;
+        dealerIds[1] = dealer2;
+
+        vm.prank(player1);
+        vm.expectRevert(DealersExeBoosts.ContractPaused.selector);
+        boosts.purchaseBoostBatch{value: GRINDER_PRICE * 2}(dealerIds, GRINDER_TIER);
+    }
+
+    function test_unpause_allowsBoostPurchase() public {
+        boosts.pause();
+        assertTrue(boosts.paused());
+
+        boosts.unpause();
+        assertFalse(boosts.paused());
+
+        vm.prank(player1);
+        boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
+
+        assertTrue(core.hasActiveBoost(dealer1));
+    }
+
+    function test_pause_onlyOwner() public {
+        vm.prank(player1);
+        vm.expectRevert();
+        boosts.pause();
+    }
+
+    function test_unpause_onlyOwner() public {
+        boosts.pause();
+
+        vm.prank(player1);
+        vm.expectRevert();
+        boosts.unpause();
+    }
 }

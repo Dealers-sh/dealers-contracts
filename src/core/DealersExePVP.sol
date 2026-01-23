@@ -5,6 +5,7 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IDealersExeCore} from "./IDealersExeCore.sol";
 import {IAreaRegistry} from "../utils/IAreaRegistry.sol";
+import {IDrugRegistry} from "../utils/IDrugRegistry.sol";
 import {IERC721Minimal} from "../utils/IERC721Minimal.sol";
 import {IDERandomness} from "../utils/IDERandomness.sol";
 
@@ -20,15 +21,31 @@ import {IDERandomness} from "../utils/IDERandomness.sol";
  */
 contract DealersExePVP is ReentrancyGuard, Ownable {
     // =============================================================
-    //                            CONSTANTS
+    //                            STRUCTS
     // =============================================================
 
-    uint256 public constant BASE_WIN_CHANCE = 50;
-    uint256 public constant MIN_WIN_CHANCE = 25;
-    uint256 public constant MAX_WIN_CHANCE = 75;
-    uint256 public constant DRUG_STEAL_PERCENT = 1;
-    uint256 public constant ATTACK_COOLDOWN = 1 hours;
-    uint256 public constant MAX_ATTACKS_PER_DAY = 3;
+    struct PVPConfig {
+        uint8 baseWinChance;
+        uint8 minWinChance;
+        uint8 maxWinChance;
+        uint8 maxAttacksPerDay;
+        uint8 drugStealPercent;
+        uint8 cashStealPercent;
+        uint8 rarityWeightCommon;
+        uint8 rarityWeightUncommon;
+        uint8 rarityWeightRare;
+    }
+
+    struct PVPTarget {
+        uint256 tokenId;
+        uint256 reputation;
+        uint8 threat;
+        uint8 armor;
+        uint8 attemptsRemaining;
+        uint256 winChance;
+        uint256 lossChance;
+        bool canAttackNow;
+    }
 
     // =============================================================
     //                            STORAGE
@@ -37,11 +54,11 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     IDealersExeCore public core;
     IERC721Minimal public nftContract;
     IAreaRegistry public areaRegistry;
+    IDrugRegistry public drugRegistry;
     IDERandomness public randomness;
 
     bool public paused;
-
-    mapping(uint256 => mapping(uint256 => uint256)) public lastAttackTime;
+    PVPConfig public config;
 
     mapping(uint256 => uint256) public lastAttackDay;
     mapping(uint256 => uint256) public attacksReceivedToday;
@@ -55,6 +72,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         uint256 indexed defender,
         bool attackerWon,
         uint256 drugsStolen,
+        uint256 cashStolen,
         int16 attackerRepChange,
         int16 defenderRepChange
     );
@@ -63,9 +81,11 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     event CoreContractUpdated(address indexed oldCore, address indexed newCore);
     event NFTContractUpdated(address indexed oldNFT, address indexed newNFT);
     event AreaRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
+    event DrugRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
     event RandomnessUpdated(address indexed oldRandomness, address indexed newRandomness);
     event Paused(address account);
     event Unpaused(address account);
+    event PVPConfigUpdated(PVPConfig oldConfig, PVPConfig newConfig);
 
     // =============================================================
     //                            ERRORS
@@ -77,11 +97,11 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     error DealerInSafeHouse();
     error SameDealer();
     error DifferentArea();
-    error CooldownActive();
     error NoAttemptsRemaining();
     error ContractNotSet();
     error ContractPaused();
     error DefenderExhausted();
+    error NoDrugsToSteal();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -101,6 +121,18 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         core = IDealersExeCore(_core);
         nftContract = IERC721Minimal(_nftContract);
         areaRegistry = IAreaRegistry(_areaRegistry);
+
+        config = PVPConfig({
+            baseWinChance: 50,
+            minWinChance: 25,
+            maxWinChance: 75,
+            maxAttacksPerDay: 3,
+            drugStealPercent: 2,
+            cashStealPercent: 1,
+            rarityWeightCommon: 50,
+            rarityWeightUncommon: 30,
+            rarityWeightRare: 20
+        });
     }
 
     // =============================================================
@@ -112,6 +144,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
             address(core) == address(0) ||
             address(nftContract) == address(0) ||
             address(areaRegistry) == address(0) ||
+            address(drugRegistry) == address(0) ||
             address(randomness) == address(0)
         ) {
             revert ContractNotSet();
@@ -157,10 +190,6 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
 
         uint8 area = _validateLocationsAndGetArea(attackerId, defenderId);
 
-        if (block.timestamp < lastAttackTime[attackerId][defenderId] + ATTACK_COOLDOWN) {
-            revert CooldownActive();
-        }
-
         _checkDefenderProtection(defenderId);
 
         core.useAttempt(attackerId);
@@ -184,13 +213,13 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         (, uint8 defenderArmor) = core.getDealerStats(defenderId);
 
         int256 statModifier = int256(uint256(attackerThreat)) - int256(uint256(defenderArmor));
-        int256 finalChance = int256(BASE_WIN_CHANCE) + statModifier;
+        int256 finalChance = int256(uint256(config.baseWinChance)) + statModifier;
 
-        if (finalChance < int256(MIN_WIN_CHANCE)) {
-            return MIN_WIN_CHANCE;
+        if (finalChance < int256(uint256(config.minWinChance))) {
+            return config.minWinChance;
         }
-        if (finalChance > int256(MAX_WIN_CHANCE)) {
-            return MAX_WIN_CHANCE;
+        if (finalChance > int256(uint256(config.maxWinChance))) {
+            return config.maxWinChance;
         }
 
         return uint256(finalChance);
@@ -221,60 +250,109 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         (uint8 defenderArea, , , , , ) = core.getDealerData(defenderId);
         if (attackerArea != defenderArea) return (false, 8);
 
-        if (block.timestamp < lastAttackTime[attackerId][defenderId] + ATTACK_COOLDOWN) {
-            return (false, 9);
-        }
-
-        if (attackerAttempts == 0) return (false, 10);
+        if (attackerAttempts == 0) return (false, 9);
 
         return (true, 0);
     }
 
     /**
-     * @notice Get remaining cooldown time for an attack
+     * @notice Get potential PVP targets for a dealer
      * @param attackerId The attacker's token ID
-     * @param defenderId The defender's token ID
-     * @return Seconds remaining until attack is allowed (0 if ready)
+     * @param minReputation Minimum reputation filter (0 for no minimum)
+     * @param maxReputation Maximum reputation filter (0 for no maximum)
+     * @param offset Pagination offset
+     * @param limit Maximum number of results to return
+     * @return targets Array of potential targets with full stats
+     * @return totalInArea Total number of dealers in the attacker's area
      */
-    function getCooldownRemaining(uint256 attackerId, uint256 defenderId) external view returns (uint256) {
-        uint256 lastAttack = lastAttackTime[attackerId][defenderId];
-        uint256 cooldownEnd = lastAttack + ATTACK_COOLDOWN;
+    function getPotentialTargets(
+        uint256 attackerId,
+        uint256 minReputation,
+        uint256 maxReputation,
+        uint256 offset,
+        uint256 limit
+    ) external view returns (PVPTarget[] memory targets, uint256 totalInArea) {
+        (uint8 attackerArea, , , , , bool attackerInit) = core.getDealerData(attackerId);
+        if (!attackerInit) return (new PVPTarget[](0), 0);
 
-        if (block.timestamp >= cooldownEnd) {
-            return 0;
-        }
+        (uint256[] memory dealersInArea, uint256 total) = areaRegistry.getDealersInArea(attackerArea, 0, type(uint256).max);
+        totalInArea = total;
 
-        return cooldownEnd - block.timestamp;
-    }
+        if (total == 0 || limit == 0) return (new PVPTarget[](0), total);
 
-    /**
-     * @notice Preview battle stats for UI
-     * @param attackerId The attacker's token ID
-     * @param defenderId The defender's token ID
-     */
-    function previewBattle(uint256 attackerId, uint256 defenderId) external view returns (
-        uint8 attackerThreat,
-        uint8 defenderArmor,
-        uint256 winChance,
-        uint256 potentialDrugSteal
-    ) {
-        (attackerThreat, ) = core.getDealerStats(attackerId);
-        (, defenderArmor) = core.getDealerStats(defenderId);
-        winChance = calculateWinChance(attackerId, defenderId);
+        PVPTarget[] memory tempTargets = new PVPTarget[](total);
+        uint256 matchCount = 0;
 
-        (uint8 defenderArea, , , , , ) = core.getDealerData(defenderId);
-        uint256[] memory drugIds = areaRegistry.getAreaDrugIds(defenderArea);
+        for (uint256 i = 0; i < dealersInArea.length;) {
+            uint256 tokenId = dealersInArea[i];
 
-        for (uint256 i = 0; i < drugIds.length; ) {
-            uint256 drugId = drugIds[i];
-            if (drugId != 0) {
-                uint256 balance = core.getDrugBalance(defenderId, drugId);
-                potentialDrugSteal += (balance * DRUG_STEAL_PERCENT) / 100;
+            if (tokenId == attackerId) {
+                unchecked { ++i; }
+                continue;
             }
+
+            (, uint256 rep, uint8 attempts, , , bool init) = core.getDealerData(tokenId);
+
+            if (!init) {
+                unchecked { ++i; }
+                continue;
+            }
+
+            if (minReputation > 0 && rep < minReputation) {
+                unchecked { ++i; }
+                continue;
+            }
+            if (maxReputation > 0 && rep > maxReputation) {
+                unchecked { ++i; }
+                continue;
+            }
+
+            if (core.isInJail(tokenId) || core.isInSafeHouse(tokenId)) {
+                unchecked { ++i; }
+                continue;
+            }
+
+            (uint8 threat, uint8 armor) = core.getDealerStats(tokenId);
+            uint256 winChance = calculateWinChance(attackerId, tokenId);
+
+            bool attackable = true;
+            if (core.isInJail(attackerId) || core.isInSafeHouse(attackerId)) attackable = false;
+
+            uint256 currentDay = block.timestamp / 1 days;
+            if (lastAttackDay[tokenId] == currentDay && attacksReceivedToday[tokenId] >= config.maxAttacksPerDay) {
+                attackable = false;
+            }
+
+            tempTargets[matchCount] = PVPTarget({
+                tokenId: tokenId,
+                reputation: rep,
+                threat: threat,
+                armor: armor,
+                attemptsRemaining: attempts,
+                winChance: winChance,
+                lossChance: 100 - winChance,
+                canAttackNow: attackable
+            });
+
+            unchecked { ++matchCount; }
             unchecked { ++i; }
         }
 
-        return (attackerThreat, defenderArmor, winChance, potentialDrugSteal);
+        if (matchCount == 0) return (new PVPTarget[](0), total);
+
+        if (offset >= matchCount) return (new PVPTarget[](0), total);
+
+        uint256 end = offset + limit;
+        if (end > matchCount) end = matchCount;
+        uint256 resultLength = end - offset;
+
+        targets = new PVPTarget[](resultLength);
+        for (uint256 i = 0; i < resultLength;) {
+            targets[i] = tempTargets[offset + i];
+            unchecked { ++i; }
+        }
+
+        return (targets, total);
     }
 
     // =============================================================
@@ -315,6 +393,17 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     }
 
     /**
+     * @notice Updates the Drug Registry address
+     * @param _drugRegistry New Drug Registry address
+     */
+    function setDrugRegistry(address _drugRegistry) external onlyOwner {
+        if (_drugRegistry == address(0)) revert ContractNotSet();
+        address old = address(drugRegistry);
+        drugRegistry = IDrugRegistry(_drugRegistry);
+        emit DrugRegistryUpdated(old, _drugRegistry);
+    }
+
+    /**
      * @notice Updates the Randomness contract address
      * @param _randomness New Randomness contract address
      */
@@ -323,6 +412,16 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         address old = address(randomness);
         randomness = IDERandomness(_randomness);
         emit RandomnessUpdated(old, _randomness);
+    }
+
+    /**
+     * @notice Updates all PVP configuration parameters
+     * @param _config New PVP configuration
+     */
+    function setPVPConfig(PVPConfig calldata _config) external onlyOwner {
+        PVPConfig memory oldConfig = config;
+        config = _config;
+        emit PVPConfigUpdated(oldConfig, _config);
     }
 
     /**
@@ -365,7 +464,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
             lastAttackDay[defenderId] = currentDay;
             attacksReceivedToday[defenderId] = 1;
         } else {
-            if (attacksReceivedToday[defenderId] >= MAX_ATTACKS_PER_DAY) {
+            if (attacksReceivedToday[defenderId] >= config.maxAttacksPerDay) {
                 revert DefenderExhausted();
             }
             unchecked {
@@ -379,23 +478,21 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         uint256 battleRandomness = randomness.getRandomness(seed);
 
         if (_checkAndProcessArrest(attackerId, battleRandomness)) {
-            lastAttackTime[attackerId][defenderId] = block.timestamp;
             return;
         }
 
         uint256 winChance = calculateWinChance(attackerId, defenderId);
         bool attackerWon = ((battleRandomness >> 8) % 100) < winChance;
 
-        (uint256 drugsStolen, int16 attackerRepChange, int16 defenderRepChange) =
-            _processBattleOutcome(attackerId, defenderId, attackerWon, area);
-
-        lastAttackTime[attackerId][defenderId] = block.timestamp;
+        (uint256 drugsStolen, uint256 cashStolen, int16 attackerRepChange, int16 defenderRepChange) =
+            _processBattleOutcome(attackerId, defenderId, attackerWon, area, battleRandomness);
 
         emit PVPBattleResult(
             attackerId,
             defenderId,
             attackerWon,
             drugsStolen,
+            cashStolen,
             attackerRepChange,
             defenderRepChange
         );
@@ -418,8 +515,9 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         uint256 attackerId,
         uint256 defenderId,
         bool attackerWon,
-        uint8 area
-    ) private returns (uint256 drugsStolen, int16 attackerRepChange, int16 defenderRepChange) {
+        uint8 area,
+        uint256 battleRandomness
+    ) private returns (uint256 drugsStolen, uint256 cashStolen, int16 attackerRepChange, int16 defenderRepChange) {
         uint256 winnerId;
         uint256 loserId;
 
@@ -431,7 +529,8 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
             loserId = attackerId;
         }
 
-        drugsStolen = _stealDrugs(winnerId, loserId, area);
+        drugsStolen = _stealDrugs(winnerId, loserId, area, battleRandomness);
+        cashStolen = _stealCash(winnerId, loserId);
 
         int16 winnerBaseRep = core.getReputationChange(winnerId, 0);
         int16 loserBaseRep = core.getReputationChange(loserId, 2);
@@ -450,36 +549,115 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
             defenderRepChange = winnerRepChange;
         }
 
-        return (drugsStolen, attackerRepChange, defenderRepChange);
+        return (drugsStolen, cashStolen, attackerRepChange, defenderRepChange);
     }
 
-    function _stealDrugs(uint256 winnerId, uint256 loserId, uint8 area) private returns (uint256 totalStolen) {
-        uint256[] memory drugIds = areaRegistry.getAreaDrugIds(area);
+    function _stealDrugs(
+        uint256 winnerId,
+        uint256 loserId,
+        uint8 area,
+        uint256 rng
+    ) private returns (uint256 totalStolen) {
+        uint256[] memory areaDrugIds = areaRegistry.getAreaDrugIds(area);
 
-        for (uint256 i = 0; i < drugIds.length; ) {
-            uint256 drugId = drugIds[i];
+        uint256[] memory commonDrugs = new uint256[](areaDrugIds.length);
+        uint256[] memory uncommonDrugs = new uint256[](areaDrugIds.length);
+        uint256[] memory rareDrugs = new uint256[](areaDrugIds.length);
+        uint256 commonCount;
+        uint256 uncommonCount;
+        uint256 rareCount;
 
+        for (uint256 i = 0; i < areaDrugIds.length;) {
+            uint256 drugId = areaDrugIds[i];
             if (drugId == 0) {
                 unchecked { ++i; }
                 continue;
             }
 
-            uint256 loserBalance = core.getDrugBalance(loserId, drugId);
+            uint256 balance = core.getDrugBalance(loserId, drugId);
+            if (balance == 0) {
+                unchecked { ++i; }
+                continue;
+            }
 
-            if (loserBalance > 0) {
-                uint256 stolen = (loserBalance * DRUG_STEAL_PERCENT) / 100;
+            IDrugRegistry.DrugRarity rarity = drugRegistry.getDrugRarity(drugId);
 
-                if (stolen > 0) {
-                    core.updateDrugBalance(loserId, drugId, -int256(stolen));
-                    core.updateDrugBalance(winnerId, drugId, int256(stolen));
-
-                    unchecked { totalStolen += stolen; }
-                }
+            if (rarity == IDrugRegistry.DrugRarity.COMMON) {
+                commonDrugs[commonCount] = drugId;
+                unchecked { ++commonCount; }
+            } else if (rarity == IDrugRegistry.DrugRarity.UNCOMMON) {
+                uncommonDrugs[uncommonCount] = drugId;
+                unchecked { ++uncommonCount; }
+            } else {
+                rareDrugs[rareCount] = drugId;
+                unchecked { ++rareCount; }
             }
 
             unchecked { ++i; }
         }
 
-        return totalStolen;
+        if (commonCount == 0 && uncommonCount == 0 && rareCount == 0) {
+            return 0;
+        }
+
+        uint256 selectedDrugId = _selectDrugByRarity(
+            rng,
+            commonDrugs, commonCount,
+            uncommonDrugs, uncommonCount,
+            rareDrugs, rareCount
+        );
+
+        uint256 loserBalance = core.getDrugBalance(loserId, selectedDrugId);
+        uint256 stolen = _ceilDiv(loserBalance * config.drugStealPercent, 100);
+
+        if (stolen > 0) {
+            core.updateDrugBalance(loserId, selectedDrugId, -int256(stolen));
+            core.updateDrugBalance(winnerId, selectedDrugId, int256(stolen));
+        }
+
+        return stolen;
+    }
+
+    function _stealCash(uint256 winnerId, uint256 loserId) private returns (uint256 stolen) {
+        uint256 loserCash = core.getCashBalance(loserId);
+        if (loserCash == 0) return 0;
+
+        stolen = _ceilDiv(loserCash * config.cashStealPercent, 100);
+
+        if (stolen > 0) {
+            core.spendCash(loserId, stolen);
+            core.addCash(winnerId, stolen);
+        }
+
+        return stolen;
+    }
+
+    function _selectDrugByRarity(
+        uint256 rng,
+        uint256[] memory commonDrugs,
+        uint256 commonCount,
+        uint256[] memory uncommonDrugs,
+        uint256 uncommonCount,
+        uint256[] memory rareDrugs,
+        uint256 rareCount
+    ) private view returns (uint256) {
+        uint256 roll = (rng >> 16) % 100;
+
+        if (roll < config.rarityWeightCommon && commonCount > 0) {
+            return commonDrugs[(rng >> 24) % commonCount];
+        } else if (roll < uint256(config.rarityWeightCommon) + uint256(config.rarityWeightUncommon) && uncommonCount > 0) {
+            return uncommonDrugs[(rng >> 32) % uncommonCount];
+        } else if (rareCount > 0) {
+            return rareDrugs[(rng >> 40) % rareCount];
+        }
+
+        if (commonCount > 0) return commonDrugs[(rng >> 24) % commonCount];
+        if (uncommonCount > 0) return uncommonDrugs[(rng >> 32) % uncommonCount];
+        return rareDrugs[(rng >> 40) % rareCount];
+    }
+
+    function _ceilDiv(uint256 a, uint256 b) private pure returns (uint256) {
+        if (a == 0) return 0;
+        return (a - 1) / b + 1;
     }
 }

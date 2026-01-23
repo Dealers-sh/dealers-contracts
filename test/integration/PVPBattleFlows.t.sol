@@ -207,56 +207,6 @@ contract PVPBattleFlowsTest is BaseTest {
         }
     }
 
-    function test_pvpFlow_cooldownEnforced() public {
-        bool attackSucceeded = false;
-        uint256 prevrandaoValue = 0;
-
-        vm.startPrank(player1);
-        while (!attackSucceeded && prevrandaoValue < 100) {
-            vm.prevrandao(bytes32(prevrandaoValue));
-
-            uint256 snapshotId = vm.snapshotState();
-
-            try pvp.attack(attackerToken, defenderToken) {
-                if (!core.isInJail(attackerToken)) {
-                    attackSucceeded = true;
-                    break;
-                }
-            } catch {}
-
-            vm.revertToState(snapshotId);
-            prevrandaoValue++;
-        }
-        vm.stopPrank();
-
-        if (!attackSucceeded) {
-            emit log("Note: Could not execute attack without jail - test inconclusive");
-            return;
-        }
-
-        vm.prank(player1);
-        vm.expectRevert(DealersExePVP.CooldownActive.selector);
-        pvp.attack(attackerToken, defenderToken);
-
-        vm.warp(block.timestamp + 30 minutes);
-
-        vm.prank(player1);
-        vm.expectRevert(DealersExePVP.CooldownActive.selector);
-        pvp.attack(attackerToken, defenderToken);
-
-        vm.warp(block.timestamp + 31 minutes);
-
-        (, , uint8 attempts, , , ) = core.getDealerData(attackerToken);
-        if (attempts == 0) {
-            vm.prank(player1);
-            core.purchaseAttemptReset{value: 0.001 ether}(attackerToken);
-        }
-
-        vm.prank(player1);
-        vm.prevrandao(bytes32(uint256(67890)));
-        pvp.attack(attackerToken, defenderToken);
-    }
-
     function test_pvpFlow_mustBeSameArea() public {
         vm.prank(owner);
         areaRegistry.createArea("Brooklyn", 0.001 ether, 0, false, false);

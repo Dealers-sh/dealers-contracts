@@ -285,6 +285,8 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         drugRegistry.incrementSupply(2, STARTER_XTC);
         drugRegistry.incrementSupply(3, STARTER_COCAINE);
 
+        areaRegistry.updateDealerLocation(tokenId, 0, STARTING_AREA);
+
         emit DealerInitialized(tokenId, STARTING_AREA);
         emit CashUpdated(tokenId, STARTER_CASH, int256(STARTER_CASH));
         emit DrugBalanceUpdated(tokenId, 1, STARTER_WEED, int256(STARTER_WEED));
@@ -670,6 +672,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
         d.previousArea = priorArea;
         d.currentArea = JAIL_AREA;
+        areaRegistry.updateDealerLocation(tokenId, priorArea, JAIL_AREA);
 
         if (repLoss >= d.reputation) {
             d.reputation = 0;
@@ -709,6 +712,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
         d.currentArea = returnArea;
         d.heatLevel = 0;
+        areaRegistry.updateDealerLocation(tokenId, JAIL_AREA, returnArea);
 
         if (address(paymentHandler) != address(0) && bail > 0) {
             paymentHandler.processMovementFee{value: bail}(msg.sender, bail);
@@ -756,6 +760,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
         if (success) {
             d.currentArea = returnArea;
+            areaRegistry.updateDealerLocation(tokenId, JAIL_AREA, returnArea);
         }
 
         emit BreakoutAttempted(tokenId, success, success ? returnArea : JAIL_AREA);
@@ -832,6 +837,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         }
 
         d.currentArea = destinationArea;
+        areaRegistry.updateDealerLocation(tokenId, oldArea, destinationArea);
 
         if (movementFee > 0 && address(paymentHandler) != address(0)) {
             paymentHandler.processMovementFee{value: movementFee}(msg.sender, movementFee);

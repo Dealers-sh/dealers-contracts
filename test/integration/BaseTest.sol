@@ -91,6 +91,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
 
         pve.setRandomness(address(randomness));
         pvp.setRandomness(address(randomness));
+        pvp.setDrugRegistry(address(drugRegistry));
     }
 
     function _setupAuthorizations() internal {
@@ -100,6 +101,8 @@ abstract contract BaseTest is Test, IERC721Receiver {
         core.authorizeContract(address(boosts), true);
 
         drugRegistry.authorizeContract(address(core), true);
+
+        areaRegistry.setCoreContract(address(core));
 
         paymentHandler.authorizeContract(address(core), true);
         paymentHandler.authorizeContract(address(boosts), true);

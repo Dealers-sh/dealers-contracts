@@ -177,14 +177,6 @@ contract PlayerJourneyTest is BaseTest {
         uint256 defender_weed_after = core.getDrugBalance(token2, DRUG_WEED);
         uint256 attacker_weed_after = core.getDrugBalance(token1, DRUG_WEED);
 
-        vm.prank(player1);
-        vm.expectRevert(DealersExePVP.CooldownActive.selector);
-        pvp.attack(token1, token2);
-
-        vm.warp(block.timestamp + 1 hours + 1);
-
-        vm.prank(owner);
-        core.authorizeContract(owner, true);
         (, , uint8 attempts, , , ) = core.getDealerData(token1);
         if (attempts == 0) {
             vm.prank(player1);
