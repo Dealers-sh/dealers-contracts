@@ -36,38 +36,37 @@ contract PVPBattleFlowsTest is BaseTest {
             uint256 snapshotId = vm.snapshotState();
 
             try pvp.attack(attackerToken, defenderToken) {
-                (uint256 attacksWon, , , , , , ) = pvp.getPlayerPVPStats(attackerToken);
+                uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
+                uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
 
-                if (attacksWon > 0) {
+                if (attackerWeedAfter > attackerWeedBefore) {
                     attackerWon = true;
 
-                    uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
                     uint256 defenderXtcAfter = core.getDrugBalance(defenderToken, DRUG_XTC);
-                    uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
                     uint256 attackerXtcAfter = core.getDrugBalance(attackerToken, DRUG_XTC);
 
-                    uint256 expectedWeedStolen = (defenderWeedBefore * 10) / 100;
-                    uint256 expectedXtcStolen = (defenderXtcBefore * 10) / 100;
+                    uint256 expectedWeedStolen = (defenderWeedBefore * 1) / 100;
+                    uint256 expectedXtcStolen = (defenderXtcBefore * 1) / 100;
 
                     assertEq(
                         defenderWeedAfter,
                         defenderWeedBefore - expectedWeedStolen,
-                        "Defender should lose 10% weed"
+                        "Defender should lose 1% weed"
                     );
                     assertEq(
                         defenderXtcAfter,
                         defenderXtcBefore - expectedXtcStolen,
-                        "Defender should lose 10% XTC"
+                        "Defender should lose 1% XTC"
                     );
                     assertEq(
                         attackerWeedAfter,
                         attackerWeedBefore + expectedWeedStolen,
-                        "Attacker should gain 10% weed"
+                        "Attacker should gain 1% weed"
                     );
                     assertEq(
                         attackerXtcAfter,
                         attackerXtcBefore + expectedXtcStolen,
-                        "Attacker should gain 10% XTC"
+                        "Attacker should gain 1% XTC"
                     );
                     break;
                 }
@@ -104,26 +103,23 @@ contract PVPBattleFlowsTest is BaseTest {
             uint256 snapshotId = vm.snapshotState();
 
             try pvp.attack(attackerToken, defenderToken) {
-                (, uint256 attacksLost, , , , , ) = pvp.getPlayerPVPStats(attackerToken);
-                (, , uint256 defensesWon, , , , ) = pvp.getPlayerPVPStats(defenderToken);
+                uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
+                uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
 
-                if (attacksLost > 0 && defensesWon > 0) {
+                if (attackerWeedAfter < attackerWeedBefore && defenderWeedAfter > defenderWeedBefore) {
                     defenderWon = true;
 
-                    uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
-                    uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
-
-                    uint256 expectedStolen = (attackerWeedBefore * 10) / 100;
+                    uint256 expectedStolen = (attackerWeedBefore * 1) / 100;
 
                     assertEq(
                         attackerWeedAfter,
                         attackerWeedBefore - expectedStolen,
-                        "Attacker (loser) should lose 10% drugs"
+                        "Attacker (loser) should lose 1% drugs"
                     );
                     assertEq(
                         defenderWeedAfter,
                         defenderWeedBefore + expectedStolen,
-                        "Defender (winner) should gain 10% drugs"
+                        "Defender (winner) should gain 1% drugs"
                     );
                     break;
                 }
@@ -169,7 +165,7 @@ contract PVPBattleFlowsTest is BaseTest {
 
             (, , uint8 attempts, , , ) = core.getDealerData(attackerToken);
             if (attempts == 0) {
-                core.purchaseAttemptReset{value: 0.005 ether}(attackerToken);
+                core.purchaseAttemptReset{value: 0.001 ether}(attackerToken);
             }
 
             try pvp.attack(attackerToken, defenderToken) {
@@ -253,15 +249,12 @@ contract PVPBattleFlowsTest is BaseTest {
         (, , uint8 attempts, , , ) = core.getDealerData(attackerToken);
         if (attempts == 0) {
             vm.prank(player1);
-            core.purchaseAttemptReset{value: 0.005 ether}(attackerToken);
+            core.purchaseAttemptReset{value: 0.001 ether}(attackerToken);
         }
 
         vm.prank(player1);
         vm.prevrandao(bytes32(uint256(67890)));
         pvp.attack(attackerToken, defenderToken);
-
-        (uint256 totalBattles, ) = pvp.getGlobalStats();
-        assertEq(totalBattles, 2, "Should have 2 total battles");
     }
 
     function test_pvpFlow_mustBeSameArea() public {
@@ -295,6 +288,10 @@ contract PVPBattleFlowsTest is BaseTest {
 
     function test_pvpFlow_cannotAttackFromSafeHouse() public {
         uint256 safeToken = _mintNFT(player1);
+
+        // Move to safe house (starts in Manhattan now)
+        vm.prank(player1);
+        core.travel{value: 0}(safeToken, SAFE_HOUSE);
 
         (uint8 area, , , , , ) = core.getDealerData(safeToken);
         assertEq(area, SAFE_HOUSE, "Should be in safe house");

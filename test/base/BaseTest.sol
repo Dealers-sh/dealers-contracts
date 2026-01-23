@@ -122,9 +122,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
             winBonus: 5,
             tieBonus: 2,
             lossPenalty: -3,
-            tierName: "Street Rat",
-            canHeist: false,
-            pvpRange: 50
+            tierName: "Street Rat"
         });
 
         tiers[1] = DealersExeCore.ReputationTier({
@@ -132,9 +130,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
             winBonus: 8,
             tieBonus: 3,
             lossPenalty: -4,
-            tierName: "Corner Boy",
-            canHeist: false,
-            pvpRange: 75
+            tierName: "Corner Boy"
         });
 
         tiers[2] = DealersExeCore.ReputationTier({
@@ -142,9 +138,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
             winBonus: 12,
             tieBonus: 5,
             lossPenalty: -5,
-            tierName: "Hustler",
-            canHeist: true,
-            pvpRange: 100
+            tierName: "Hustler"
         });
 
         tiers[3] = DealersExeCore.ReputationTier({
@@ -152,9 +146,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
             winBonus: 18,
             tieBonus: 7,
             lossPenalty: -6,
-            tierName: "Shot Caller",
-            canHeist: true,
-            pvpRange: 150
+            tierName: "Shot Caller"
         });
 
         tiers[4] = DealersExeCore.ReputationTier({
@@ -162,9 +154,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
             winBonus: 25,
             tieBonus: 10,
             lossPenalty: -8,
-            tierName: "Kingpin",
-            canHeist: true,
-            pvpRange: 200
+            tierName: "Kingpin"
         });
 
         core.setReputationTiers(tiers);

@@ -28,6 +28,11 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     uint256 public constant DEV_FEE_PERCENT = 500;      // 5% to dev wallet
     uint256 public constant BANK_FEE_PERCENT = 500;     // 5% to bank vault
 
+    // Marketplace fee split (basis points of the fee amount, not sale price)
+    // 10% of marketplace fee goes to bank vault (heist pool), 90% to dev wallet
+    uint256 public constant MARKETPLACE_BANK_PERCENT = 1000;  // 10% of fee to bank
+    uint256 public constant MARKETPLACE_DEV_PERCENT = 9000;   // 90% of fee to dev
+
     // =============================================================
     //                            STORAGE
     // =============================================================
@@ -216,7 +221,8 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     }
     
     /**
-     * @notice Process marketplace transaction fee
+     * @notice Process marketplace transaction fee with dedicated split for heist pool
+     * @dev 10% of marketplace fees go to bank vault (heist pool), 90% to dev wallet
      * @param player The player address involved in the marketplace transaction (for event tracking)
      * @param amount Marketplace fee amount (10% of sale price)
      */
@@ -224,9 +230,9 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
         if (msg.value != amount || amount == 0) revert InvalidAmount();
         if (amount < MIN_AMOUNT) revert AmountTooSmall();
 
-        // Split marketplace fee same as game fees
-        uint256 devFee = (amount * DEV_FEE_PERCENT) / 10000;
-        uint256 bankFee = (amount * BANK_FEE_PERCENT) / 10000;
+        // Marketplace has dedicated fee split: 10% to bank vault, 90% to dev wallet
+        uint256 bankFee = (amount * MARKETPLACE_BANK_PERCENT) / 10000;
+        uint256 devFee = (amount * MARKETPLACE_DEV_PERCENT) / 10000;
 
         // Update tracking
         totalProcessed += amount;

@@ -8,6 +8,10 @@ contract DEPaymentHandlerTest is BaseTest {
     uint256 public constant BANK_FEE_PERCENT = 500;
     uint256 public constant GAME_FEE_PERCENT = 1000;
 
+    // Marketplace fee split: 10% to bank, 90% to dev
+    uint256 public constant MARKETPLACE_BANK_PERCENT = 1000;
+    uint256 public constant MARKETPLACE_DEV_PERCENT = 9000;
+
     DEPaymentHandler.Outcome constant WIN = DEPaymentHandler.Outcome.WIN;
     DEPaymentHandler.Outcome constant TIE = DEPaymentHandler.Outcome.TIE;
     DEPaymentHandler.Outcome constant LOSS = DEPaymentHandler.Outcome.LOSS;
@@ -342,5 +346,87 @@ contract DEPaymentHandlerTest is BaseTest {
         paymentHandler.setBankVault(newBankVault);
 
         assertEq(paymentHandler.bankVault(), newBankVault);
+    }
+
+    // =============================================================
+    //                   MARKETPLACE FEE TESTS
+    // =============================================================
+
+    function test_processMarketplaceFee_10PercentToBank() public {
+        uint256 amount = 1 ether;
+        uint256 expectedBankFee = (amount * MARKETPLACE_BANK_PERCENT) / 10000;
+
+        uint256 bankBalanceBefore = bankVault.balance;
+
+        vm.prank(authorizedCaller);
+        paymentHandler.processMarketplaceFee{value: amount}(player1, amount);
+
+        assertEq(bankVault.balance, bankBalanceBefore + expectedBankFee);
+        assertEq(expectedBankFee, 0.1 ether);
+    }
+
+    function test_processMarketplaceFee_90PercentToDev() public {
+        uint256 amount = 1 ether;
+        uint256 expectedDevFee = (amount * MARKETPLACE_DEV_PERCENT) / 10000;
+
+        vm.prank(authorizedCaller);
+        paymentHandler.processMarketplaceFee{value: amount}(player1, amount);
+
+        assertEq(paymentHandler.pendingDevWithdrawal(), expectedDevFee);
+        assertEq(expectedDevFee, 0.9 ether);
+    }
+
+    function test_processMarketplaceFee_splitsFees() public {
+        uint256 amount = 1 ether;
+        uint256 expectedBankFee = (amount * MARKETPLACE_BANK_PERCENT) / 10000;
+        uint256 expectedDevFee = (amount * MARKETPLACE_DEV_PERCENT) / 10000;
+
+        uint256 bankBalanceBefore = bankVault.balance;
+
+        vm.prank(authorizedCaller);
+        paymentHandler.processMarketplaceFee{value: amount}(player1, amount);
+
+        assertEq(paymentHandler.totalDevFees(), expectedDevFee);
+        assertEq(paymentHandler.totalBankFees(), expectedBankFee);
+        assertEq(bankVault.balance, bankBalanceBefore + expectedBankFee);
+        assertEq(paymentHandler.pendingDevWithdrawal(), expectedDevFee);
+    }
+
+    function test_processMarketplaceFee_revertNotAuthorized() public {
+        address unauthorized = makeAddr("unauthorized");
+        vm.deal(unauthorized, 10 ether);
+        uint256 amount = 1 ether;
+
+        vm.prank(unauthorized);
+        vm.expectRevert(DEPaymentHandler.NotAuthorized.selector);
+        paymentHandler.processMarketplaceFee{value: amount}(player1, amount);
+    }
+
+    function test_processMarketplaceFee_revertWrongAmount() public {
+        uint256 declaredAmount = 1 ether;
+        uint256 sentAmount = 0.5 ether;
+
+        vm.prank(authorizedCaller);
+        vm.expectRevert(DEPaymentHandler.InvalidAmount.selector);
+        paymentHandler.processMarketplaceFee{value: sentAmount}(player1, declaredAmount);
+    }
+
+    function test_processMarketplaceFee_revertAmountTooSmall() public {
+        uint256 amount = 0.0001 ether;
+
+        vm.prank(authorizedCaller);
+        vm.expectRevert(DEPaymentHandler.AmountTooSmall.selector);
+        paymentHandler.processMarketplaceFee{value: amount}(player1, amount);
+    }
+
+    function test_processMarketplaceFee_emitsEvent() public {
+        uint256 amount = 1 ether;
+        uint256 expectedBankFee = (amount * MARKETPLACE_BANK_PERCENT) / 10000;
+        uint256 expectedDevFee = (amount * MARKETPLACE_DEV_PERCENT) / 10000;
+
+        vm.prank(authorizedCaller);
+        vm.expectEmit(true, false, false, true);
+        emit DEPaymentHandler.MarketplaceFeeProcessed(player1, amount, expectedDevFee, expectedBankFee);
+        paymentHandler.processMarketplaceFee{value: amount}(player1, amount);
     }
 }

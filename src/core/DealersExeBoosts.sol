@@ -36,7 +36,6 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
 
     /**
      * @dev Boost tier configuration
-     * @param name Display name of the tier
      * @param price Price in wei to purchase
      * @param duration Duration in seconds
      * @param drugMultiplier Drug reward multiplier (100 = 1x, 200 = 2x)
@@ -48,7 +47,6 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
      * @param isActive Whether this tier is available for purchase
      */
     struct BoostTier {
-        string name;
         uint256 price;
         uint64 duration;
         uint8 drugMultiplier;
@@ -73,11 +71,6 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
     mapping(uint256 => BoostTier) public boostTiers;
     uint256 public totalTiers;
 
-    // Statistics
-    uint256 public totalBoostsSold;
-    uint256 public totalRevenue;
-    mapping(uint256 => uint256) public tierSalesCount;  // tierId => count
-
     // =============================================================
     //                            EVENTS
     // =============================================================
@@ -91,7 +84,6 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
 
     event BoostTierUpdated(
         uint256 indexed tierId,
-        string name,
         uint256 price,
         uint64 duration,
         bool isActive
@@ -189,11 +181,10 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
      * @dev Called during construction
      */
     function _initializeDefaultTiers() private {
-        // Tier 1: Grinder - 0.01 ETH, 24 hours
+        // Tier 1: Grinder - 0.0025 ETH, 7 days
         boostTiers[1] = BoostTier({
-            name: "Grinder",
-            price: 0.01 ether,
-            duration: DURATION_24_HOURS,
+            price: 0.0025 ether,
+            duration: DURATION_7_DAYS,
             drugMultiplier: 200,     // 2x drugs
             repMultiplier: 150,      // 1.5x rep
             extraAttempts: 3,        // 5 base + 3 = 8 max
@@ -203,10 +194,9 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
             isActive: true
         });
 
-        // Tier 2: Hustler - 0.05 ETH, 7 days
+        // Tier 2: Hustler - 0.005 ETH, 7 days
         boostTiers[2] = BoostTier({
-            name: "Hustler",
-            price: 0.05 ether,
+            price: 0.005 ether,
             duration: DURATION_7_DAYS,
             drugMultiplier: 200,     // 2x drugs
             repMultiplier: 200,      // 2x rep
@@ -217,11 +207,10 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
             isActive: true
         });
 
-        // Tier 3: Kingpin - 0.15 ETH, 30 days
+        // Tier 3: Kingpin - 0.01 ETH, 7 days
         boostTiers[3] = BoostTier({
-            name: "Kingpin",
-            price: 0.15 ether,
-            duration: DURATION_30_DAYS,
+            price: 0.01 ether,
+            duration: DURATION_7_DAYS,
             drugMultiplier: 200,     // 2x drugs
             repMultiplier: 200,      // 2x rep
             extraAttempts: 10,       // 5 base + 10 = 15 max
@@ -292,13 +281,6 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
             tier.doubleHeistEntries,
             tier.cashMultiplier
         );
-
-        // Update statistics
-        unchecked {
-            ++totalBoostsSold;
-            ++tierSalesCount[tierId];
-        }
-        totalRevenue += tier.price;
 
         // Get the new expiry for the event
         IDealersExeCore.BoostData memory boost = dealersExeCore.getBoost(dealerId);
@@ -373,10 +355,7 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
                 tier.cashMultiplier
             );
 
-            // Update statistics
             unchecked {
-                ++totalBoostsSold;
-                ++tierSalesCount[tierId];
                 ++successfulPurchases;
             }
 
@@ -389,7 +368,6 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
 
         // Calculate actual cost based on successful purchases
         uint256 actualCost = tier.price * successfulPurchases;
-        totalRevenue += actualCost;
 
         // Process payment for successful purchases
         if (actualCost > 0) {
@@ -447,28 +425,6 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
             }
             unchecked { ++i; }
         }
-    }
-
-    /**
-     * @notice Get sales statistics
-     * @return sold Total boosts sold
-     * @return revenue Total ETH revenue
-     * @return tier1Sales Tier 1 (Grinder) sales count
-     * @return tier2Sales Tier 2 (Hustler) sales count
-     * @return tier3Sales Tier 3 (Kingpin) sales count
-     */
-    function getSalesStats() external view returns (
-        uint256 sold,
-        uint256 revenue,
-        uint256 tier1Sales,
-        uint256 tier2Sales,
-        uint256 tier3Sales
-    ) {
-        sold = totalBoostsSold;
-        revenue = totalRevenue;
-        tier1Sales = tierSalesCount[1];
-        tier2Sales = tierSalesCount[2];
-        tier3Sales = tierSalesCount[3];
     }
 
     /**
@@ -531,7 +487,6 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
 
         emit BoostTierUpdated(
             tierId,
-            tier.name,
             tier.price,
             tier.duration,
             tier.isActive

@@ -33,7 +33,9 @@ contract DealersExeCoreTest is BaseTest {
         assertEq(heatLevel, 0);
         assertTrue(isInitialized);
         assertEq(core.getCashBalance(tokenId1), core.STARTER_CASH());
-        assertEq(core.getDrugBalance(tokenId1, drugRegistry.DRUG_WEED()), core.STARTER_DRUG_AMOUNT());
+        assertEq(core.getDrugBalance(tokenId1, 1), core.STARTER_WEED());
+        assertEq(core.getDrugBalance(tokenId1, 2), core.STARTER_XTC());
+        assertEq(core.getDrugBalance(tokenId1, 3), core.STARTER_COCAINE());
     }
 
     function test_initializeDealer_revertIfAlreadyInitialized() public {
@@ -141,7 +143,7 @@ contract DealersExeCoreTest is BaseTest {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
-        core.updateDrugBalance(tokenId1, drugRegistry.DRUG_COCAINE(), 100);
+        core.updateDrugBalance(tokenId1, 3, 100);
 
         (, uint256 baseRep, , , , ) = core.getDealerData(tokenId1);
         uint256 stashBonus = core.getStashBonus(tokenId1);
@@ -159,9 +161,9 @@ contract DealersExeCoreTest is BaseTest {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
-        uint256 balBefore = core.getDrugBalance(tokenId1, drugRegistry.DRUG_WEED());
-        core.updateDrugBalance(tokenId1, drugRegistry.DRUG_WEED(), 100);
-        uint256 balAfter = core.getDrugBalance(tokenId1, drugRegistry.DRUG_WEED());
+        uint256 balBefore = core.getDrugBalance(tokenId1, 1);
+        core.updateDrugBalance(tokenId1, 1, 100);
+        uint256 balAfter = core.getDrugBalance(tokenId1, 1);
 
         assertEq(balAfter, balBefore + 100);
     }
@@ -170,9 +172,9 @@ contract DealersExeCoreTest is BaseTest {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
-        uint256 balBefore = core.getDrugBalance(tokenId1, drugRegistry.DRUG_WEED());
-        core.updateDrugBalance(tokenId1, drugRegistry.DRUG_WEED(), -25);
-        uint256 balAfter = core.getDrugBalance(tokenId1, drugRegistry.DRUG_WEED());
+        uint256 balBefore = core.getDrugBalance(tokenId1, 1);
+        core.updateDrugBalance(tokenId1, 1, -25);
+        uint256 balAfter = core.getDrugBalance(tokenId1, 1);
 
         assertEq(balAfter, balBefore - 25);
     }
@@ -181,11 +183,10 @@ contract DealersExeCoreTest is BaseTest {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
-        uint256 weedDrugId = drugRegistry.DRUG_WEED();
-        uint256 currentBalance = core.getDrugBalance(tokenId1, weedDrugId);
+        uint256 currentBalance = core.getDrugBalance(tokenId1, 1);
 
         vm.expectRevert(DealersExeCore.InsufficientDrugBalance.selector);
-        core.updateDrugBalance(tokenId1, weedDrugId, -int256(currentBalance + 1));
+        core.updateDrugBalance(tokenId1, 1, -int256(currentBalance + 1));
     }
 
     function test_updateDrugBalance_revertInvalidDrug() public {
@@ -316,7 +317,7 @@ contract DealersExeCoreTest is BaseTest {
     function test_payBail_revertNotInJail() public {
         vm.prank(player1);
         vm.expectRevert(DealersExeCore.NotInJail.selector);
-        core.payBail{value: 0.005 ether}(tokenId1);
+        core.payBail{value: 0.002 ether}(tokenId1);
     }
 
     function test_payBail_returnsToPreviousArea() public {
@@ -637,12 +638,20 @@ contract DealersExeCoreTest is BaseTest {
         core.authorizeContract(address(this), true);
 
         (uint8 areaBefore, , , , , ) = core.getDealerData(tokenId1);
-        assertEq(areaBefore, core.SAFE_HOUSE_AREA());
+        assertEq(areaBefore, core.STARTING_AREA(), "Should start in Manhattan");
 
-        core.moveToArea(tokenId1, 1);
+        // Create a new area to move to
+        vm.prank(owner);
+        areaRegistry.createArea("Brooklyn", 0.001 ether, 0, false, false);
+        uint8 brooklynId = areaRegistry.getTotalAreas();
+        areaRegistry.configureAreaDrug(brooklynId, 1, 5, 4);
+
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
+        core.moveToArea(tokenId1, brooklynId);
 
         (uint8 areaAfter, , , , , ) = core.getDealerData(tokenId1);
-        assertEq(areaAfter, 1);
+        assertEq(areaAfter, brooklynId);
     }
 
     function test_moveToArea_revertCannotEnterSafeHouse() public {
@@ -669,7 +678,7 @@ contract DealersExeCoreTest is BaseTest {
         vm.prank(owner);
         areaRegistry.createArea("High Stakes", 0.01 ether, 500, false, false);
         uint8 newAreaId = areaRegistry.getTotalAreas();
-        areaRegistry.configureAreaDrug(newAreaId, drugRegistry.DRUG_WEED(), 5, 4);
+        areaRegistry.configureAreaDrug(newAreaId, 1, 5, 4);
 
         vm.prank(owner);
         core.authorizeContract(address(this), true);
@@ -719,9 +728,7 @@ contract DealersExeCoreTest is BaseTest {
             winBonus: 10,
             tieBonus: 5,
             lossPenalty: -2,
-            tierName: "Newbie",
-            canHeist: false,
-            pvpRange: 25
+            tierName: "Newbie"
         });
 
         newTiers[1] = DealersExeCore.ReputationTier({
@@ -729,9 +736,7 @@ contract DealersExeCoreTest is BaseTest {
             winBonus: 20,
             tieBonus: 10,
             lossPenalty: -5,
-            tierName: "Pro",
-            canHeist: true,
-            pvpRange: 100
+            tierName: "Pro"
         });
 
         vm.prank(owner);
@@ -753,42 +758,53 @@ contract DealersExeCoreTest is BaseTest {
     // =============================================================
 
     function test_travel_movesToDestination() public {
-        // Start in safe house, travel to Manhattan
-        uint256 fee = areaRegistry.getMovementFee(1);
+        // Start in Manhattan, create and travel to Brooklyn
+        vm.prank(owner);
+        areaRegistry.createArea("Brooklyn", 0.001 ether, 0, false, false);
+        uint8 brooklynId = areaRegistry.getTotalAreas();
+        areaRegistry.configureAreaDrug(brooklynId, 1, 5, 4);
+
+        uint256 fee = areaRegistry.getMovementFee(brooklynId);
 
         vm.prank(player1);
-        core.travel{value: fee}(tokenId1, 1);
+        core.travel{value: fee}(tokenId1, brooklynId);
 
         (uint8 currentArea, , , , , ) = core.getDealerData(tokenId1);
-        assertEq(currentArea, 1, "Should be in Manhattan");
+        assertEq(currentArea, brooklynId, "Should be in Brooklyn");
     }
 
     function test_travel_toSafeHouseIsFree() public {
-        // First move to Manhattan
-        _moveOutOfSafeHouse(tokenId1);
-
+        // Start in Manhattan (STARTING_AREA = 1)
         (uint8 areaBefore, , , , , ) = core.getDealerData(tokenId1);
-        assertEq(areaBefore, 1, "Should be in Manhattan");
+        assertEq(areaBefore, 1, "Should start in Manhattan");
 
-        // Travel back to Safe House - should be free
+        // Travel to Safe House - should be free
         uint256 balanceBefore = player1.balance;
 
         vm.prank(player1);
         core.travel{value: 0}(tokenId1, 0);
 
         (uint8 areaAfter, , , , , ) = core.getDealerData(tokenId1);
-        assertEq(areaAfter, 0, "Should be back in Safe House");
+        assertEq(areaAfter, 0, "Should be in Safe House");
         assertEq(player1.balance, balanceBefore, "Should not have paid anything");
     }
 
-    function test_travel_fromSafeHouseCostsFee() public {
-        uint256 fee = areaRegistry.getMovementFee(1);
+    function test_travel_firstMoveIsFree() public {
+        // Create Brooklyn area to travel to
+        vm.prank(owner);
+        areaRegistry.createArea("Brooklyn", 0.01 ether, 0, false, false);
+        uint8 brooklynId = areaRegistry.getTotalAreas();
+        areaRegistry.configureAreaDrug(brooklynId, 1, 5, 4);
+
         uint256 balanceBefore = player1.balance;
 
+        // First move from starting area should be free
         vm.prank(player1);
-        core.travel{value: fee}(tokenId1, 1);
+        core.travel{value: 0}(tokenId1, brooklynId);
 
-        assertLt(player1.balance, balanceBefore, "Should have paid fee");
+        (uint8 currentArea, , , , , ) = core.getDealerData(tokenId1);
+        assertEq(currentArea, brooklynId, "Should be in Brooklyn");
+        assertEq(player1.balance, balanceBefore, "First move should be free");
     }
 
     function test_travel_revertCannotEnterJail() public {
@@ -800,17 +816,22 @@ contract DealersExeCoreTest is BaseTest {
     }
 
     function test_travel_revertDealerInJail() public {
-        _moveOutOfSafeHouse(tokenId1);
-
+        // Dealer starts in Manhattan, send to jail
         vm.prank(owner);
         core.authorizeContract(address(this), true);
         core.sendToJail(tokenId1);
 
         assertTrue(core.isInJail(tokenId1));
 
+        // Create Brooklyn area
+        vm.prank(owner);
+        areaRegistry.createArea("Brooklyn", 0.01 ether, 0, false, false);
+        uint8 brooklynId = areaRegistry.getTotalAreas();
+        areaRegistry.configureAreaDrug(brooklynId, 1, 5, 4);
+
         vm.prank(player1);
         vm.expectRevert(DealersExeCore.DealerInJail.selector);
-        core.travel{value: 0.001 ether}(tokenId1, 1);
+        core.travel{value: 0.01 ether}(tokenId1, brooklynId);
     }
 
     function test_travel_revertNotDealerOwner() public {
@@ -820,27 +841,65 @@ contract DealersExeCoreTest is BaseTest {
     }
 
     function test_travel_revertInsufficientPayment() public {
-        uint256 fee = areaRegistry.getMovementFee(1);
+        // Create Brooklyn area to travel to first (using free first move)
+        vm.prank(owner);
+        areaRegistry.createArea("Brooklyn", 0.01 ether, 0, false, false);
+        uint8 brooklynId = areaRegistry.getTotalAreas();
+        areaRegistry.configureAreaDrug(brooklynId, 1, 5, 4);
+
+        // First move is free
+        vm.prank(player1);
+        core.travel{value: 0}(tokenId1, brooklynId);
+
+        // Now create another area to test insufficient payment
+        vm.prank(owner);
+        areaRegistry.createArea("Queens", 0.02 ether, 0, false, false);
+        uint8 queensId = areaRegistry.getTotalAreas();
+        areaRegistry.configureAreaDrug(queensId, 1, 5, 4);
+
+        uint256 fee = areaRegistry.getMovementFee(queensId);
 
         vm.prank(player1);
         vm.expectRevert(DealersExeCore.InsufficientPayment.selector);
-        core.travel{value: fee - 1}(tokenId1, 1);
+        core.travel{value: fee - 1}(tokenId1, queensId);
     }
 
     function test_travel_refundsExcess() public {
-        uint256 fee = areaRegistry.getMovementFee(1);
+        // First use the free first move
+        vm.prank(owner);
+        areaRegistry.createArea("Brooklyn", 0.01 ether, 0, false, false);
+        uint8 brooklynId = areaRegistry.getTotalAreas();
+        areaRegistry.configureAreaDrug(brooklynId, 1, 5, 4);
+
+        vm.prank(player1);
+        core.travel{value: 0}(tokenId1, brooklynId);
+
+        // Now test refund on subsequent move
+        vm.prank(owner);
+        areaRegistry.createArea("Queens", 0.02 ether, 0, false, false);
+        uint8 queensId = areaRegistry.getTotalAreas();
+        areaRegistry.configureAreaDrug(queensId, 1, 5, 4);
+
+        uint256 fee = areaRegistry.getMovementFee(queensId);
         uint256 excess = 0.5 ether;
         uint256 balanceBefore = player1.balance;
 
         vm.prank(player1);
-        core.travel{value: fee + excess}(tokenId1, 1);
+        core.travel{value: fee + excess}(tokenId1, queensId);
 
         // Should only have paid the fee, excess refunded
         assertEq(player1.balance, balanceBefore - fee, "Should refund excess");
     }
 
     function test_travel_freeWithKingpinBoost() public {
-        _moveOutOfSafeHouse(tokenId1);
+        // First use up the free first move
+        vm.prank(owner);
+        areaRegistry.createArea("Brooklyn", 0.01 ether, 0, false, false);
+        uint8 brooklynId = areaRegistry.getTotalAreas();
+        areaRegistry.configureAreaDrug(brooklynId, 1, 5, 4);
+
+        vm.prank(player1);
+        core.travel{value: 0}(tokenId1, brooklynId);
 
         // Apply boost with freeAreaMovement
         vm.prank(owner);
@@ -849,18 +908,18 @@ contract DealersExeCoreTest is BaseTest {
 
         // Create a new area with a fee
         vm.prank(owner);
-        areaRegistry.createArea("Brooklyn", 0.01 ether, 0, false, false);
-        uint8 brooklynId = areaRegistry.getTotalAreas();
-        areaRegistry.configureAreaDrug(brooklynId, drugRegistry.DRUG_WEED(), 5, 4);
+        areaRegistry.createArea("Queens", 0.02 ether, 0, false, false);
+        uint8 queensId = areaRegistry.getTotalAreas();
+        areaRegistry.configureAreaDrug(queensId, 1, 5, 4);
 
         uint256 balanceBefore = player1.balance;
 
-        // Travel without paying
+        // Travel without paying due to boost
         vm.prank(player1);
-        core.travel{value: 0}(tokenId1, brooklynId);
+        core.travel{value: 0}(tokenId1, queensId);
 
         (uint8 currentArea, , , , , ) = core.getDealerData(tokenId1);
-        assertEq(currentArea, brooklynId, "Should be in Brooklyn");
+        assertEq(currentArea, queensId, "Should be in Queens");
         assertEq(player1.balance, balanceBefore, "Should not have paid with boost");
     }
 
@@ -869,7 +928,7 @@ contract DealersExeCoreTest is BaseTest {
         vm.prank(owner);
         areaRegistry.createArea("VIP Zone", 0.01 ether, 500, false, false);
         uint8 vipAreaId = areaRegistry.getTotalAreas();
-        areaRegistry.configureAreaDrug(vipAreaId, drugRegistry.DRUG_WEED(), 5, 4);
+        areaRegistry.configureAreaDrug(vipAreaId, 1, 5, 4);
 
         vm.prank(player1);
         vm.expectRevert(DealersExeCore.InsufficientReputation.selector);
@@ -877,14 +936,13 @@ contract DealersExeCoreTest is BaseTest {
     }
 
     function test_travel_noOpIfAlreadyInArea() public {
-        _moveOutOfSafeHouse(tokenId1);
-
+        // Dealer already starts in Manhattan
         (uint8 areaBefore, , , , , ) = core.getDealerData(tokenId1);
-        assertEq(areaBefore, 1);
+        assertEq(areaBefore, 1, "Should start in Manhattan");
 
         uint256 balanceBefore = player1.balance;
 
-        // Travel to same area
+        // Travel to same area (Manhattan)
         vm.prank(player1);
         core.travel{value: 0.001 ether}(tokenId1, 1);
 
@@ -893,21 +951,24 @@ contract DealersExeCoreTest is BaseTest {
     }
 
     function test_travel_emitsDealerTraveledEvent() public {
-        uint256 fee = areaRegistry.getMovementFee(1);
+        // Create Brooklyn area
+        vm.prank(owner);
+        areaRegistry.createArea("Brooklyn", 0.01 ether, 0, false, false);
+        uint8 brooklynId = areaRegistry.getTotalAreas();
+        areaRegistry.configureAreaDrug(brooklynId, 1, 5, 4);
 
+        // First move is free, so fee=0 and wasFreeMovement=true
         vm.expectEmit(true, false, false, true);
-        emit DealersExeCore.DealerTraveled(tokenId1, 0, 1, fee, false);
+        emit DealersExeCore.DealerTraveled(tokenId1, 1, brooklynId, 0, true);
 
         vm.prank(player1);
-        core.travel{value: fee}(tokenId1, 1);
+        core.travel{value: 0}(tokenId1, brooklynId);
     }
 
     function test_attemptBreakout_returnsToPreviousArea() public {
-        // Move to Manhattan first
-        _moveOutOfSafeHouse(tokenId1);
-
+        // Dealer starts in Manhattan
         (uint8 areaBefore, , , , , ) = core.getDealerData(tokenId1);
-        assertEq(areaBefore, 1, "Should be in Manhattan");
+        assertEq(areaBefore, 1, "Should start in Manhattan");
 
         // Send to jail
         vm.prank(owner);

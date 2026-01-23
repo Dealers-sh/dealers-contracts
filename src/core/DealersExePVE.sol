@@ -36,14 +36,6 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     IAreaRegistry public areaRegistry;
     IDERandomness public randomness;
 
-    // Statistics
-    mapping(uint256 => uint256) public playerGamesPlayed;   // tokenId => total games
-    mapping(uint256 => uint256) public playerGamesWon;      // tokenId => games won
-    mapping(uint256 => uint256) public playerTimesJailed;   // tokenId => times jailed during PVE
-    uint256 public totalGamesPlayed;
-    uint256 public totalGamesWon;
-    uint256 public totalArrestsInPVE;
-
     // Configurable outcome odds (must sum to 100)
     uint8 public tieChance = 50;    // Default 50%
     uint8 public winChance = 25;    // Default 25%
@@ -215,7 +207,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         dealersExeCore.incrementHeatLevel(tokenId);
 
         // 7. Generate randomness
-        bytes32 seed = keccak256(abi.encodePacked(tokenId, msg.sender, totalGamesPlayed));
+        bytes32 seed = keccak256(abi.encodePacked(tokenId, msg.sender, block.timestamp));
         uint256 gameRandomness = randomness.getRandomness(seed);
         if (gameRandomness == 0) revert RandomnessError();
 
@@ -258,11 +250,6 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
             }
 
             dealersExeCore.sendToJail(tokenId);
-
-            unchecked {
-                ++playerTimesJailed[tokenId];
-                ++totalArrestsInPVE;
-            }
 
             emit DealerArrested(tokenId, msg.sender, jailChance);
             return true;
@@ -307,8 +294,6 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
                 tokenId, outcome, drugId, amount, sellPrice
             );
         }
-
-        _updateStatistics(tokenId, outcome);
 
         emit GamePlayed(
             tokenId,
@@ -496,22 +481,6 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         return (buyPrice, sellPrice, true);
     }
 
-    /**
-     * @notice Updates game statistics after a completed game
-     * @param tokenId The dealer token ID
-     * @param outcome The game outcome (0=WIN, 1=TIE, 2=LOSS)
-     */
-    function _updateStatistics(uint256 tokenId, uint8 outcome) internal {
-        unchecked {
-            ++playerGamesPlayed[tokenId];
-            ++totalGamesPlayed;
-            if (outcome == 0) {
-                ++playerGamesWon[tokenId];
-                ++totalGamesWon;
-            }
-        }
-    }
-
     // =============================================================
     //                        VIEW FUNCTIONS
     // =============================================================
@@ -526,36 +495,6 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         if (dealersExeCore.isInSafeHouse(tokenId)) return (false, 3);
         if (attemptsRemaining == 0) return (false, 4);
         return (true, 0);
-    }
-
-    /**
-     * @notice Gets game statistics for a specific dealer NFT
-     */
-    function getPlayerStats(uint256 tokenId) external view returns (
-        uint256 gamesPlayed,
-        uint256 gamesWon,
-        uint256 winRate,
-        uint256 timesJailed
-    ) {
-        gamesPlayed = playerGamesPlayed[tokenId];
-        gamesWon = playerGamesWon[tokenId];
-        winRate = gamesPlayed == 0 ? 0 : (gamesWon * 100) / gamesPlayed;
-        timesJailed = playerTimesJailed[tokenId];
-    }
-
-    /**
-     * @notice Gets global game statistics
-     */
-    function getGlobalStats() external view returns (
-        uint256 totalPlayed,
-        uint256 totalWon,
-        uint256 globalWinRate,
-        uint256 totalArrests
-    ) {
-        totalPlayed = totalGamesPlayed;
-        totalWon = totalGamesWon;
-        globalWinRate = totalPlayed == 0 ? 0 : (totalWon * 100) / totalPlayed;
-        totalArrests = totalArrestsInPVE;
     }
 
     /**

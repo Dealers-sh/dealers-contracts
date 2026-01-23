@@ -344,7 +344,7 @@ contract PVEGameFlowsTest is BaseTest {
 
             (, , uint8 attempts, , , ) = core.getDealerData(tokenId);
             if (attempts == 0) {
-                core.purchaseAttemptReset{value: 0.005 ether}(tokenId);
+                core.purchaseAttemptReset{value: 0.001 ether}(tokenId);
             }
 
             try pve.playGame(
@@ -454,6 +454,10 @@ contract PVEGameFlowsTest is BaseTest {
 
     function test_flow_cannotPlayInSafeHouse() public {
         uint256 safeHouseToken = _mintNFT(player1);
+
+        // Move to safe house (starts in Manhattan now)
+        vm.prank(player1);
+        core.travel{value: 0}(safeHouseToken, SAFE_HOUSE);
 
         (uint8 area, , , , , ) = core.getDealerData(safeHouseToken);
         assertEq(area, SAFE_HOUSE, "Should be in safe house");

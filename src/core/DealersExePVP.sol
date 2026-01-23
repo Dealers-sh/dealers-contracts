@@ -26,9 +26,9 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     uint256 public constant BASE_WIN_CHANCE = 50;
     uint256 public constant MIN_WIN_CHANCE = 25;
     uint256 public constant MAX_WIN_CHANCE = 75;
-    uint256 public constant DRUG_STEAL_PERCENT = 10;
+    uint256 public constant DRUG_STEAL_PERCENT = 1;
     uint256 public constant ATTACK_COOLDOWN = 1 hours;
-    uint256 public constant MAX_ATTACKS_PER_DAY = 5;
+    uint256 public constant MAX_ATTACKS_PER_DAY = 3;
 
     // =============================================================
     //                            STORAGE
@@ -45,19 +45,6 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
 
     mapping(uint256 => uint256) public lastAttackDay;
     mapping(uint256 => uint256) public attacksReceivedToday;
-
-    // Statistics per dealer
-    mapping(uint256 => uint256) public attacksWon;
-    mapping(uint256 => uint256) public attacksLost;
-    mapping(uint256 => uint256) public defensesWon;
-    mapping(uint256 => uint256) public defensesLost;
-    mapping(uint256 => uint256) public totalDrugsStolen;
-    mapping(uint256 => uint256) public totalDrugsLost;
-    mapping(uint256 => uint256) public timesArrested;
-
-    // Global statistics
-    uint256 public totalPVPBattles;
-    uint256 public totalArrestsInPVP;
 
     // =============================================================
     //                            EVENTS
@@ -261,40 +248,6 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice Get PVP statistics for a specific dealer
-     * @param tokenId The dealer's token ID
-     */
-    function getPlayerPVPStats(uint256 tokenId) external view returns (
-        uint256 _attacksWon,
-        uint256 _attacksLost,
-        uint256 _defensesWon,
-        uint256 _defensesLost,
-        uint256 _totalDrugsStolen,
-        uint256 _totalDrugsLost,
-        uint256 _timesArrested
-    ) {
-        return (
-            attacksWon[tokenId],
-            attacksLost[tokenId],
-            defensesWon[tokenId],
-            defensesLost[tokenId],
-            totalDrugsStolen[tokenId],
-            totalDrugsLost[tokenId],
-            timesArrested[tokenId]
-        );
-    }
-
-    /**
-     * @notice Get global PVP statistics
-     */
-    function getGlobalStats() external view returns (
-        uint256 _totalBattles,
-        uint256 _totalArrests
-    ) {
-        return (totalPVPBattles, totalArrestsInPVP);
-    }
-
-    /**
      * @notice Preview battle stats for UI
      * @param attackerId The attacker's token ID
      * @param defenderId The defender's token ID
@@ -422,7 +375,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     }
 
     function _executeBattle(uint256 attackerId, uint256 defenderId, uint8 area) private {
-        bytes32 seed = keccak256(abi.encodePacked(attackerId, defenderId, totalPVPBattles));
+        bytes32 seed = keccak256(abi.encodePacked(attackerId, defenderId, block.timestamp));
         uint256 battleRandomness = randomness.getRandomness(seed);
 
         if (_checkAndProcessArrest(attackerId, battleRandomness)) {
@@ -437,8 +390,6 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
             _processBattleOutcome(attackerId, defenderId, attackerWon, area);
 
         lastAttackTime[attackerId][defenderId] = block.timestamp;
-
-        _updateStatistics(attackerId, defenderId, attackerWon, drugsStolen);
 
         emit PVPBattleResult(
             attackerId,
@@ -456,11 +407,6 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
 
         if (jailRoll < jailChance) {
             core.sendToJail(attackerId);
-
-            unchecked {
-                ++timesArrested[attackerId];
-                ++totalArrestsInPVP;
-            }
 
             emit DealerArrested(attackerId, jailChance);
             return true;
@@ -535,28 +481,5 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         }
 
         return totalStolen;
-    }
-
-    function _updateStatistics(
-        uint256 attackerId,
-        uint256 defenderId,
-        bool attackerWon,
-        uint256 drugsStolen
-    ) private {
-        unchecked {
-            ++totalPVPBattles;
-
-            if (attackerWon) {
-                ++attacksWon[attackerId];
-                ++defensesLost[defenderId];
-                totalDrugsStolen[attackerId] += drugsStolen;
-                totalDrugsLost[defenderId] += drugsStolen;
-            } else {
-                ++attacksLost[attackerId];
-                ++defensesWon[defenderId];
-                totalDrugsStolen[defenderId] += drugsStolen;
-                totalDrugsLost[attackerId] += drugsStolen;
-            }
-        }
     }
 }

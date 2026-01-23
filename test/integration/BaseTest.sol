@@ -44,7 +44,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
     address public signer = makeAddr("signer");
 
     uint256 constant MINT_PRICE = 0.01 ether;
-    uint256 constant BAIL_PRICE = 0.005 ether;
+    uint256 constant BAIL_PRICE = 0.002 ether;
     uint8 constant SAFE_HOUSE = 0;
     uint8 constant MANHATTAN = 1;
     uint8 constant JAIL = 255;
@@ -118,9 +118,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
             winBonus: 5,
             tieBonus: 2,
             lossPenalty: -3,
-            tierName: "Street Rat",
-            canHeist: false,
-            pvpRange: 50
+            tierName: "Street Rat"
         });
 
         tiers[1] = DealersExeCore.ReputationTier({
@@ -128,9 +126,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
             winBonus: 8,
             tieBonus: 3,
             lossPenalty: -4,
-            tierName: "Corner Boy",
-            canHeist: false,
-            pvpRange: 100
+            tierName: "Corner Boy"
         });
 
         tiers[2] = DealersExeCore.ReputationTier({
@@ -138,9 +134,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
             winBonus: 12,
             tieBonus: 5,
             lossPenalty: -5,
-            tierName: "Hustler",
-            canHeist: true,
-            pvpRange: 150
+            tierName: "Hustler"
         });
 
         tiers[3] = DealersExeCore.ReputationTier({
@@ -148,9 +142,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
             winBonus: 15,
             tieBonus: 7,
             lossPenalty: -6,
-            tierName: "Shot Caller",
-            canHeist: true,
-            pvpRange: 200
+            tierName: "Shot Caller"
         });
 
         tiers[4] = DealersExeCore.ReputationTier({
@@ -158,9 +150,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
             winBonus: 20,
             tieBonus: 10,
             lossPenalty: -8,
-            tierName: "Kingpin",
-            canHeist: true,
-            pvpRange: 300
+            tierName: "Kingpin"
         });
 
         core.setReputationTiers(tiers);
@@ -216,14 +206,13 @@ abstract contract BaseTest is Test, IERC721Receiver {
     function _forceArrest(uint256 tokenId, uint8 heatLevel) internal view returns (uint256 prevrandao) {
         prevrandao = 0;
         while (true) {
-            uint256 randomness = uint256(keccak256(abi.encodePacked(
+            uint256 rng = uint256(keccak256(abi.encodePacked(
                 prevrandao,
                 block.timestamp,
                 tokenId,
-                address(this),
-                pve.totalGamesPlayed()
+                address(this)
             )));
-            uint8 jailRoll = uint8(randomness % 100);
+            uint8 jailRoll = uint8(rng % 100);
             if (jailRoll < heatLevel) {
                 break;
             }
@@ -234,14 +223,13 @@ abstract contract BaseTest is Test, IERC721Receiver {
     function _forceNoArrest(uint256 tokenId, uint8 heatLevel) internal view returns (uint256 prevrandao) {
         prevrandao = 0;
         while (true) {
-            uint256 randomness = uint256(keccak256(abi.encodePacked(
+            uint256 rng = uint256(keccak256(abi.encodePacked(
                 prevrandao,
                 block.timestamp,
                 tokenId,
-                address(this),
-                pve.totalGamesPlayed()
+                address(this)
             )));
-            uint8 jailRoll = uint8(randomness % 100);
+            uint8 jailRoll = uint8(rng % 100);
             if (jailRoll >= heatLevel) {
                 break;
             }
@@ -263,8 +251,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
                 prevrandao,
                 block.timestamp,
                 tokenId,
-                msg.sender,
-                pve.totalGamesPlayed()
+                msg.sender
             )));
 
             uint8 jailRoll = uint8(rng % 100);

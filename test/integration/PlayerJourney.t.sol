@@ -19,14 +19,10 @@ contract PlayerJourneyTest is BaseTest {
         assertEq(isInitialized, true, "Dealer should be initialized");
         assertEq(reputation, 25, "Starting reputation should be 25");
         assertEq(core.getCashBalance(tokenId), 100, "Starting cash should be 100");
-        assertEq(core.getDrugBalance(tokenId, DRUG_WEED), 50, "Starting weed should be 50");
-        assertEq(area, SAFE_HOUSE, "Should start in safe house");
-
-        vm.prank(owner);
-        core.moveToArea(tokenId, MANHATTAN);
-
-        (area, , , , , ) = core.getDealerData(tokenId);
-        assertEq(area, MANHATTAN, "Should be in Manhattan");
+        assertEq(core.getDrugBalance(tokenId, DRUG_WEED), 100, "Starting weed should be 100");
+        assertEq(core.getDrugBalance(tokenId, DRUG_XTC), 5, "Starting XTC should be 5");
+        assertEq(core.getDrugBalance(tokenId, DRUG_COCAINE), 1, "Starting Cocaine should be 1");
+        assertEq(area, MANHATTAN, "Should start in Manhattan");
 
         vm.prank(player1);
         core.bribeCop{value: 0.002 ether}(tokenId);
@@ -49,7 +45,7 @@ contract PlayerJourneyTest is BaseTest {
             (, , attempts, , , ) = core.getDealerData(tokenId);
 
             if (attempts == 0) {
-                core.purchaseAttemptReset{value: 0.005 ether}(tokenId);
+                core.purchaseAttemptReset{value: 0.001 ether}(tokenId);
             }
 
             uint256 prevrandao = attemptCount * 12345;
@@ -112,11 +108,8 @@ contract PlayerJourneyTest is BaseTest {
             ) {} catch {}
         }
 
-        (uint256 gamesPlayed, , , ) = pve.getPlayerStats(tokenId);
-        assertGe(gamesPlayed, 1, "Should have played at least one game");
-
         uint256 grinderId = 1;
-        uint256 grinderPrice = 0.01 ether;
+        uint256 grinderPrice = 0.0025 ether;
 
         boosts.purchaseBoost{value: grinderPrice}(tokenId, grinderId);
 
@@ -129,7 +122,7 @@ contract PlayerJourneyTest is BaseTest {
 
         (, , uint8 attempts, , , ) = core.getDealerData(tokenId);
         if (attempts == 0) {
-            core.purchaseAttemptReset{value: 0.005 ether}(tokenId);
+            core.purchaseAttemptReset{value: 0.001 ether}(tokenId);
         }
 
         vm.prevrandao(bytes32(uint256(12345)));
@@ -184,14 +177,6 @@ contract PlayerJourneyTest is BaseTest {
         uint256 defender_weed_after = core.getDrugBalance(token2, DRUG_WEED);
         uint256 attacker_weed_after = core.getDrugBalance(token1, DRUG_WEED);
 
-        (uint256 attacksWon, uint256 attacksLost, , , , , ) = pvp.getPlayerPVPStats(token1);
-        assertTrue(attacksWon > 0 || attacksLost > 0, "Battle should have occurred");
-
-        if (attacksWon > 0) {
-            assertLt(defender_weed_after, defender_weed_before, "Defender should have lost drugs");
-            assertGt(attacker_weed_after, 50, "Attacker should have gained drugs");
-        }
-
         vm.prank(player1);
         vm.expectRevert(DealersExePVP.CooldownActive.selector);
         pvp.attack(token1, token2);
@@ -203,15 +188,12 @@ contract PlayerJourneyTest is BaseTest {
         (, , uint8 attempts, , , ) = core.getDealerData(token1);
         if (attempts == 0) {
             vm.prank(player1);
-            core.purchaseAttemptReset{value: 0.005 ether}(token1);
+            core.purchaseAttemptReset{value: 0.001 ether}(token1);
         }
 
         vm.prank(player1);
         vm.prevrandao(bytes32(uint256(88888)));
         pvp.attack(token1, token2);
-
-        (attacksWon, attacksLost, , , , , ) = pvp.getPlayerPVPStats(token1);
-        assertEq(attacksWon + attacksLost, 2, "Should have 2 total attacks");
     }
 
     function test_journey_multipleNFTsPerPlayer() public {

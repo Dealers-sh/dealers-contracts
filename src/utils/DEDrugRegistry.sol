@@ -18,19 +18,8 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
     //                            CONSTANTS
     // =============================================================
 
-    /// @notice Supply caps per rarity tier
-    uint256 public constant COMMON_SUPPLY_CAP = 10_000_000;
-    uint256 public constant UNCOMMON_SUPPLY_CAP = 1_000_000;
-    uint256 public constant RARE_SUPPLY_CAP = 100_000;
-    uint256 public constant LEGENDARY_SUPPLY_CAP = 10_000;
-
     /// @notice Maximum length for drug names
     uint256 public constant MAX_DRUG_NAME_LENGTH = 32;
-
-    /// @notice Initial drug IDs (for backward compatibility)
-    uint256 public constant DRUG_WEED = 1;
-    uint256 public constant DRUG_XTC = 2;
-    uint256 public constant DRUG_COCAINE = 3;
 
     // =============================================================
     //                            STORAGE
@@ -56,18 +45,15 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
     error InvalidDrugId();
     error DrugNotActive();
     error DrugAlreadyExists();
-    error SupplyCapExceeded();
     error InsufficientSupply();
     error InvalidBaseCashValue();
     error DrugNameTooLong();
     error InvalidAddress();
-    error InvalidSupplyCap();
 
     // =============================================================
     //                            EVENTS
     // =============================================================
 
-    event SupplyCapUpdated(uint256 indexed drugId, uint256 oldCap, uint256 newCap);
     event ContractAuthorizationChanged(address indexed contractAddress, bool authorized);
 
     // =============================================================
@@ -126,11 +112,6 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
     /// @inheritdoc IDrugRegistry
     function getDrugSupply(uint256 drugId) external view validDrug(drugId) returns (uint256) {
         return _drugs[drugId].totalSupply;
-    }
-
-    /// @inheritdoc IDrugRegistry
-    function getDrugSupplyCap(uint256 drugId) external view validDrug(drugId) returns (uint256) {
-        return _drugs[drugId].supplyCap;
     }
 
     /// @inheritdoc IDrugRegistry
@@ -200,10 +181,7 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
     /// @inheritdoc IDrugRegistry
     function incrementSupply(uint256 drugId, uint256 amount) external onlyAuthorized validDrug(drugId) {
         DrugInfo storage drug = _drugs[drugId];
-
-        if (amount > drug.supplyCap - drug.totalSupply) revert SupplyCapExceeded();
         drug.totalSupply += amount;
-
         emit SupplyIncremented(drugId, amount, drug.totalSupply);
     }
 
@@ -266,20 +244,6 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
     }
 
     /**
-     * @notice Update supply cap for a drug (emergency use)
-     * @dev Only callable by owner
-     * @param drugId The drug ID to update
-     * @param newCap The new supply cap
-     */
-    function updateSupplyCap(uint256 drugId, uint256 newCap) external onlyOwner {
-        if (drugId == 0 || drugId > _totalDrugs) revert InvalidDrugId();
-        if (newCap < _drugs[drugId].totalSupply) revert InvalidSupplyCap();
-        uint256 oldCap = _drugs[drugId].supplyCap;
-        _drugs[drugId].supplyCap = newCap;
-        emit SupplyCapUpdated(drugId, oldCap, newCap);
-    }
-
-    /**
      * @notice Authorize a contract to modify supply
      * @dev Only callable by owner
      * @param contractAddress The contract to authorize
@@ -314,8 +278,6 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
         if (bytes(name).length > MAX_DRUG_NAME_LENGTH) revert DrugNameTooLong();
         if (baseCashValue == 0) revert InvalidBaseCashValue();
 
-        uint256 supplyCap = _getSupplyCapForRarity(rarity);
-
         ++_totalDrugs;
 
         uint256 drugId = _totalDrugs;
@@ -325,24 +287,11 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
             rarity: rarity,
             baseCashValue: baseCashValue,
             totalSupply: 0,
-            supplyCap: supplyCap,
             isActive: true
         });
 
         _drugIds.push(drugId);
 
         emit DrugCreated(drugId, name, rarity, baseCashValue);
-    }
-
-    /**
-     * @dev Get supply cap based on rarity tier
-     * @param rarity The drug rarity
-     * @return The supply cap for that rarity
-     */
-    function _getSupplyCapForRarity(DrugRarity rarity) private pure returns (uint256) {
-        if (rarity == DrugRarity.COMMON) return COMMON_SUPPLY_CAP;
-        if (rarity == DrugRarity.UNCOMMON) return UNCOMMON_SUPPLY_CAP;
-        if (rarity == DrugRarity.RARE) return RARE_SUPPLY_CAP;
-        return LEGENDARY_SUPPLY_CAP;
     }
 }

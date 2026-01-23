@@ -51,8 +51,6 @@ interface IDealersExeCore {
         int16 tieBonus;
         int16 lossPenalty;
         string tierName;
-        bool canHeist;
-        uint256 pvpRange;
     }
 
     // =============================================================

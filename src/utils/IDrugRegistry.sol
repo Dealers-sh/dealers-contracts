@@ -29,7 +29,6 @@ interface IDrugRegistry {
         DrugRarity rarity;
         uint256 baseCashValue;
         uint256 totalSupply;
-        uint256 supplyCap;
         bool isActive;
     }
 
@@ -54,9 +53,6 @@ interface IDrugRegistry {
 
     /// @notice Get the current supply of a drug
     function getDrugSupply(uint256 drugId) external view returns (uint256);
-
-    /// @notice Get the supply cap for a drug
-    function getDrugSupplyCap(uint256 drugId) external view returns (uint256);
 
     /// @notice Get the rarity of a drug
     function getDrugRarity(uint256 drugId) external view returns (DrugRarity);
@@ -86,28 +82,4 @@ interface IDrugRegistry {
     /// @notice Decrement drug supply (called when drugs are burned/consumed)
     function decrementSupply(uint256 drugId, uint256 amount) external;
 
-    // =============================================================
-    //                          CONSTANTS
-    // =============================================================
-
-    /// @notice Common drug supply cap
-    function COMMON_SUPPLY_CAP() external view returns (uint256);
-
-    /// @notice Uncommon drug supply cap
-    function UNCOMMON_SUPPLY_CAP() external view returns (uint256);
-
-    /// @notice Rare drug supply cap
-    function RARE_SUPPLY_CAP() external view returns (uint256);
-
-    /// @notice Legendary drug supply cap
-    function LEGENDARY_SUPPLY_CAP() external view returns (uint256);
-
-    /// @notice Weed drug ID
-    function DRUG_WEED() external view returns (uint256);
-
-    /// @notice XTC drug ID
-    function DRUG_XTC() external view returns (uint256);
-
-    /// @notice Cocaine drug ID
-    function DRUG_COCAINE() external view returns (uint256);
 }

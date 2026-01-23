@@ -10,9 +10,9 @@ contract BoostGameplayTest is BaseTest {
     uint256 constant HUSTLER_ID = 2;
     uint256 constant KINGPIN_ID = 3;
 
-    uint256 constant GRINDER_PRICE = 0.01 ether;
-    uint256 constant HUSTLER_PRICE = 0.05 ether;
-    uint256 constant KINGPIN_PRICE = 0.15 ether;
+    uint256 constant GRINDER_PRICE = 0.0025 ether;
+    uint256 constant HUSTLER_PRICE = 0.005 ether;
+    uint256 constant KINGPIN_PRICE = 0.01 ether;
 
     function setUp() public override {
         super.setUp();
@@ -221,9 +221,9 @@ contract BoostGameplayTest is BaseTest {
 
         vm.stopPrank();
 
-        vm.warp(block.timestamp + 25 hours);
+        vm.warp(block.timestamp + 8 days);
 
-        assertFalse(core.hasActiveBoost(tokenId), "Boost should be expired after 25 hours");
+        assertFalse(core.hasActiveBoost(tokenId), "Boost should be expired after 8 days");
         assertEq(core.getDrugMultiplier(tokenId), 100, "Drug multiplier should return to 100");
         assertEq(core.getRepMultiplier(tokenId), 100, "Rep multiplier should return to 100");
         assertEq(core.getCashMultiplier(tokenId), 100, "Cash multiplier should return to 100");
@@ -298,8 +298,8 @@ contract BoostGameplayTest is BaseTest {
         boosts.purchaseBoost{value: GRINDER_PRICE}(tokenId, GRINDER_ID);
         uint64 firstExpiry = core.getBoost(tokenId).expiresAt;
 
-        vm.warp(block.timestamp + 25 hours);
-        assertFalse(core.hasActiveBoost(tokenId), "Boost should be expired after 25 hours");
+        vm.warp(block.timestamp + 8 days);
+        assertFalse(core.hasActiveBoost(tokenId), "Boost should be expired after 8 days");
 
         boosts.purchaseBoost{value: GRINDER_PRICE}(tokenId, GRINDER_ID);
         uint64 secondExpiry = core.getBoost(tokenId).expiresAt;
@@ -312,7 +312,7 @@ contract BoostGameplayTest is BaseTest {
     function test_boost_allTierConfigurations() public {
         DealersExeBoosts.BoostTier memory grinder = boosts.getBoostTier(GRINDER_ID);
         assertEq(grinder.price, GRINDER_PRICE, "Grinder price");
-        assertEq(grinder.duration, 24 hours, "Grinder duration");
+        assertEq(grinder.duration, 7 days, "Grinder duration");
         assertEq(grinder.drugMultiplier, 200, "Grinder drug mult");
         assertEq(grinder.repMultiplier, 150, "Grinder rep mult");
         assertEq(grinder.cashMultiplier, 150, "Grinder cash mult");
@@ -332,7 +332,7 @@ contract BoostGameplayTest is BaseTest {
 
         DealersExeBoosts.BoostTier memory kingpin = boosts.getBoostTier(KINGPIN_ID);
         assertEq(kingpin.price, KINGPIN_PRICE, "Kingpin price");
-        assertEq(kingpin.duration, 30 days, "Kingpin duration");
+        assertEq(kingpin.duration, 7 days, "Kingpin duration");
         assertEq(kingpin.drugMultiplier, 200, "Kingpin drug mult");
         assertEq(kingpin.repMultiplier, 200, "Kingpin rep mult");
         assertEq(kingpin.cashMultiplier, 200, "Kingpin cash mult");
@@ -371,10 +371,5 @@ contract BoostGameplayTest is BaseTest {
         assertTrue(core.hasActiveBoost(token1), "Token1 should have boost");
         assertTrue(core.hasActiveBoost(token2), "Token2 should have boost");
         assertTrue(core.hasActiveBoost(token3), "Token3 should have boost");
-
-        (uint256 sold, uint256 revenue, uint256 tier1Sales, , ) = boosts.getSalesStats();
-        assertEq(sold, 3, "Should have 3 boosts sold");
-        assertEq(revenue, totalCost, "Revenue should match");
-        assertEq(tier1Sales, 3, "Tier 1 sales should be 3");
     }
 }

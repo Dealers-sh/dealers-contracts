@@ -25,14 +25,14 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     // =============================================================
 
     // Starting game configuration
-    uint8 public constant STARTING_AREA = 0;          // Safe House
+    uint8 public constant STARTING_AREA = 1;          // Manhattan
     uint8 public constant SAFE_HOUSE_AREA = 0;
     uint8 public constant JAIL_AREA = 255;
     uint256 public constant STARTING_REPUTATION = 25;
     uint8 public constant BASE_MAX_ATTEMPTS = 5;      // Base daily max (boosts add more)
 
     // Fee constants
-    uint256 public constant ATTEMPT_RESET_FEE = 0.005 ether;  // Buy mid-day reset
+    uint256 public constant ATTEMPT_RESET_FEE = 0.001 ether;  // Buy mid-day reset
     uint256 public constant BRIBE_COP_FEE = 0.002 ether;      // Full heat reset
 
     // Heat and Jail constants
@@ -52,8 +52,10 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     uint256 public constant CASH_PURCHASE_THRESHOLD = 10;
     uint256 public constant STASH_DIVISOR = 100;
 
-    // Starter drug amount
-    uint256 public constant STARTER_DRUG_AMOUNT = 50;
+    // Starter drug amounts
+    uint256 public constant STARTER_WEED = 100;
+    uint256 public constant STARTER_XTC = 5;
+    uint256 public constant STARTER_COCAINE = 1;
 
     // Configuration limits
     uint256 public constant MAX_TIERS = 20;
@@ -98,8 +100,6 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         int16 tieBonus;
         int16 lossPenalty;
         string tierName;
-        bool canHeist;
-        uint256 pvpRange;
     }
 
     // =============================================================
@@ -183,7 +183,6 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     error InvalidArea();
     error InvalidDrug();
     error InsufficientDrugBalance();
-    error SupplyCapExceeded();
     error InvalidTokenId();
     error InvalidAddress();
     error InvalidMaxReputation();
@@ -277,14 +276,20 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         // Starter $CASH
         dealerCash[tokenId] = STARTER_CASH;
 
-        // Starter drugs: 50 Weed (Drug ID 1)
-        uint256 starterDrugId = drugRegistry.DRUG_WEED();
-        drugBalances[tokenId][starterDrugId] = STARTER_DRUG_AMOUNT;
-        drugRegistry.incrementSupply(starterDrugId, STARTER_DRUG_AMOUNT);
+        // Starter drugs: 100 Weed (ID=1), 5 XTC (ID=2), 1 Cocaine (ID=3)
+        drugBalances[tokenId][1] = STARTER_WEED;
+        drugBalances[tokenId][2] = STARTER_XTC;
+        drugBalances[tokenId][3] = STARTER_COCAINE;
+
+        drugRegistry.incrementSupply(1, STARTER_WEED);
+        drugRegistry.incrementSupply(2, STARTER_XTC);
+        drugRegistry.incrementSupply(3, STARTER_COCAINE);
 
         emit DealerInitialized(tokenId, STARTING_AREA);
         emit CashUpdated(tokenId, STARTER_CASH, int256(STARTER_CASH));
-        emit DrugBalanceUpdated(tokenId, starterDrugId, STARTER_DRUG_AMOUNT, int256(STARTER_DRUG_AMOUNT));
+        emit DrugBalanceUpdated(tokenId, 1, STARTER_WEED, int256(STARTER_WEED));
+        emit DrugBalanceUpdated(tokenId, 2, STARTER_XTC, int256(STARTER_XTC));
+        emit DrugBalanceUpdated(tokenId, 3, STARTER_COCAINE, int256(STARTER_COCAINE));
     }
 
     // =============================================================
@@ -819,8 +824,9 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         uint256 movementFee = 0;
         bool hasFreeMovement = hasActiveBoost(tokenId) && dealerBoosts[tokenId].freeAreaMovement;
         bool enteringSafeHouse = areaRegistry.isSafeHouse(destinationArea);
+        bool isFirstMove = d.currentArea == STARTING_AREA && d.previousArea == STARTING_AREA;
 
-        if (!hasFreeMovement && !enteringSafeHouse) {
+        if (!hasFreeMovement && !enteringSafeHouse && !isFirstMove) {
             movementFee = areaRegistry.getMovementFee(destinationArea);
             if (msg.value < movementFee) revert InsufficientPayment();
         }
@@ -835,7 +841,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
             _safeTransferETH(msg.sender, msg.value - movementFee);
         }
 
-        emit DealerTraveled(tokenId, oldArea, destinationArea, movementFee, hasFreeMovement || enteringSafeHouse);
+        emit DealerTraveled(tokenId, oldArea, destinationArea, movementFee, hasFreeMovement || enteringSafeHouse || isFirstMove);
     }
 
     /**
