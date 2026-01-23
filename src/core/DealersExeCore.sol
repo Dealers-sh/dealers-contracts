@@ -40,6 +40,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     uint8 public constant JAIL_REP_PENALTY_PERCENT = 10;      // Lose 10% rep when jailed
     uint256 public constant JAIL_REP_PENALTY_CAP = 50;        // Max rep loss capped at 50
     uint8 public constant WANTED_POSTER_SUCCESS_CHANCE = 50;  // 50% chance
+    uint8 public constant BREAKOUT_SUCCESS_CHANCE = 33;       // 33% chance to escape
 
     // Combat stat constants
     uint8 public constant MAX_STAT_MODIFIER = 25;     // Cap for threat/armor
@@ -67,7 +68,9 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     struct DealerData {
         uint256 reputation;              // Slot 0
         uint32 lastPlayTimestamp;        // Slot 1 (below are tightly packed)
+        uint32 lastBreakoutAttempt;      // Timestamp of last breakout attempt
         uint8 currentArea;
+        uint8 previousArea;              // Area before jail (for automatic return)
         uint8 dailyAttemptsRemaining;
         uint8 heatLevel;
         bool isInitialized;
@@ -150,6 +153,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
     event DealerJailed(uint256 indexed tokenId, uint8 previousArea, uint256 repLost);
     event DealerBailed(uint256 indexed tokenId, uint256 bailPaid, uint8 newArea);
+    event BreakoutAttempted(uint256 indexed tokenId, bool success, uint8 exitArea);
     event HeatLevelChanged(uint256 indexed tokenId, uint8 newHeatLevel);
     event AttemptsUsed(uint256 indexed tokenId, uint8 remaining);
     event AttemptsReset(uint256 indexed tokenId, uint8 newAmount);
@@ -169,6 +173,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     event MaxReputationUpdated(uint256 oldMax, uint256 newMax);
     event Paused(address account);
     event Unpaused(address account);
+    event DealerTraveled(uint256 indexed tokenId, uint8 fromArea, uint8 toArea, uint256 feePaid, bool wasFreeMovement);
 
     // =============================================================
     //                            ERRORS
@@ -190,6 +195,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     error DealerInJail();
     error NotInJail();
     error InsufficientBail();
+    error BreakoutAlreadyAttemptedToday();
     error NoAttemptsRemaining();
     error NoHeatToReduce();
     error InsufficientPayment();
@@ -263,7 +269,9 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         dealers[tokenId] = DealerData({
             reputation: STARTING_REPUTATION,
             lastPlayTimestamp: uint32(block.timestamp),
+            lastBreakoutAttempt: 0,
             currentArea: STARTING_AREA,
+            previousArea: STARTING_AREA,
             dailyAttemptsRemaining: BASE_MAX_ATTEMPTS,
             heatLevel: 0,
             isInitialized: true
@@ -653,12 +661,13 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
         if (d.currentArea == JAIL_AREA) return;
 
-        uint8 previousArea = d.currentArea;
+        uint8 priorArea = d.currentArea;
 
         // Calculate capped rep loss: min(rep * 10%, 50)
         uint256 percentLoss = (d.reputation * JAIL_REP_PENALTY_PERCENT) / 100;
         uint256 repLoss = percentLoss > JAIL_REP_PENALTY_CAP ? JAIL_REP_PENALTY_CAP : percentLoss;
 
+        d.previousArea = priorArea;
         d.currentArea = JAIL_AREA;
 
         if (repLoss >= d.reputation) {
@@ -667,13 +676,13 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
             d.reputation -= repLoss;
         }
 
-        emit DealerJailed(tokenId, previousArea, repLoss);
+        emit DealerJailed(tokenId, priorArea, repLoss);
     }
 
     /**
-     * @notice Pay bail to exit jail
+     * @notice Pay bail to exit jail (returns to previous area, resets heat)
      */
-    function payBail(uint256 tokenId, uint8 exitArea)
+    function payBail(uint256 tokenId)
         external
         payable
         nonReentrant
@@ -688,16 +697,17 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         if (address(nftContract) == address(0)) revert NFTContractNotSet();
         if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
 
-        // Validate exit area via registry
-        if (!areaRegistry.isValidArea(exitArea)) revert InvalidArea();
-        if (areaRegistry.isSafeHouse(exitArea)) revert CannotEnterSafeHouse();
-        if (areaRegistry.isJail(exitArea)) revert CannotEnterJail();
-
-        // Get bail amount from jail's movement fee
         uint256 bail = areaRegistry.getMovementFee(JAIL_AREA);
         if (msg.value < bail) revert InsufficientBail();
 
-        d.currentArea = exitArea;
+        uint8 returnArea = d.previousArea;
+
+        if (!areaRegistry.isValidArea(returnArea) || areaRegistry.isJail(returnArea)) {
+            returnArea = 1;
+        }
+
+        d.currentArea = returnArea;
+        d.heatLevel = 0;
 
         if (address(paymentHandler) != address(0) && bail > 0) {
             paymentHandler.processMovementFee{value: bail}(msg.sender, bail);
@@ -707,7 +717,47 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
             _safeTransferETH(msg.sender, msg.value - bail);
         }
 
-        emit DealerBailed(tokenId, bail, exitArea);
+        emit DealerBailed(tokenId, bail, returnArea);
+    }
+
+    /**
+     * @notice Attempt to break out of jail (once per day, 33% success, keeps heat)
+     */
+    function attemptBreakout(uint256 tokenId)
+        external
+        nonReentrant
+        dealerExists(tokenId)
+        registriesSet
+        whenNotPaused
+    {
+        DealerData storage d = dealers[tokenId];
+
+        if (d.currentArea != JAIL_AREA) revert NotInJail();
+
+        if (address(nftContract) == address(0)) revert NFTContractNotSet();
+        if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
+
+        uint256 dayStart = (block.timestamp / 1 days) * 1 days;
+        if (d.lastBreakoutAttempt >= dayStart) revert BreakoutAlreadyAttemptedToday();
+
+        d.lastBreakoutAttempt = uint32(block.timestamp);
+
+        bytes32 seed = keccak256(abi.encodePacked(tokenId, "BREAKOUT", block.timestamp, block.prevrandao));
+        uint256 roll = randomness.getRandomness(seed) % 100;
+
+        bool success = roll < BREAKOUT_SUCCESS_CHANCE;
+
+        uint8 returnArea = d.previousArea;
+
+        if (!areaRegistry.isValidArea(returnArea) || areaRegistry.isJail(returnArea)) {
+            returnArea = 1;
+        }
+
+        if (success) {
+            d.currentArea = returnArea;
+        }
+
+        emit BreakoutAttempted(tokenId, success, success ? returnArea : JAIL_AREA);
     }
 
     /**
@@ -732,6 +782,64 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         returns (bool)
     {
         return dealers[tokenId].currentArea == SAFE_HOUSE_AREA;
+    }
+
+    /**
+     * @notice Player-callable function to move dealer to a new area
+     * @param tokenId The dealer's token ID
+     * @param destinationArea The area ID to travel to
+     */
+    function travel(uint256 tokenId, uint8 destinationArea)
+        external
+        payable
+        nonReentrant
+        dealerExists(tokenId)
+        registriesSet
+        whenNotPaused
+    {
+        if (address(nftContract) == address(0)) revert NFTContractNotSet();
+        if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
+
+        if (!areaRegistry.isValidArea(destinationArea)) revert InvalidArea();
+        if (areaRegistry.isJail(destinationArea)) revert CannotEnterJail();
+
+        uint256 minRep = areaRegistry.getMinReputation(destinationArea);
+        if (minRep > 0 && getTotalReputation(tokenId) < minRep) {
+            revert InsufficientReputation();
+        }
+
+        DealerData storage d = dealers[tokenId];
+
+        if (d.currentArea == JAIL_AREA) revert DealerInJail();
+
+        uint8 oldArea = d.currentArea;
+        if (oldArea == destinationArea) {
+            if (msg.value > 0) {
+                _safeTransferETH(msg.sender, msg.value);
+            }
+            return;
+        }
+
+        uint256 movementFee = 0;
+        bool hasFreeMovement = hasActiveBoost(tokenId) && dealerBoosts[tokenId].freeAreaMovement;
+        bool enteringSafeHouse = areaRegistry.isSafeHouse(destinationArea);
+
+        if (!hasFreeMovement && !enteringSafeHouse) {
+            movementFee = areaRegistry.getMovementFee(destinationArea);
+            if (msg.value < movementFee) revert InsufficientPayment();
+        }
+
+        d.currentArea = destinationArea;
+
+        if (movementFee > 0 && address(paymentHandler) != address(0)) {
+            paymentHandler.processMovementFee{value: movementFee}(msg.sender, movementFee);
+        }
+
+        if (msg.value > movementFee) {
+            _safeTransferETH(msg.sender, msg.value - movementFee);
+        }
+
+        emit DealerTraveled(tokenId, oldArea, destinationArea, movementFee, hasFreeMovement || enteringSafeHouse);
     }
 
     /**
@@ -764,7 +872,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Use 1 attempt for 50% chance to reduce heat by 1
+     * @notice Use 1 attempt for 50% chance to reduce heat to 0
      */
     function removeWantedPoster(uint256 tokenId)
         external
@@ -787,8 +895,8 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         uint256 roll = randomness.getRandomness(seed) % 100;
 
         if (roll < WANTED_POSTER_SUCCESS_CHANCE) {
-            d.heatLevel--;
-            emit HeatLevelChanged(tokenId, d.heatLevel);
+            d.heatLevel = 0;
+            emit HeatLevelChanged(tokenId, 0);
             emit WantedPosterRemoved(tokenId, true);
         } else {
             emit WantedPosterRemoved(tokenId, false);

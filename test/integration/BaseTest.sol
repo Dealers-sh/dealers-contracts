@@ -184,27 +184,32 @@ abstract contract BaseTest is Test, IERC721Receiver {
         core.moveToArea(tokenId, MANHATTAN);
     }
 
-    function _forceGameOutcome(uint8 desiredOutcome, uint8 playerChoice) internal pure returns (uint256 prevrandao) {
-        uint8 houseChoice;
-        if (desiredOutcome == 0) {
-            if (playerChoice == 0) houseChoice = 1;
-            else if (playerChoice == 1) houseChoice = 2;
-            else houseChoice = 0;
-        } else if (desiredOutcome == 1) {
-            houseChoice = playerChoice;
-        } else {
-            if (playerChoice == 0) houseChoice = 2;
-            else if (playerChoice == 1) houseChoice = 0;
-            else houseChoice = 1;
-        }
-
+    function _forceGameOutcome(uint8 desiredOutcome, uint8 playerChoice) internal view returns (uint256 prevrandao) {
         prevrandao = uint256(keccak256(abi.encodePacked("GAME")));
         while (true) {
             uint256 gameRandomness = uint256(keccak256(abi.encodePacked(prevrandao, "GAME")));
-            if (uint8(gameRandomness % 3) == houseChoice) {
+            uint8 roll = uint8(gameRandomness % 100);
+            (, uint8 outcome) = _calculateBiasedHouseChoice(roll, playerChoice);
+            if (outcome == desiredOutcome) {
                 break;
             }
             prevrandao++;
+        }
+    }
+
+    function _calculateBiasedHouseChoice(uint8 roll, uint8 playerChoice) internal view returns (uint8 houseChoice, uint8 outcome) {
+        uint8 _tieChance = pve.tieChance();
+        uint8 _winChance = pve.winChance();
+
+        if (roll < _tieChance) {
+            houseChoice = playerChoice;
+            outcome = 1; // TIE
+        } else if (roll < _tieChance + _winChance) {
+            houseChoice = (playerChoice + 1) % 3;
+            outcome = 0; // WIN
+        } else {
+            houseChoice = (playerChoice + 2) % 3;
+            outcome = 2; // LOSS
         }
     }
 
@@ -251,23 +256,10 @@ abstract contract BaseTest is Test, IERC721Receiver {
         bool shouldArrest,
         uint8 heatLevel
     ) internal view returns (uint256 prevrandao) {
-        uint8 desiredHouseChoice;
-        if (desiredOutcome == 0) {
-            if (playerChoice == 0) desiredHouseChoice = 1;
-            else if (playerChoice == 1) desiredHouseChoice = 2;
-            else desiredHouseChoice = 0;
-        } else if (desiredOutcome == 1) {
-            desiredHouseChoice = playerChoice;
-        } else {
-            if (playerChoice == 0) desiredHouseChoice = 2;
-            else if (playerChoice == 1) desiredHouseChoice = 0;
-            else desiredHouseChoice = 1;
-        }
-
         prevrandao = 0;
         uint256 attempts = 0;
         while (attempts < 100000) {
-            uint256 randomness = uint256(keccak256(abi.encodePacked(
+            uint256 rng = uint256(keccak256(abi.encodePacked(
                 prevrandao,
                 block.timestamp,
                 tokenId,
@@ -275,7 +267,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
                 pve.totalGamesPlayed()
             )));
 
-            uint8 jailRoll = uint8(randomness % 100);
+            uint8 jailRoll = uint8(rng % 100);
             bool wouldArrest = jailRoll < heatLevel;
 
             if (wouldArrest != shouldArrest) {
@@ -285,10 +277,11 @@ abstract contract BaseTest is Test, IERC721Receiver {
             }
 
             if (!shouldArrest) {
-                uint256 gameRandomness = uint256(keccak256(abi.encodePacked(randomness, "GAME")));
-                uint8 houseChoice = uint8(gameRandomness % 3);
+                uint256 gameRng = uint256(keccak256(abi.encodePacked(rng, "GAME")));
+                uint8 roll = uint8(gameRng % 100);
+                (, uint8 outcome) = _calculateBiasedHouseChoice(roll, playerChoice);
 
-                if (houseChoice != desiredHouseChoice) {
+                if (outcome != desiredOutcome) {
                     prevrandao++;
                     attempts++;
                     continue;

@@ -44,6 +44,11 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     uint256 public totalGamesWon;
     uint256 public totalArrestsInPVE;
 
+    // Configurable outcome odds (must sum to 100)
+    uint8 public tieChance = 50;    // Default 50%
+    uint8 public winChance = 25;    // Default 25%
+    uint8 public lossChance = 25;   // Default 25%
+
     // Pause state
     bool public paused;
 
@@ -77,6 +82,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
 
     event Paused(address account);
     event Unpaused(address account);
+    event OutcomeOddsUpdated(uint8 tieChance, uint8 winChance, uint8 lossChance);
 
     // =============================================================
     //                            ERRORS
@@ -97,6 +103,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     error InvalidAmount();
     error RandomnessError();
     error InvalidAddress();
+    error OddsMustSumTo100();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -285,8 +292,8 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         uint256 rng
     ) private {
         uint256 gameRng = uint256(keccak256(abi.encodePacked(rng, "GAME")));
-        uint8 houseChoice = uint8(gameRng % 3);
-        uint8 outcome = _calculateGameOutcome(choice, houseChoice);
+        uint8 roll = uint8(gameRng % 100);
+        (uint8 houseChoice, uint8 outcome) = _calculateBiasedHouseChoice(roll, choice);
 
         int256 repChange;
         int256 cashChange;
@@ -322,23 +329,24 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     // =============================================================
 
     /**
-     * @notice Calculates the game outcome based on player and house choices
+     * @notice Calculates biased house choice based on player choice and configurable odds
+     * @dev RPS rules: DEAL(0) beats THREATEN(1), THREATEN(1) beats BAIL(2), BAIL(2) beats DEAL(0)
+     * @param roll Random number 0-99
      * @param playerChoice The player's choice (0=DEAL, 1=THREATEN, 2=BAIL)
-     * @param houseChoice The house's random choice
-     * @return 0=WIN, 1=TIE, 2=LOSS
+     * @return houseChoice The house's biased choice
+     * @return outcome The game outcome (0=WIN, 1=TIE, 2=LOSS)
      */
-    function _calculateGameOutcome(uint8 playerChoice, uint8 houseChoice) internal pure returns (uint8) {
-        if (playerChoice == houseChoice) return 1; // TIE
-
-        if (
-            (playerChoice == 0 && houseChoice == 1) ||
-            (playerChoice == 1 && houseChoice == 2) ||
-            (playerChoice == 2 && houseChoice == 0)
-        ) {
-            return 0; // WIN
+    function _calculateBiasedHouseChoice(uint8 roll, uint8 playerChoice) internal view returns (uint8 houseChoice, uint8 outcome) {
+        if (roll < tieChance) {
+            houseChoice = playerChoice;
+            outcome = 1; // TIE
+        } else if (roll < tieChance + winChance) {
+            houseChoice = (playerChoice + 1) % 3;
+            outcome = 0; // WIN
+        } else {
+            houseChoice = (playerChoice + 2) % 3;
+            outcome = 2; // LOSS
         }
-
-        return 2; // LOSS
     }
 
     /**
@@ -615,6 +623,20 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         address old = address(randomness);
         randomness = IDERandomness(_randomness);
         emit RandomnessUpdated(old, _randomness);
+    }
+
+    /**
+     * @notice Sets the outcome odds for the biased house choice system
+     * @param _tieChance Percentage chance for a tie (0-100)
+     * @param _winChance Percentage chance for player win (0-100)
+     * @param _lossChance Percentage chance for player loss (0-100)
+     */
+    function setOutcomeOdds(uint8 _tieChance, uint8 _winChance, uint8 _lossChance) external onlyOwner {
+        if (_tieChance + _winChance + _lossChance != 100) revert OddsMustSumTo100();
+        tieChance = _tieChance;
+        winChance = _winChance;
+        lossChance = _lossChance;
+        emit OutcomeOddsUpdated(_tieChance, _winChance, _lossChance);
     }
 
     /**

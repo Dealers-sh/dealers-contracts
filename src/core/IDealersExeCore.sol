@@ -23,6 +23,7 @@ interface IDealersExeCore {
         uint256 reputation;
         uint32 lastPlayTimestamp;
         uint8 currentArea;
+        uint8 previousArea;
         uint8 dailyAttemptsRemaining;
         uint8 heatLevel;
         bool isInitialized;
@@ -189,8 +190,14 @@ interface IDealersExeCore {
     /// @notice Purchase $CASH with ETH
     function purchaseCash(uint256 tokenId) external payable;
 
-    /// @notice Pay bail to exit jail and move to a specified area
-    function payBail(uint256 tokenId, uint8 exitArea) external payable;
+    /// @notice Pay bail to exit jail (returns to previous area, resets heat)
+    function payBail(uint256 tokenId) external payable;
+
+    /// @notice Attempt to break out of jail (once per day, 33% success, keeps heat)
+    function attemptBreakout(uint256 tokenId) external;
+
+    /// @notice Player-callable function to move dealer to a new area
+    function travel(uint256 tokenId, uint8 destinationArea) external payable;
 
     /// @notice Purchase an attempt reset for a dealer
     function purchaseAttemptReset(uint256 tokenId) external payable;
