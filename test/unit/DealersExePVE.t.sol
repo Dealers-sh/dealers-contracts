@@ -176,7 +176,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
         core.authorizeContract(address(this), false);
     }
 
-    function _setupDealerForPlay(uint256 tokenId, address player) internal {
+    function _setupDealerForPlay(uint256 tokenId) internal {
         _moveDealerToArea(tokenId, AREA_MANHATTAN);
         _addCashToDealer(tokenId, 1000);
         _addDrugsToDealer(tokenId, DRUG_WEED, 500);
@@ -244,14 +244,14 @@ contract DealersExePVETest is Test, IERC721Receiver {
         uint8 heatAfterIncrement = currentHeatLevel < 5 ? currentHeatLevel + 1 : 5;
         for (uint256 i = 0; i < 100000; i++) {
             uint256 testPrevrandao = i;
-            uint256 randomness = uint256(keccak256(abi.encodePacked(
+            uint256 rng = uint256(keccak256(abi.encodePacked(
                 testPrevrandao,
                 block.timestamp,
                 tokenId,
                 player1,
                 block.timestamp
             )));
-            uint8 jailRoll = uint8(randomness % 100);
+            uint8 jailRoll = uint8(rng % 100);
 
             if (jailRoll < heatAfterIncrement) {
                 return testPrevrandao;
@@ -263,14 +263,14 @@ contract DealersExePVETest is Test, IERC721Receiver {
     function _getPrevrandaoNoArrest(uint256 tokenId, uint8 heatLevel) internal view returns (uint256) {
         for (uint256 i = 0; i < 1000; i++) {
             uint256 testPrevrandao = i;
-            uint256 randomness = uint256(keccak256(abi.encodePacked(
+            uint256 rng = uint256(keccak256(abi.encodePacked(
                 testPrevrandao,
                 block.timestamp,
                 tokenId,
                 player1,
                 block.timestamp
             )));
-            uint8 jailRoll = uint8(randomness % 100);
+            uint8 jailRoll = uint8(rng % 100);
 
             if (jailRoll >= heatLevel) {
                 return testPrevrandao;
@@ -284,7 +284,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     // =============================================================
 
     function test_calculateGameOutcome_dealBeatsThreat() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         uint8 playerChoice = 0; // DEAL
         uint256 amount = 10;
@@ -324,7 +324,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_calculateGameOutcome_threatenBeatsBail() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         uint8 playerChoice = 1; // THREATEN
         uint256 amount = 10;
@@ -333,14 +333,12 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
         uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
         uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-        (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
 
         vm.prank(player1);
         pve.playGame(DEALER_ID_1, playerChoice, DealersExePVE.HustleType.BUY, DRUG_WEED, amount);
 
         uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
         uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-        (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
 
         bool gotArrested = core.isInJail(DEALER_ID_1);
         if (gotArrested) {
@@ -356,7 +354,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_calculateGameOutcome_winOutcome() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         uint8 playerChoice = 0;
         uint256 amount = 10;
@@ -400,7 +398,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_calculateGameOutcome_tieOutcome() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         uint8 playerChoice = 0;
         uint256 amount = 10;
@@ -452,11 +450,10 @@ contract DealersExePVETest is Test, IERC721Receiver {
     // =============================================================
 
     function test_playGame_buyWin_keepCashGetDrugs() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         uint8 playerChoice = 0; // DEAL
         uint256 amount = 10;
-        uint256 stakeCost = amount * BUY_PRICE_WEED;
 
         bool foundWin = false;
         for (uint256 i = 0; i < 100; i++) {
@@ -501,7 +498,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_playGame_buyTie_loseCashGetDrugs() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         uint8 playerChoice = 0;
         uint256 amount = 10;
@@ -550,7 +547,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_playGame_buyLoss_loseCashNoDrugs() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         uint8 playerChoice = 0;
         uint256 amount = 10;
@@ -604,7 +601,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_playGame_buyZeroAmount_reverts() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVE.InvalidAmount.selector);
@@ -616,7 +613,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     // =============================================================
 
     function test_playGame_sellWin_keepDrugsGetCash() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         uint8 playerChoice = 0; // DEAL
         uint256 amount = 10;
@@ -666,7 +663,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_playGame_sellTie_loseDrugsGetCash() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         uint8 playerChoice = 0;
         uint256 amount = 10;
@@ -715,7 +712,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_playGame_sellLoss_loseDrugsNoCash() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         uint8 playerChoice = 0;
         uint256 amount = 10;
@@ -769,7 +766,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_playGame_sellZeroAmount_reverts() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVE.InvalidAmount.selector);
@@ -781,7 +778,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     // =============================================================
 
     function test_playGame_arrestBeforeOutcome() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         _setHeatLevel(DEALER_ID_1, 5);
 
@@ -813,7 +810,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_playGame_arrestLosesStake_buy() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         _setHeatLevel(DEALER_ID_1, 5);
 
@@ -853,7 +850,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_playGame_arrestLosesStake_sell() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         _setHeatLevel(DEALER_ID_1, 5);
 
@@ -896,7 +893,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     // =============================================================
 
     function test_playGame_drugMultiplierApplied() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         _applyBoost(DEALER_ID_1, 1 days, 200, 100, 0, false, false, 100);
 
@@ -940,7 +937,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_playGame_repMultiplierApplied() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         _applyBoost(DEALER_ID_1, 1 days, 100, 200, 0, false, false, 100);
 
@@ -989,7 +986,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_playGame_cashMultiplierApplied() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         _applyBoost(DEALER_ID_1, 1 days, 100, 100, 0, false, false, 200);
 
@@ -1033,7 +1030,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_playGame_noMultiplierWithoutBoost() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         uint8 playerChoice = 0;
         uint256 amount = 10;
@@ -1120,7 +1117,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     // =============================================================
 
     function test_playGame_usesAttempt() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         (,, uint8 attemptsBefore,,,) = core.getDealerData(DEALER_ID_1);
 
@@ -1136,7 +1133,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_playGame_revertNoAttempts() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         _useAttempts(DEALER_ID_1, 5);
 
@@ -1146,7 +1143,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_playGame_incrementsHeat() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         (,,, uint8 heatBefore,,) = core.getDealerData(DEALER_ID_1);
 
@@ -1162,7 +1159,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_playGame_heatAffectsJailChance() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         uint8 jailChanceAt0 = core.getJailChance(DEALER_ID_1);
         assertEq(jailChanceAt0, 0, "Heat 0 = 0% jail chance");
@@ -1225,7 +1222,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     // =============================================================
 
     function test_pause_revertsOnPlay() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         pve.pause();
 
@@ -1235,7 +1232,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
     }
 
     function test_pause_unpause_allowsPlay() public {
-        _setupDealerForPlay(DEALER_ID_1, player1);
+        _setupDealerForPlay(DEALER_ID_1);
 
         pve.pause();
         pve.unpause();

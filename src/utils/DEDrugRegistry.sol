@@ -44,7 +44,6 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
     error NotAuthorized();
     error InvalidDrugId();
     error DrugNotActive();
-    error DrugAlreadyExists();
     error InsufficientSupply();
     error InvalidBaseCashValue();
     error DrugNameTooLong();

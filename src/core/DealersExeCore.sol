@@ -31,25 +31,14 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     uint256 public constant STARTING_REPUTATION = 25;
     uint8 public constant BASE_MAX_ATTEMPTS = 5;      // Base daily max (boosts add more)
 
-    // Fee constants
-    uint256 public constant ATTEMPT_RESET_FEE = 0.001 ether;  // Buy mid-day reset
-    uint256 public constant BRIBE_COP_FEE = 0.002 ether;      // Full heat reset
-
-    // Heat and Jail constants
-    uint8 public constant MAX_HEAT_LEVEL = 5;                 // Max jail chance = 5%
-    uint8 public constant JAIL_REP_PENALTY_PERCENT = 10;      // Lose 10% rep when jailed
-    uint256 public constant JAIL_REP_PENALTY_CAP = 50;        // Max rep loss capped at 50
-    uint8 public constant WANTED_POSTER_SUCCESS_CHANCE = 50;  // 50% chance
-    uint8 public constant BREAKOUT_SUCCESS_CHANCE = 33;       // 33% chance to escape
+    // Heat and Jail constants (non-configurable)
+    uint8 public constant MAX_HEAT_LEVEL = 5;         // Max jail chance = 5%
 
     // Combat stat constants
     uint8 public constant MAX_STAT_MODIFIER = 25;     // Cap for threat/armor
 
-    // $CASH system constants
+    // $CASH system constants (non-configurable)
     uint256 public constant STARTER_CASH = 100;
-    uint256 public constant CASH_TOPUP_PRICE = 0.001 ether;
-    uint256 public constant CASH_TOPUP_AMOUNT = 100;
-    uint256 public constant CASH_PURCHASE_THRESHOLD = 10;
     uint256 public constant STASH_DIVISOR = 100;
 
     // Starter drug amounts
@@ -102,6 +91,21 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         string tierName;
     }
 
+    /**
+     * @dev Configurable game parameters
+     */
+    struct CoreConfig {
+        uint256 attemptResetFee;          // 0.001 ether - Buy mid-day reset
+        uint256 bribeCopFee;              // 0.002 ether - Full heat reset
+        uint256 cashTopupPrice;           // 0.001 ether - Price to buy $CASH
+        uint256 cashTopupAmount;          // 100 - Amount of $CASH received
+        uint256 cashPurchaseThreshold;    // 10 - Max balance to allow purchase
+        uint8 jailRepPenaltyPercent;      // 10 - % rep lost when jailed
+        uint256 jailRepPenaltyCap;        // 50 - Max rep loss when jailed
+        uint8 wantedPosterSuccessChance;  // 50 - % chance to clear heat
+        uint8 breakoutSuccessChance;      // 33 - % chance to escape jail
+    }
+
     // =============================================================
     //                            STORAGE
     // =============================================================
@@ -116,7 +120,8 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     // Reputation tiers
     ReputationTier[] public reputationTiers;
 
-    // Updateable parameters
+    // Configurable parameters
+    CoreConfig public config;
     uint256 public MAX_REPUTATION = 1200;
     bool public paused;
 
@@ -172,6 +177,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     event Paused(address account);
     event Unpaused(address account);
     event DealerTraveled(uint256 indexed tokenId, uint8 fromArea, uint8 toArea, uint256 feePaid, bool wasFreeMovement);
+    event CoreConfigUpdated(CoreConfig oldConfig, CoreConfig newConfig);
 
     // =============================================================
     //                            ERRORS
@@ -183,7 +189,6 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     error InvalidArea();
     error InvalidDrug();
     error InsufficientDrugBalance();
-    error InvalidTokenId();
     error InvalidAddress();
     error InvalidMaxReputation();
 
@@ -197,8 +202,6 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     error NoHeatToReduce();
     error InsufficientPayment();
     error NotDealerOwner();
-    error AreaNotActive();
-    error PaymentHandlerNotSet();
     error NFTContractNotSet();
     error RegistryNotSet();
 
@@ -222,6 +225,18 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
      */
     constructor() {
         _initializeOwner(msg.sender);
+
+        config = CoreConfig({
+            attemptResetFee: 0.001 ether,
+            bribeCopFee: 0.002 ether,
+            cashTopupPrice: 0.001 ether,
+            cashTopupAmount: 100,
+            cashPurchaseThreshold: 10,
+            jailRepPenaltyPercent: 10,
+            jailRepPenaltyCap: 50,
+            wantedPosterSuccessChance: 50,
+            breakoutSuccessChance: 33
+        });
     }
 
     // =============================================================
@@ -557,6 +572,15 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Set configurable game parameters
+     */
+    function setCoreConfig(CoreConfig calldata _config) external onlyOwner {
+        CoreConfig memory oldConfig = config;
+        config = _config;
+        emit CoreConfigUpdated(oldConfig, _config);
+    }
+
+    /**
      * @notice Pause the contract, disabling state-changing functions
      */
     function pause() external onlyOwner {
@@ -666,9 +690,9 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
         uint8 priorArea = d.currentArea;
 
-        // Calculate capped rep loss: min(rep * 10%, 50)
-        uint256 percentLoss = (d.reputation * JAIL_REP_PENALTY_PERCENT) / 100;
-        uint256 repLoss = percentLoss > JAIL_REP_PENALTY_CAP ? JAIL_REP_PENALTY_CAP : percentLoss;
+        // Calculate capped rep loss: min(rep * penalty%, cap)
+        uint256 percentLoss = (d.reputation * config.jailRepPenaltyPercent) / 100;
+        uint256 repLoss = percentLoss > config.jailRepPenaltyCap ? config.jailRepPenaltyCap : percentLoss;
 
         d.previousArea = priorArea;
         d.currentArea = JAIL_AREA;
@@ -750,7 +774,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         bytes32 seed = keccak256(abi.encodePacked(tokenId, "BREAKOUT", block.timestamp, block.prevrandao));
         uint256 roll = randomness.getRandomness(seed) % 100;
 
-        bool success = roll < BREAKOUT_SUCCESS_CHANCE;
+        bool success = roll < config.breakoutSuccessChance;
 
         uint8 returnArea = d.previousArea;
 
@@ -860,7 +884,8 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         dealerExists(tokenId)
         whenNotPaused
     {
-        if (msg.value < BRIBE_COP_FEE) revert InsufficientPayment();
+        uint256 fee = config.bribeCopFee;
+        if (msg.value < fee) revert InsufficientPayment();
 
         if (address(nftContract) == address(0)) revert NFTContractNotSet();
         if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
@@ -868,15 +893,15 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         dealers[tokenId].heatLevel = 0;
 
         if (address(paymentHandler) != address(0)) {
-            paymentHandler.processMarketplaceFee{value: BRIBE_COP_FEE}(msg.sender, BRIBE_COP_FEE);
+            paymentHandler.processMarketplaceFee{value: fee}(msg.sender, fee);
         }
 
-        if (msg.value > BRIBE_COP_FEE) {
-            _safeTransferETH(msg.sender, msg.value - BRIBE_COP_FEE);
+        if (msg.value > fee) {
+            _safeTransferETH(msg.sender, msg.value - fee);
         }
 
         emit HeatLevelChanged(tokenId, 0);
-        emit CopBribed(tokenId, BRIBE_COP_FEE);
+        emit CopBribed(tokenId, fee);
     }
 
     /**
@@ -908,7 +933,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         bytes32 seed = keccak256(abi.encodePacked(tokenId, "WANTED_POSTER", block.timestamp, block.prevrandao));
         uint256 roll = randomness.getRandomness(seed) % 100;
 
-        if (roll < WANTED_POSTER_SUCCESS_CHANCE) {
+        if (roll < config.wantedPosterSuccessChance) {
             d.heatLevel = 0;
             emit HeatLevelChanged(tokenId, 0);
             emit WantedPosterRemoved(tokenId, true);
@@ -942,7 +967,8 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         dealerExists(tokenId)
         whenNotPaused
     {
-        if (msg.value < ATTEMPT_RESET_FEE) revert InsufficientPayment();
+        uint256 fee = config.attemptResetFee;
+        if (msg.value < fee) revert InsufficientPayment();
 
         if (address(nftContract) == address(0)) revert NFTContractNotSet();
         if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
@@ -952,11 +978,11 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         d.lastPlayTimestamp = uint32(block.timestamp);
 
         if (address(paymentHandler) != address(0)) {
-            paymentHandler.processMarketplaceFee{value: ATTEMPT_RESET_FEE}(msg.sender, ATTEMPT_RESET_FEE);
+            paymentHandler.processMarketplaceFee{value: fee}(msg.sender, fee);
         }
 
-        if (msg.value > ATTEMPT_RESET_FEE) {
-            _safeTransferETH(msg.sender, msg.value - ATTEMPT_RESET_FEE);
+        if (msg.value > fee) {
+            _safeTransferETH(msg.sender, msg.value - fee);
         }
 
         emit AttemptsReset(tokenId, getMaxAttempts(tokenId));
@@ -1150,20 +1176,23 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         if (address(nftContract) == address(0)) revert NFTContractNotSet();
         if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
 
-        if (dealerCash[tokenId] >= CASH_PURCHASE_THRESHOLD) revert CashBalanceTooHigh();
-        if (msg.value < CASH_TOPUP_PRICE) revert InsufficientPayment();
+        uint256 price = config.cashTopupPrice;
+        uint256 amount = config.cashTopupAmount;
 
-        dealerCash[tokenId] += CASH_TOPUP_AMOUNT;
+        if (dealerCash[tokenId] >= config.cashPurchaseThreshold) revert CashBalanceTooHigh();
+        if (msg.value < price) revert InsufficientPayment();
 
-        emit CashPurchased(tokenId, CASH_TOPUP_AMOUNT, CASH_TOPUP_PRICE);
-        emit CashUpdated(tokenId, dealerCash[tokenId], int256(CASH_TOPUP_AMOUNT));
+        dealerCash[tokenId] += amount;
+
+        emit CashPurchased(tokenId, amount, price);
+        emit CashUpdated(tokenId, dealerCash[tokenId], int256(amount));
 
         if (address(paymentHandler) != address(0)) {
-            paymentHandler.processMarketplaceFee{value: CASH_TOPUP_PRICE}(msg.sender, CASH_TOPUP_PRICE);
+            paymentHandler.processMarketplaceFee{value: price}(msg.sender, price);
         }
 
-        if (msg.value > CASH_TOPUP_PRICE) {
-            _safeTransferETH(msg.sender, msg.value - CASH_TOPUP_PRICE);
+        if (msg.value > price) {
+            _safeTransferETH(msg.sender, msg.value - price);
         }
     }
 

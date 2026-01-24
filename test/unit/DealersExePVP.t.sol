@@ -591,12 +591,12 @@ contract DealersExePVPTest is BaseTest {
         _mockJailChance(attackerToken, 0);
 
         for (uint256 i = 0; i < 3; i++) {
-            uint256 newAttacker = _mintAndInitialize(address(uint160(100 + i)));
-            _moveDealerToArea(newAttacker, AREA_MANHATTAN);
-            _addDrugsToDealer(newAttacker, DRUG_WEED, 1000);
+            uint256 loopAttacker = _mintAndInitialize(address(uint160(100 + i)));
+            _moveDealerToArea(loopAttacker, AREA_MANHATTAN);
+            _addDrugsToDealer(loopAttacker, DRUG_WEED, 1000);
 
             vm.prank(address(uint160(100 + i)));
-            pvp.attack(newAttacker, defenderToken);
+            pvp.attack(loopAttacker, defenderToken);
         }
 
         vm.warp(block.timestamp + 1 days);

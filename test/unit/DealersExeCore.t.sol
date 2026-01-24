@@ -253,7 +253,8 @@ contract DealersExeCoreTest is BaseTest {
         core.sendToJail(tokenId1);
         (, uint256 repAfter, , , , ) = core.getDealerData(tokenId1);
 
-        uint256 expectedPenalty = (repBefore * core.JAIL_REP_PENALTY_PERCENT()) / 100;
+        (, , , , , uint8 jailRepPenaltyPercent, , , ) = core.config();
+        uint256 expectedPenalty = (repBefore * jailRepPenaltyPercent) / 100;
         assertEq(repAfter, repBefore - expectedPenalty);
     }
 
@@ -271,7 +272,8 @@ contract DealersExeCoreTest is BaseTest {
         core.sendToJail(tokenId1);
         (, uint256 repAfter, , , , ) = core.getDealerData(tokenId1);
 
-        assertEq(repAfter, repBefore - core.JAIL_REP_PENALTY_CAP());
+        (, , , , , , uint256 jailRepPenaltyCap, , ) = core.config();
+        assertEq(repAfter, repBefore - jailRepPenaltyCap);
     }
 
     function test_sendToJail_alreadyInJailNoOp() public {
@@ -349,7 +351,7 @@ contract DealersExeCoreTest is BaseTest {
         uint8 heatBefore = core.getHeatLevel(tokenId1);
         assertEq(heatBefore, 3);
 
-        uint256 bribeFee = core.BRIBE_COP_FEE();
+        (, uint256 bribeFee, , , , , , , ) = core.config();
         vm.prank(player1);
         core.bribeCop{value: bribeFee}(tokenId1);
 
@@ -428,7 +430,7 @@ contract DealersExeCoreTest is BaseTest {
     }
 
     function dealers_resetAttempts(uint256 tokenId) internal {
-        uint256 resetFee = core.ATTEMPT_RESET_FEE();
+        (uint256 resetFee, , , , , , , , ) = core.config();
         vm.prank(player1);
         core.purchaseAttemptReset{value: resetFee}(tokenId);
     }
@@ -467,7 +469,7 @@ contract DealersExeCoreTest is BaseTest {
         core.useAttempt(tokenId1);
         core.useAttempt(tokenId1);
 
-        uint256 resetFee = core.ATTEMPT_RESET_FEE();
+        (uint256 resetFee, , , , , , , , ) = core.config();
         vm.prank(player1);
         core.purchaseAttemptReset{value: resetFee}(tokenId1);
 
@@ -607,11 +609,11 @@ contract DealersExeCoreTest is BaseTest {
 
         core.spendCash(tokenId1, core.STARTER_CASH() - 5);
 
-        uint256 cashBefore = core.getCashBalance(tokenId1);
-        assertLt(cashBefore, core.CASH_PURCHASE_THRESHOLD());
+        (, , uint256 topupPrice, uint256 topupAmount, uint256 purchaseThreshold, , , , ) = core.config();
 
-        uint256 topupPrice = core.CASH_TOPUP_PRICE();
-        uint256 topupAmount = core.CASH_TOPUP_AMOUNT();
+        uint256 cashBefore = core.getCashBalance(tokenId1);
+        assertLt(cashBefore, purchaseThreshold);
+
         vm.prank(player1);
         core.purchaseCash{value: topupPrice}(tokenId1);
 
@@ -620,10 +622,11 @@ contract DealersExeCoreTest is BaseTest {
     }
 
     function test_purchaseCash_revertBalanceTooHigh() public {
-        uint256 currentCash = core.getCashBalance(tokenId1);
-        assertGe(currentCash, core.CASH_PURCHASE_THRESHOLD());
+        (, , uint256 topupPrice, , uint256 purchaseThreshold, , , , ) = core.config();
 
-        uint256 topupPrice = core.CASH_TOPUP_PRICE();
+        uint256 currentCash = core.getCashBalance(tokenId1);
+        assertGe(currentCash, purchaseThreshold);
+
         vm.prank(player1);
         vm.expectRevert(DealersExeCore.CashBalanceTooHigh.selector);
         core.purchaseCash{value: topupPrice}(tokenId1);

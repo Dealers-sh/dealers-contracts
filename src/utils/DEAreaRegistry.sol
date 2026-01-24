@@ -65,12 +65,10 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
 
     error InvalidAreaId();
     error AreaNotActive();
-    error AreaAlreadyExists();
     error InvalidDrugId();
     error DrugNotInArea();
     error AreaNameTooLong();
     error DrugRegistryNotSet();
-    error DrugAlreadyInArea();
     error InvalidPricing();
     error MaxAreasReached();
     error InvalidAddress();

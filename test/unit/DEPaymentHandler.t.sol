@@ -4,17 +4,7 @@ pragma solidity ^0.8.20;
 import "../base/BaseTest.sol";
 
 contract DEPaymentHandlerTest is BaseTest {
-    uint256 public constant DEV_FEE_PERCENT = 500;
-    uint256 public constant BANK_FEE_PERCENT = 500;
-    uint256 public constant GAME_FEE_PERCENT = 1000;
-
-    // Marketplace fee split: 10% to bank, 90% to dev
-    uint256 public constant MARKETPLACE_BANK_PERCENT = 1000;
-    uint256 public constant MARKETPLACE_DEV_PERCENT = 9000;
-
-    DEPaymentHandler.Outcome constant WIN = DEPaymentHandler.Outcome.WIN;
-    DEPaymentHandler.Outcome constant TIE = DEPaymentHandler.Outcome.TIE;
-    DEPaymentHandler.Outcome constant LOSS = DEPaymentHandler.Outcome.LOSS;
+    uint256 public constant BANK_FEE_PERCENT = 2000;  // 20%
 
     address public authorizedCaller;
 
@@ -30,209 +20,114 @@ contract DEPaymentHandlerTest is BaseTest {
     //                     FEE CALCULATION TESTS
     // =============================================================
 
-    function test_calculateFees_5PercentDev() public view {
+    function test_calculateFees_20PercentBank() public view {
         uint256 amount = 1 ether;
-        (uint256 devFee,,,) = paymentHandler.calculateFees(amount);
-
-        uint256 expectedDevFee = (amount * DEV_FEE_PERCENT) / 10000;
-        assertEq(devFee, expectedDevFee);
-        assertEq(devFee, 0.05 ether);
-    }
-
-    function test_calculateFees_5PercentBank() public view {
-        uint256 amount = 1 ether;
-        (, uint256 bankFee,,) = paymentHandler.calculateFees(amount);
+        (uint256 bankFee,) = paymentHandler.calculateFees(amount);
 
         uint256 expectedBankFee = (amount * BANK_FEE_PERCENT) / 10000;
         assertEq(bankFee, expectedBankFee);
-        assertEq(bankFee, 0.05 ether);
+        assertEq(bankFee, 0.2 ether);
     }
 
-    function test_calculateFees_netAmount() public view {
+    function test_calculateFees_80PercentDev() public view {
         uint256 amount = 1 ether;
-        (,,, uint256 netAmount) = paymentHandler.calculateFees(amount);
+        (, uint256 devFee) = paymentHandler.calculateFees(amount);
 
-        uint256 expectedNet = amount - (amount * GAME_FEE_PERCENT) / 10000;
-        assertEq(netAmount, expectedNet);
-        assertEq(netAmount, 0.9 ether);
+        uint256 expectedDevFee = amount - (amount * BANK_FEE_PERCENT) / 10000;
+        assertEq(devFee, expectedDevFee);
+        assertEq(devFee, 0.8 ether);
     }
 
-    function test_calculateFees_totalIs10Percent() public view {
+    function test_calculateFees_sumsToTotal() public view {
         uint256 amount = 1 ether;
-        (uint256 devFee, uint256 bankFee, uint256 totalFee,) = paymentHandler.calculateFees(amount);
+        (uint256 bankFee, uint256 devFee) = paymentHandler.calculateFees(amount);
 
-        assertEq(totalFee, devFee + bankFee);
-        assertEq(totalFee, 0.1 ether);
+        assertEq(bankFee + devFee, amount);
     }
 
     // =============================================================
-    //                    PAYOUT CALCULATION TESTS
+    //                     FEE PROCESSING TESTS
     // =============================================================
 
-    function test_calculatePayout_win2xMinusFee() public view {
-        uint256 stakeAmount = 1 ether;
-        uint256 payout = paymentHandler.calculatePayout(stakeAmount, WIN);
-
-        uint256 totalFee = (stakeAmount * GAME_FEE_PERCENT) / 10000;
-        uint256 expectedPayout = (stakeAmount * 2) - totalFee;
-        assertEq(payout, expectedPayout);
-        assertEq(payout, 1.9 ether);
-    }
-
-    function test_calculatePayout_tie1xMinusFee() public view {
-        uint256 stakeAmount = 1 ether;
-        uint256 payout = paymentHandler.calculatePayout(stakeAmount, TIE);
-
-        uint256 totalFee = (stakeAmount * GAME_FEE_PERCENT) / 10000;
-        uint256 expectedPayout = stakeAmount - totalFee;
-        assertEq(payout, expectedPayout);
-        assertEq(payout, 0.9 ether);
-    }
-
-    function test_calculatePayout_lossZero() public view {
-        uint256 stakeAmount = 1 ether;
-        uint256 payout = paymentHandler.calculatePayout(stakeAmount, LOSS);
-
-        assertEq(payout, 0);
-    }
-
-    function test_calculatePayout_handlesLargeAmounts() public view {
-        uint256 stakeAmount = 1000 ether;
-
-        uint256 winPayout = paymentHandler.calculatePayout(stakeAmount, WIN);
-        uint256 tiePayout = paymentHandler.calculatePayout(stakeAmount, TIE);
-        uint256 lossPayout = paymentHandler.calculatePayout(stakeAmount, LOSS);
-
-        assertEq(winPayout, 1900 ether);
-        assertEq(tiePayout, 900 ether);
-        assertEq(lossPayout, 0);
-    }
-
-    // =============================================================
-    //                     STAKED BET TESTS
-    // =============================================================
-
-    function test_processStakedBet_splitsFees() public {
-        uint256 amount = 1 ether;
-        uint256 expectedDevFee = (amount * DEV_FEE_PERCENT) / 10000;
+    function test_processMovementFee_splitsFees() public {
+        uint256 amount = 0.001 ether;
         uint256 expectedBankFee = (amount * BANK_FEE_PERCENT) / 10000;
+        uint256 expectedDevFee = amount - expectedBankFee;
 
         uint256 bankBalanceBefore = bankVault.balance;
 
         vm.prank(authorizedCaller);
-        paymentHandler.processStakedBet{value: amount}(player1, amount);
+        paymentHandler.processMovementFee{value: amount}(player1, amount);
 
         assertEq(paymentHandler.totalDevFees(), expectedDevFee);
         assertEq(paymentHandler.totalBankFees(), expectedBankFee);
         assertEq(bankVault.balance, bankBalanceBefore + expectedBankFee);
     }
 
-    function test_processStakedBet_sendsBankFeeImmediate() public {
-        uint256 amount = 1 ether;
+    function test_processMovementFee_sendsBankFeeImmediate() public {
+        uint256 amount = 0.001 ether;
         uint256 expectedBankFee = (amount * BANK_FEE_PERCENT) / 10000;
 
         uint256 bankBalanceBefore = bankVault.balance;
 
         vm.prank(authorizedCaller);
-        paymentHandler.processStakedBet{value: amount}(player1, amount);
+        paymentHandler.processMovementFee{value: amount}(player1, amount);
 
         assertEq(bankVault.balance, bankBalanceBefore + expectedBankFee);
     }
 
-    function test_processStakedBet_accruesDevFee() public {
-        uint256 amount = 1 ether;
-        uint256 expectedDevFee = (amount * DEV_FEE_PERCENT) / 10000;
+    function test_processMovementFee_accruesDevFee() public {
+        uint256 amount = 0.001 ether;
+        uint256 expectedDevFee = amount - (amount * BANK_FEE_PERCENT) / 10000;
 
         vm.prank(authorizedCaller);
-        paymentHandler.processStakedBet{value: amount}(player1, amount);
+        paymentHandler.processMovementFee{value: amount}(player1, amount);
 
         assertEq(paymentHandler.pendingDevWithdrawal(), expectedDevFee);
         assertEq(paymentHandler.getPendingDevFees(), expectedDevFee);
     }
 
-    function test_processStakedBet_revertNotAuthorized() public {
+    function test_processMovementFee_revertNotAuthorized() public {
         address unauthorized = makeAddr("unauthorized");
         vm.deal(unauthorized, 10 ether);
-        uint256 amount = 1 ether;
+        uint256 amount = 0.001 ether;
 
         vm.prank(unauthorized);
         vm.expectRevert(DEPaymentHandler.NotAuthorized.selector);
-        paymentHandler.processStakedBet{value: amount}(player1, amount);
+        paymentHandler.processMovementFee{value: amount}(player1, amount);
     }
 
-    function test_processStakedBet_revertWrongAmount() public {
-        uint256 declaredAmount = 1 ether;
-        uint256 sentAmount = 0.5 ether;
+    function test_processMovementFee_revertWrongAmount() public {
+        uint256 declaredAmount = 0.002 ether;
+        uint256 sentAmount = 0.001 ether;
 
         vm.prank(authorizedCaller);
         vm.expectRevert(DEPaymentHandler.InvalidAmount.selector);
-        paymentHandler.processStakedBet{value: sentAmount}(player1, declaredAmount);
+        paymentHandler.processMovementFee{value: sentAmount}(player1, declaredAmount);
     }
 
-    function test_processStakedBet_revertAmountTooSmall() public {
+    function test_processMovementFee_revertAmountTooSmall() public {
         uint256 amount = 0.0001 ether;
 
         vm.prank(authorizedCaller);
         vm.expectRevert(DEPaymentHandler.AmountTooSmall.selector);
-        paymentHandler.processStakedBet{value: amount}(player1, amount);
+        paymentHandler.processMovementFee{value: amount}(player1, amount);
     }
 
-    // =============================================================
-    //                     GAME PAYOUT TESTS
-    // =============================================================
+    function test_processMarketplaceFee_sameAsMovementFee() public {
+        uint256 amount = 1 ether;
+        uint256 expectedBankFee = (amount * BANK_FEE_PERCENT) / 10000;
+        uint256 expectedDevFee = amount - expectedBankFee;
 
-    function test_processGamePayout_winPaysOut() public {
-        uint256 stakeAmount = 1 ether;
-        uint256 expectedPayout = paymentHandler.calculatePayout(stakeAmount, WIN);
-
-        vm.deal(address(paymentHandler), 10 ether);
-
-        uint256 playerBalanceBefore = player1.balance;
+        uint256 bankBalanceBefore = bankVault.balance;
 
         vm.prank(authorizedCaller);
-        paymentHandler.processGamePayout(player1, WIN, stakeAmount);
+        paymentHandler.processMarketplaceFee{value: amount}(player1, amount);
 
-        assertEq(player1.balance, playerBalanceBefore + expectedPayout);
-        assertEq(paymentHandler.totalPayouts(), expectedPayout);
-    }
-
-    function test_processGamePayout_tiePaysOut() public {
-        uint256 stakeAmount = 1 ether;
-        uint256 expectedPayout = paymentHandler.calculatePayout(stakeAmount, TIE);
-
-        vm.deal(address(paymentHandler), 10 ether);
-
-        uint256 playerBalanceBefore = player1.balance;
-
-        vm.prank(authorizedCaller);
-        paymentHandler.processGamePayout(player1, TIE, stakeAmount);
-
-        assertEq(player1.balance, playerBalanceBefore + expectedPayout);
-        assertEq(paymentHandler.totalPayouts(), expectedPayout);
-    }
-
-    function test_processGamePayout_lossPaysNothing() public {
-        uint256 stakeAmount = 1 ether;
-
-        vm.deal(address(paymentHandler), 10 ether);
-
-        uint256 playerBalanceBefore = player1.balance;
-        uint256 contractBalanceBefore = address(paymentHandler).balance;
-
-        vm.prank(authorizedCaller);
-        paymentHandler.processGamePayout(player1, LOSS, stakeAmount);
-
-        assertEq(player1.balance, playerBalanceBefore);
-        assertEq(address(paymentHandler).balance, contractBalanceBefore);
-        assertEq(paymentHandler.totalPayouts(), 0);
-    }
-
-    function test_processGamePayout_revertInsufficientBalance() public {
-        uint256 stakeAmount = 1 ether;
-
-        vm.prank(authorizedCaller);
-        vm.expectRevert(DEPaymentHandler.InsufficientBalance.selector);
-        paymentHandler.processGamePayout(player1, WIN, stakeAmount);
+        assertEq(paymentHandler.totalDevFees(), expectedDevFee);
+        assertEq(paymentHandler.totalBankFees(), expectedBankFee);
+        assertEq(bankVault.balance, bankBalanceBefore + expectedBankFee);
+        assertEq(paymentHandler.pendingDevWithdrawal(), expectedDevFee);
     }
 
     // =============================================================
@@ -240,11 +135,11 @@ contract DEPaymentHandlerTest is BaseTest {
     // =============================================================
 
     function test_withdrawDevFees_sendsToDevWallet() public {
-        uint256 amount = 1 ether;
-        uint256 expectedDevFee = (amount * DEV_FEE_PERCENT) / 10000;
+        uint256 amount = 0.001 ether;
+        uint256 expectedDevFee = amount - (amount * BANK_FEE_PERCENT) / 10000;
 
         vm.prank(authorizedCaller);
-        paymentHandler.processStakedBet{value: amount}(player1, amount);
+        paymentHandler.processMovementFee{value: amount}(player1, amount);
 
         uint256 devBalanceBefore = devWallet.balance;
 
@@ -255,10 +150,10 @@ contract DEPaymentHandlerTest is BaseTest {
     }
 
     function test_withdrawDevFees_resetsPending() public {
-        uint256 amount = 1 ether;
+        uint256 amount = 0.001 ether;
 
         vm.prank(authorizedCaller);
-        paymentHandler.processStakedBet{value: amount}(player1, amount);
+        paymentHandler.processMovementFee{value: amount}(player1, amount);
 
         assertTrue(paymentHandler.pendingDevWithdrawal() > 0);
 
@@ -275,10 +170,10 @@ contract DEPaymentHandlerTest is BaseTest {
     }
 
     function test_withdrawDevFees_onlyDevOrOwner() public {
-        uint256 amount = 1 ether;
+        uint256 amount = 0.001 ether;
 
         vm.prank(authorizedCaller);
-        paymentHandler.processStakedBet{value: amount}(player1, amount);
+        paymentHandler.processMovementFee{value: amount}(player1, amount);
 
         address unauthorized = makeAddr("unauthorized");
         vm.prank(unauthorized);
@@ -286,7 +181,7 @@ contract DEPaymentHandlerTest is BaseTest {
         paymentHandler.withdrawDevFees();
 
         uint256 devBalanceBefore = devWallet.balance;
-        uint256 expectedDevFee = (amount * DEV_FEE_PERCENT) / 10000;
+        uint256 expectedDevFee = amount - (amount * BANK_FEE_PERCENT) / 10000;
 
         vm.prank(owner);
         paymentHandler.withdrawDevFees();
@@ -310,7 +205,7 @@ contract DEPaymentHandlerTest is BaseTest {
         assertTrue(paymentHandler.authorizedContracts(newContract));
 
         vm.prank(newContract);
-        paymentHandler.processStakedBet{value: 1 ether}(player1, 1 ether);
+        paymentHandler.processMovementFee{value: 0.001 ether}(player1, 0.001 ether);
     }
 
     function test_authorizeContract_revokesAccess() public {
@@ -323,7 +218,7 @@ contract DEPaymentHandlerTest is BaseTest {
 
         vm.prank(authorizedCaller);
         vm.expectRevert(DEPaymentHandler.NotAuthorized.selector);
-        paymentHandler.processStakedBet{value: 1 ether}(player1, 1 ether);
+        paymentHandler.processMovementFee{value: 0.001 ether}(player1, 0.001 ether);
     }
 
     function test_setDevWallet_changes() public {
@@ -349,84 +244,17 @@ contract DEPaymentHandlerTest is BaseTest {
     }
 
     // =============================================================
-    //                   MARKETPLACE FEE TESTS
+    //                        EVENT TESTS
     // =============================================================
 
-    function test_processMarketplaceFee_10PercentToBank() public {
+    function test_processFee_emitsEvent() public {
         uint256 amount = 1 ether;
-        uint256 expectedBankFee = (amount * MARKETPLACE_BANK_PERCENT) / 10000;
-
-        uint256 bankBalanceBefore = bankVault.balance;
-
-        vm.prank(authorizedCaller);
-        paymentHandler.processMarketplaceFee{value: amount}(player1, amount);
-
-        assertEq(bankVault.balance, bankBalanceBefore + expectedBankFee);
-        assertEq(expectedBankFee, 0.1 ether);
-    }
-
-    function test_processMarketplaceFee_90PercentToDev() public {
-        uint256 amount = 1 ether;
-        uint256 expectedDevFee = (amount * MARKETPLACE_DEV_PERCENT) / 10000;
-
-        vm.prank(authorizedCaller);
-        paymentHandler.processMarketplaceFee{value: amount}(player1, amount);
-
-        assertEq(paymentHandler.pendingDevWithdrawal(), expectedDevFee);
-        assertEq(expectedDevFee, 0.9 ether);
-    }
-
-    function test_processMarketplaceFee_splitsFees() public {
-        uint256 amount = 1 ether;
-        uint256 expectedBankFee = (amount * MARKETPLACE_BANK_PERCENT) / 10000;
-        uint256 expectedDevFee = (amount * MARKETPLACE_DEV_PERCENT) / 10000;
-
-        uint256 bankBalanceBefore = bankVault.balance;
-
-        vm.prank(authorizedCaller);
-        paymentHandler.processMarketplaceFee{value: amount}(player1, amount);
-
-        assertEq(paymentHandler.totalDevFees(), expectedDevFee);
-        assertEq(paymentHandler.totalBankFees(), expectedBankFee);
-        assertEq(bankVault.balance, bankBalanceBefore + expectedBankFee);
-        assertEq(paymentHandler.pendingDevWithdrawal(), expectedDevFee);
-    }
-
-    function test_processMarketplaceFee_revertNotAuthorized() public {
-        address unauthorized = makeAddr("unauthorized");
-        vm.deal(unauthorized, 10 ether);
-        uint256 amount = 1 ether;
-
-        vm.prank(unauthorized);
-        vm.expectRevert(DEPaymentHandler.NotAuthorized.selector);
-        paymentHandler.processMarketplaceFee{value: amount}(player1, amount);
-    }
-
-    function test_processMarketplaceFee_revertWrongAmount() public {
-        uint256 declaredAmount = 1 ether;
-        uint256 sentAmount = 0.5 ether;
-
-        vm.prank(authorizedCaller);
-        vm.expectRevert(DEPaymentHandler.InvalidAmount.selector);
-        paymentHandler.processMarketplaceFee{value: sentAmount}(player1, declaredAmount);
-    }
-
-    function test_processMarketplaceFee_revertAmountTooSmall() public {
-        uint256 amount = 0.0001 ether;
-
-        vm.prank(authorizedCaller);
-        vm.expectRevert(DEPaymentHandler.AmountTooSmall.selector);
-        paymentHandler.processMarketplaceFee{value: amount}(player1, amount);
-    }
-
-    function test_processMarketplaceFee_emitsEvent() public {
-        uint256 amount = 1 ether;
-        uint256 expectedBankFee = (amount * MARKETPLACE_BANK_PERCENT) / 10000;
-        uint256 expectedDevFee = (amount * MARKETPLACE_DEV_PERCENT) / 10000;
+        uint256 expectedBankFee = (amount * BANK_FEE_PERCENT) / 10000;
+        uint256 expectedDevFee = amount - expectedBankFee;
 
         vm.prank(authorizedCaller);
         vm.expectEmit(true, false, false, true);
-        emit DEPaymentHandler.MarketplaceFeeProcessed(player1, amount, expectedDevFee, expectedBankFee);
+        emit DEPaymentHandler.FeeProcessed(player1, amount, expectedDevFee, expectedBankFee);
         paymentHandler.processMarketplaceFee{value: amount}(player1, amount);
     }
 }
