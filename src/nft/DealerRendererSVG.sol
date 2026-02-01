@@ -85,6 +85,15 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         "Ear Accessory", "Mouth", "Chin", "Neck", "Accessory"
     ];
 
+    struct IncompatibilityRule {
+        uint16 traitA;
+        uint16 traitB;
+    }
+
+    uint16 public constant MAX_RULES = 256;
+    IncompatibilityRule[] public incompatibilityRules;
+    mapping(uint16 => bool) private _hasIncompatibilities;
+
     // =============================================================
     //                            EVENTS
     // =============================================================
@@ -356,6 +365,112 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     }
 
     // =============================================================
+    //                 INCOMPATIBILITY RULE MANAGEMENT
+    // =============================================================
+
+    function addIncompatibilityRule(
+        uint8 categoryA,
+        uint8 traitIndexA,
+        uint8 categoryB,
+        uint8 traitIndexB
+    ) external onlyOwner {
+        if (distributionInitialized) revert RulesLocked();
+        if (categoryA >= 11 || categoryB >= 11) revert InvalidCategory();
+        if (traitIndexA == 0 || traitIndexB == 0) revert InvalidRule();
+        if (incompatibilityRules.length >= MAX_RULES) revert MaxRulesExceeded();
+
+        uint16 traitA = _encodeTraitId(categoryA, traitIndexA);
+        uint16 traitB = _encodeTraitId(categoryB, traitIndexB);
+        (uint16 normA, uint16 normB) = _normalizeRule(traitA, traitB);
+
+        (, bool found) = _findRuleIndex(normA, normB);
+        if (found) revert DuplicateRule();
+
+        incompatibilityRules.push(IncompatibilityRule({traitA: normA, traitB: normB}));
+        _hasIncompatibilities[normA] = true;
+        _hasIncompatibilities[normB] = true;
+
+        emit IncompatibilityRuleAdded(categoryA, traitIndexA, categoryB, traitIndexB);
+    }
+
+    function batchAddIncompatibilityRules(
+        uint8[] calldata categoriesA,
+        uint8[] calldata traitIndicesA,
+        uint8[] calldata categoriesB,
+        uint8[] calldata traitIndicesB
+    ) external onlyOwner {
+        if (distributionInitialized) revert RulesLocked();
+        uint256 len = categoriesA.length;
+        if (len != traitIndicesA.length || len != categoriesB.length || len != traitIndicesB.length) {
+            revert ArrayLengthMismatch();
+        }
+        if (incompatibilityRules.length + len > MAX_RULES) revert MaxRulesExceeded();
+
+        for (uint256 i; i < len; ) {
+            uint8 catA = categoriesA[i];
+            uint8 idxA = traitIndicesA[i];
+            uint8 catB = categoriesB[i];
+            uint8 idxB = traitIndicesB[i];
+
+            if (catA >= 11 || catB >= 11) revert InvalidCategory();
+            if (idxA == 0 || idxB == 0) revert InvalidRule();
+
+            uint16 traitA = _encodeTraitId(catA, idxA);
+            uint16 traitB = _encodeTraitId(catB, idxB);
+            (uint16 normA, uint16 normB) = _normalizeRule(traitA, traitB);
+
+            (, bool found) = _findRuleIndex(normA, normB);
+            if (found) revert DuplicateRule();
+
+            incompatibilityRules.push(IncompatibilityRule({traitA: normA, traitB: normB}));
+            _hasIncompatibilities[normA] = true;
+            _hasIncompatibilities[normB] = true;
+
+            emit IncompatibilityRuleAdded(catA, idxA, catB, idxB);
+            unchecked { ++i; }
+        }
+    }
+
+    function removeIncompatibilityRule(
+        uint8 categoryA,
+        uint8 traitIndexA,
+        uint8 categoryB,
+        uint8 traitIndexB
+    ) external onlyOwner {
+        if (distributionInitialized) revert RulesLocked();
+
+        uint16 traitA = _encodeTraitId(categoryA, traitIndexA);
+        uint16 traitB = _encodeTraitId(categoryB, traitIndexB);
+        (uint16 normA, uint16 normB) = _normalizeRule(traitA, traitB);
+
+        (uint256 idx, bool found) = _findRuleIndex(normA, normB);
+        if (!found) revert RuleNotFound();
+
+        uint256 lastIdx = incompatibilityRules.length - 1;
+        if (idx != lastIdx) {
+            incompatibilityRules[idx] = incompatibilityRules[lastIdx];
+        }
+        incompatibilityRules.pop();
+
+        emit IncompatibilityRuleRemoved(categoryA, traitIndexA, categoryB, traitIndexB);
+    }
+
+    function clearAllIncompatibilityRules() external onlyOwner {
+        if (distributionInitialized) revert RulesLocked();
+
+        uint256 count = incompatibilityRules.length;
+        for (uint256 i; i < count; ) {
+            IncompatibilityRule storage rule = incompatibilityRules[i];
+            _hasIncompatibilities[rule.traitA] = false;
+            _hasIncompatibilities[rule.traitB] = false;
+            unchecked { ++i; }
+        }
+        delete incompatibilityRules;
+
+        emit AllIncompatibilityRulesCleared(count);
+    }
+
+    // =============================================================
     //                         VIEW FUNCTIONS
     // =============================================================
 
@@ -469,6 +584,69 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         return (MAX_SUPPLY, NORMAL_COUNT, SPECIAL_COUNT, ONE_OF_ONE_COUNT);
     }
 
+    function getIncompatibilityRuleCount() external view returns (uint256) {
+        return incompatibilityRules.length;
+    }
+
+    function getIncompatibilityRule(uint256 index)
+        external
+        view
+        returns (uint8 categoryA, uint8 traitIndexA, uint8 categoryB, uint8 traitIndexB)
+    {
+        if (index >= incompatibilityRules.length) revert InvalidTraitIndex();
+        IncompatibilityRule storage rule = incompatibilityRules[index];
+        (categoryA, traitIndexA) = _decodeTraitId(rule.traitA);
+        (categoryB, traitIndexB) = _decodeTraitId(rule.traitB);
+    }
+
+    function areTraitsIncompatible(
+        uint8 categoryA,
+        uint8 traitIndexA,
+        uint8 categoryB,
+        uint8 traitIndexB
+    ) external view returns (bool) {
+        uint16 traitA = _encodeTraitId(categoryA, traitIndexA);
+        uint16 traitB = _encodeTraitId(categoryB, traitIndexB);
+        return _areIncompatible(traitA, traitB);
+    }
+
+    function getIncompatibleTraits(uint8 category, uint8 traitIndex)
+        external
+        view
+        returns (uint8[] memory categories, uint8[] memory indices)
+    {
+        uint16 targetTrait = _encodeTraitId(category, traitIndex);
+        uint256 count;
+        uint256 len = incompatibilityRules.length;
+
+        for (uint256 i; i < len; ) {
+            IncompatibilityRule storage rule = incompatibilityRules[i];
+            if (rule.traitA == targetTrait || rule.traitB == targetTrait) {
+                unchecked { ++count; }
+            }
+            unchecked { ++i; }
+        }
+
+        categories = new uint8[](count);
+        indices = new uint8[](count);
+        uint256 idx;
+
+        for (uint256 i; i < len; ) {
+            IncompatibilityRule storage rule = incompatibilityRules[i];
+            uint16 other;
+            if (rule.traitA == targetTrait) {
+                other = rule.traitB;
+            } else if (rule.traitB == targetTrait) {
+                other = rule.traitA;
+            } else {
+                unchecked { ++i; }
+                continue;
+            }
+            (categories[idx], indices[idx]) = _decodeTraitId(other);
+            unchecked { ++idx; ++i; }
+        }
+    }
+
     // =============================================================
     //                    INTERNAL HELPER FUNCTIONS
     // =============================================================
@@ -479,7 +657,106 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         return tokenTypeAssignments[tokenId];
     }
 
+    function _encodeTraitId(uint8 category, uint8 traitIndex) internal pure returns (uint16) {
+        return (uint16(category) << 8) | uint16(traitIndex);
+    }
+
+    function _decodeTraitId(uint16 packed) internal pure returns (uint8 category, uint8 traitIndex) {
+        category = uint8(packed >> 8);
+        traitIndex = uint8(packed & 0xFF);
+    }
+
+    function _normalizeRule(uint16 a, uint16 b) internal pure returns (uint16, uint16) {
+        return a < b ? (a, b) : (b, a);
+    }
+
+    function _findRuleIndex(uint16 traitA, uint16 traitB) internal view returns (uint256, bool) {
+        uint256 len = incompatibilityRules.length;
+        for (uint256 i; i < len; ) {
+            IncompatibilityRule storage rule = incompatibilityRules[i];
+            if (rule.traitA == traitA && rule.traitB == traitB) {
+                return (i, true);
+            }
+            unchecked { ++i; }
+        }
+        return (0, false);
+    }
+
+    function _areIncompatible(uint16 traitA, uint16 traitB) internal view returns (bool) {
+        if (!_hasIncompatibilities[traitA] && !_hasIncompatibilities[traitB]) {
+            return false;
+        }
+        (uint16 normA, uint16 normB) = _normalizeRule(traitA, traitB);
+        (, bool found) = _findRuleIndex(normA, normB);
+        return found;
+    }
+
+    function _hasConflict(uint16 candidateTrait, uint8[11] memory selectedTraits) internal view returns (bool) {
+        if (!_hasIncompatibilities[candidateTrait]) return false;
+
+        for (uint8 cat; cat < 11; ) {
+            uint8 sel = selectedTraits[cat];
+            if (sel != 0) {
+                uint16 existingTrait = _encodeTraitId(cat, sel);
+                if (_areIncompatible(candidateTrait, existingTrait)) {
+                    return true;
+                }
+            }
+            unchecked { ++cat; }
+        }
+        return false;
+    }
+
+    function _selectTraitWithConflictResolution(
+        uint8 characterType,
+        uint8 category,
+        uint256 baseSeed,
+        uint8[11] memory selectedTraits
+    ) internal view returns (uint8) {
+        uint8 selection = _selectTraitByProbability(characterType, category, baseSeed);
+        if (selection == 0) return 0;
+
+        uint16 candidateTrait = _encodeTraitId(category, selection);
+        if (!_hasConflict(candidateTrait, selectedTraits)) {
+            return selection;
+        }
+
+        for (uint8 attempt = 1; attempt <= 5; ) {
+            uint256 newSeed = uint256(keccak256(abi.encode(baseSeed, category, attempt)));
+            selection = _selectTraitByProbability(characterType, category, newSeed);
+            if (selection == 0) return 0;
+
+            candidateTrait = _encodeTraitId(category, selection);
+            if (!_hasConflict(candidateTrait, selectedTraits)) {
+                return selection;
+            }
+            unchecked { ++attempt; }
+        }
+
+        TraitConfig[] storage arr = traits[characterType][category];
+        if (arr.length == 0 && characterType != uint8(CharacterType.NORMAL)) {
+            arr = traits[uint8(CharacterType.NORMAL)][category];
+        }
+        uint256 n = arr.length;
+        for (uint8 i = 1; i <= n; ) {
+            candidateTrait = _encodeTraitId(category, i);
+            if (!_hasConflict(candidateTrait, selectedTraits)) {
+                return i;
+            }
+            unchecked { ++i; }
+        }
+
+        return _selectTraitByProbability(characterType, category, baseSeed);
+    }
+
     function _generateCharacterData(uint256 seed, CharacterType charType) internal view returns (CharacterData memory d) {
+        if (incompatibilityRules.length == 0) {
+            return _generateCharacterDataSimple(seed, charType);
+        }
+        return _generateCharacterDataWithRules(seed, charType);
+    }
+
+    function _generateCharacterDataSimple(uint256 seed, CharacterType charType) internal view returns (CharacterData memory d) {
         uint8 t = uint8(charType);
 
         d.backdrop     = _selectTraitByProbability(t, 0,  uint256(seed >> 8));
@@ -493,6 +770,35 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         d.chin         = _selectTraitByProbability(t, 8,  uint256(seed >> 72));
         d.neck         = _selectTraitByProbability(t, 9,  uint256(seed >> 80));
         d.accessory    = _selectTraitByProbability(t, 10, uint256(seed >> 88));
+    }
+
+    function _generateCharacterDataWithRules(uint256 seed, CharacterType charType) internal view returns (CharacterData memory d) {
+        uint8 t = uint8(charType);
+        uint8[11] memory selected;
+
+        selected[0] = _selectTraitWithConflictResolution(t, 0, uint256(seed >> 8), selected);
+        selected[1] = _selectTraitWithConflictResolution(t, 1, uint256(seed >> 16), selected);
+        selected[2] = _selectTraitWithConflictResolution(t, 2, uint256(seed >> 24), selected);
+        selected[3] = _selectTraitWithConflictResolution(t, 3, uint256(seed >> 32), selected);
+        selected[4] = _selectTraitWithConflictResolution(t, 4, uint256(seed >> 40), selected);
+        selected[5] = _selectTraitWithConflictResolution(t, 5, uint256(seed >> 48), selected);
+        selected[6] = _selectTraitWithConflictResolution(t, 6, uint256(seed >> 56), selected);
+        selected[7] = _selectTraitWithConflictResolution(t, 7, uint256(seed >> 64), selected);
+        selected[8] = _selectTraitWithConflictResolution(t, 8, uint256(seed >> 72), selected);
+        selected[9] = _selectTraitWithConflictResolution(t, 9, uint256(seed >> 80), selected);
+        selected[10] = _selectTraitWithConflictResolution(t, 10, uint256(seed >> 88), selected);
+
+        d.backdrop = selected[0];
+        d.head = selected[1];
+        d.expression = selected[2];
+        d.eyes = selected[3];
+        d.nose = selected[4];
+        d.eartip = selected[5];
+        d.earAccessory = selected[6];
+        d.mouth = selected[7];
+        d.chin = selected[8];
+        d.neck = selected[9];
+        d.accessory = selected[10];
     }
 
     function _selectTraitByProbability(uint8 characterType, uint8 category, uint256 rnd) internal view returns (uint8) {

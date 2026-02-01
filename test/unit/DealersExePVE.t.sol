@@ -63,7 +63,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
         randomness = new DERandomness();
 
         core = new DealersExeCore();
-        nft = new DealersExeNFT(signer, devWallet);
+        nft = new DealersExeNFT(devWallet);
         pve = new DealersExePVE(address(core), address(nft), address(areaRegistry));
 
         core.setNFTContract(address(nft));

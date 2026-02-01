@@ -74,7 +74,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
         randomness = new DERandomness();
 
         core = new DealersExeCore();
-        nft = new DealersExeNFT(signer, devWallet);
+        nft = new DealersExeNFT(devWallet);
         pve = new DealersExePVE(address(core), address(nft), address(areaRegistry));
         pvp = new DealersExePVP(address(core), address(nft), address(areaRegistry));
         boosts = new DealersExeBoosts(address(core), address(nft), address(paymentHandler));

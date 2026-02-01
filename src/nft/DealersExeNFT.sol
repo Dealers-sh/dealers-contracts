@@ -3,13 +3,12 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {LibString} from "solady/src/utils/LibString.sol";
 import {Base64} from "solady/src/utils/Base64.sol";
+import {MerkleProofLib} from "solady/src/utils/MerkleProofLib.sol";
 import "../core/IDealersExeCore.sol";
 import "../utils/IDERandomness.sol";
 
@@ -36,8 +35,6 @@ interface IDealersExeRendererHTML {
  * @author Dealers.Exe Team
  */
 contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
-    using ECDSA for bytes32;
-    using MessageHashUtils for bytes32;
     using LibString for uint256;
     using LibString for uint8;
 
@@ -57,18 +54,20 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
 
     enum MintStatus { DISABLED, FAMILY, WHITELIST, PUBLIC }
     MintStatus public mintStatus = MintStatus.DISABLED;
+    bool public paused;
 
     uint32  public totalMinted;          // fits in 32 bits
     uint256 public currentTokenId = 1;
 
     address public dealersExeCore;
-    address public signerAddress;
     address public royaltyReceiver;
 
-    mapping(address => uint256) private mintCount;
+    bytes32 public familyMerkleRoot;
+    bytes32 public whitelistMerkleRoot;
 
-    // cheaper than mapping(bytes => bool); we hash once and track 32 bytes
-    mapping(bytes32 => bool) private usedSignaturesHash;
+    mapping(address => uint256) private mintCount;
+    mapping(address => uint256) private familyClaimed;
+    mapping(address => uint256) private whitelistClaimed;
 
     mapping(uint256 => uint256) public tokenSeeds;
 
@@ -88,8 +87,11 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     event BatchMetadataUpdate(uint256 _fromTokenId, uint256 _toTokenId);
     event DistributionInitialized(uint256 seed);
     event RandomnessUpdated(address indexed newAddress);
-    event SignerAddressChanged(address indexed oldSigner, address indexed newSigner);
+    event FamilyMerkleRootSet(bytes32 indexed root);
+    event WhitelistMerkleRootSet(bytes32 indexed root);
     event RoyaltyReceiverChanged(address indexed oldReceiver, address indexed newReceiver);
+    event Paused(address account);
+    event Unpaused(address account);
 
     // =============================================================
     //                            ERRORS
@@ -101,8 +103,9 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     error NotWhitelistMint();
     error NotPublicMint();
     error InsufficientETH();
-    error InvalidSignature();
-    error SignatureAlreadyUsed();
+    error InvalidMerkleProof();
+    error MerkleRootNotSet();
+    error ExceedsAllocation();
     error TokenDoesNotExist();
     error InvalidAddress();
     error TransferFailed();
@@ -110,16 +113,16 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     error DistributionAlreadyInitialized();
     error RendererNotSet();
     error ETHTransferFailed();
+    error ContractPaused();
 
     // =============================================================
     //                          CONSTRUCTOR
     // =============================================================
 
-    constructor(address _signerAddress, address _royaltyReceiver)
+    constructor(address _royaltyReceiver)
         ERC721("Drug Wars Dealers", "DEALERS")
     {
         _initializeOwner(msg.sender);
-        signerAddress = _signerAddress;
         royaltyReceiver = _royaltyReceiver;
         reserve(RESERVE_SUPPLY);
     }
@@ -128,6 +131,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     //                           MODIFIERS
     // =============================================================
 
+    modifier whenNotPaused() { if (paused) revert ContractPaused(); _; }
     modifier onlyFamilyMint() { if (mintStatus != MintStatus.FAMILY) revert NotFamilyMint(); _; }
     modifier onlyWhitelistMint() { if (mintStatus != MintStatus.WHITELIST) revert NotWhitelistMint(); _; }
     modifier onlyPublicMint() { if (mintStatus != MintStatus.PUBLIC) revert NotPublicMint(); _; }
@@ -193,60 +197,73 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     }
 
     /**
-     * @notice Mint NFTs during family phase with signature verification
-     * @param dest Destination address for minted NFTs
+     * @notice Mint NFTs during family phase with merkle proof verification
+     * @dev Family mint is FREE - no payment required
      * @param count Number of NFTs to mint
-     * @param signature Authorization signature from signer
+     * @param maxAllocation Maximum allocation for this address in merkle tree
+     * @param proof Merkle proof for family list inclusion
      */
-    function mintFamily(address dest, uint256 count, bytes calldata signature)
+    function mintFamily(
+        uint256 count,
+        uint256 maxAllocation,
+        bytes32[] calldata proof
+    )
         external
-        payable
         nonReentrant
+        whenNotPaused
         onlyFamilyMint
         checkAndUpdateBuyerMintCount(count)
         checkAndUpdateTotalMinted(count)
     {
-        uint256 requiredPayment = MINT_PRICE * count;
-        if (msg.value < requiredPayment) revert InsufficientETH();
-        bytes32 sigH = keccak256(signature);
-        if (usedSignaturesHash[sigH]) revert SignatureAlreadyUsed();
+        if (familyMerkleRoot == bytes32(0)) revert MerkleRootNotSet();
 
-        bytes32 msgHash = keccak256(abi.encodePacked("FAMILY", block.chainid, address(this), msg.sender, dest, count)).toEthSignedMessageHash();
-        if (msgHash.recover(signature) != signerAddress) revert InvalidSignature();
+        uint256 alreadyClaimed = familyClaimed[msg.sender];
+        if (alreadyClaimed + count > maxAllocation) revert ExceedsAllocation();
 
-        usedSignaturesHash[sigH] = true;
-        _mintDealer(dest, count);
-
-        if (msg.value > requiredPayment) {
-            (bool success, ) = msg.sender.call{value: msg.value - requiredPayment}("");
-            if (!success) revert ETHTransferFailed();
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(msg.sender, maxAllocation))));
+        if (!MerkleProofLib.verifyCalldata(proof, familyMerkleRoot, leaf)) {
+            revert InvalidMerkleProof();
         }
+
+        familyClaimed[msg.sender] = alreadyClaimed + count;
+        _mintDealer(msg.sender, count);
     }
 
     /**
-     * @notice Mint NFTs during whitelist phase with signature verification
-     * @param dest Destination address for minted NFTs
+     * @notice Mint NFTs during whitelist phase with merkle proof verification
+     * @dev Whitelist mint requires payment at MINT_PRICE per NFT
      * @param count Number of NFTs to mint
-     * @param signature Authorization signature from signer
+     * @param maxAllocation Maximum allocation for this address in merkle tree
+     * @param proof Merkle proof for whitelist inclusion
      */
-    function mintWhitelist(address dest, uint256 count, bytes calldata signature)
+    function mintWhitelist(
+        uint256 count,
+        uint256 maxAllocation,
+        bytes32[] calldata proof
+    )
         external
         payable
         nonReentrant
+        whenNotPaused
         onlyWhitelistMint
         checkAndUpdateBuyerMintCount(count)
         checkAndUpdateTotalMinted(count)
     {
         uint256 requiredPayment = MINT_PRICE * count;
         if (msg.value < requiredPayment) revert InsufficientETH();
-        bytes32 sigH = keccak256(signature);
-        if (usedSignaturesHash[sigH]) revert SignatureAlreadyUsed();
 
-        bytes32 msgHash = keccak256(abi.encodePacked("WHITELIST", block.chainid, address(this), msg.sender, dest, count)).toEthSignedMessageHash();
-        if (msgHash.recover(signature) != signerAddress) revert InvalidSignature();
+        if (whitelistMerkleRoot == bytes32(0)) revert MerkleRootNotSet();
 
-        usedSignaturesHash[sigH] = true;
-        _mintDealer(dest, count);
+        uint256 alreadyClaimed = whitelistClaimed[msg.sender];
+        if (alreadyClaimed + count > maxAllocation) revert ExceedsAllocation();
+
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(msg.sender, maxAllocation))));
+        if (!MerkleProofLib.verifyCalldata(proof, whitelistMerkleRoot, leaf)) {
+            revert InvalidMerkleProof();
+        }
+
+        whitelistClaimed[msg.sender] = alreadyClaimed + count;
+        _mintDealer(msg.sender, count);
 
         if (msg.value > requiredPayment) {
             (bool success, ) = msg.sender.call{value: msg.value - requiredPayment}("");
@@ -263,6 +280,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         external
         payable
         nonReentrant
+        whenNotPaused
         onlyPublicMint
         checkAndUpdateBuyerMintCount(count)
         checkAndUpdateTotalMinted(count)
@@ -523,14 +541,37 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     }
 
     /**
-     * @notice Set the signer address for signature verification
-     * @param _signer Address authorized to sign mint allowances
+     * @notice Pause minting operations
      */
-    function setSignerAddress(address _signer) external onlyOwner {
-        if (_signer == address(0)) revert InvalidAddress();
-        address oldSigner = signerAddress;
-        signerAddress = _signer;
-        emit SignerAddressChanged(oldSigner, _signer);
+    function pause() external onlyOwner {
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    /**
+     * @notice Resume minting operations
+     */
+    function unpause() external onlyOwner {
+        paused = false;
+        emit Unpaused(msg.sender);
+    }
+
+    /**
+     * @notice Set the merkle root for family list
+     * @param _root Merkle root hash
+     */
+    function setFamilyMerkleRoot(bytes32 _root) external onlyOwner {
+        familyMerkleRoot = _root;
+        emit FamilyMerkleRootSet(_root);
+    }
+
+    /**
+     * @notice Set the merkle root for whitelist
+     * @param _root Merkle root hash
+     */
+    function setWhitelistMerkleRoot(bytes32 _root) external onlyOwner {
+        whitelistMerkleRoot = _root;
+        emit WhitelistMerkleRootSet(_root);
     }
 
     /**
@@ -552,24 +593,18 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     }
 
     /**
-     * @notice Withdraw a specific amount of ETH to a recipient
-     * @param to Recipient address
-     * @param amount Amount of ETH to withdraw in wei
+     * @notice Withdraw ETH from the contract
+     * @param to Recipient address (address(0) defaults to owner)
+     * @param amount Amount of ETH to withdraw in wei (0 withdraws all)
      */
-    function withdrawAmount(address to, uint256 amount) external onlyOwner {
-        if (to == address(0)) revert InvalidAddress();
-        if (amount > address(this).balance) revert InsufficientBalance();
-        (bool ok, ) = to.call{value: amount}("");
-        if (!ok) revert TransferFailed();
-    }
+    function withdraw(address to, uint256 amount) external onlyOwner {
+        address recipient = to == address(0) ? owner() : to;
+        uint256 withdrawAmount = amount == 0 ? address(this).balance : amount;
 
-    /**
-     * @notice Withdraw all ETH to the contract owner
-     */
-    function withdrawAll() external onlyOwner {
-        uint256 bal = address(this).balance;
-        if (bal == 0) revert InsufficientBalance();
-        (bool ok, ) = payable(owner()).call{value: bal}("");
+        if (withdrawAmount == 0) revert InsufficientBalance();
+        if (withdrawAmount > address(this).balance) revert InsufficientBalance();
+
+        (bool ok, ) = recipient.call{value: withdrawAmount}("");
         if (!ok) revert TransferFailed();
     }
 
@@ -636,12 +671,21 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     }
 
     /**
-     * @notice Check if a signature has already been used for minting
-     * @param signature Signature bytes to check
-     * @return True if signature has been used
+     * @notice Get the number of NFTs claimed by an address in family phase
+     * @param account Address to check
+     * @return Number of NFTs claimed
      */
-    function isSignatureUsed(bytes calldata signature) external view returns (bool) {
-        return usedSignaturesHash[keccak256(signature)];
+    function getFamilyClaimed(address account) external view returns (uint256) {
+        return familyClaimed[account];
+    }
+
+    /**
+     * @notice Get the number of NFTs claimed by an address in whitelist phase
+     * @param account Address to check
+     * @return Number of NFTs claimed
+     */
+    function getWhitelistClaimed(address account) external view returns (uint256) {
+        return whitelistClaimed[account];
     }
 
     /**

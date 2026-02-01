@@ -30,8 +30,6 @@ abstract contract BaseTest is Test, IERC721Receiver {
     address public player2;
     address public devWallet;
     address public bankVault;
-    address public signer;
-    uint256 public signerPrivateKey;
 
     uint256 public constant PLAYER_STARTING_BALANCE = 100 ether;
 
@@ -48,9 +46,6 @@ abstract contract BaseTest is Test, IERC721Receiver {
         player2 = makeAddr("player2");
         devWallet = makeAddr("devWallet");
         bankVault = makeAddr("bankVault");
-
-        signerPrivateKey = 0xA11CE;
-        signer = vm.addr(signerPrivateKey);
     }
 
     function _deployContracts() internal {
@@ -66,7 +61,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
 
         core = new DealersExeCore();
 
-        nft = new DealersExeNFT(signer, devWallet);
+        nft = new DealersExeNFT(devWallet);
 
         pve = new DealersExePVE(address(core), address(nft), address(areaRegistry));
 
@@ -181,6 +176,17 @@ abstract contract BaseTest is Test, IERC721Receiver {
         core.moveToArea(tokenId, manhattanArea);
         vm.prank(owner);
         core.authorizeContract(address(this), false);
+    }
+
+    function _computeLeaf(address account, uint256 maxAllocation) internal pure returns (bytes32) {
+        return keccak256(bytes.concat(keccak256(abi.encode(account, maxAllocation))));
+    }
+
+    function _computeMerkleRoot(bytes32 leaf1, bytes32 leaf2) internal pure returns (bytes32) {
+        if (leaf1 < leaf2) {
+            return keccak256(abi.encodePacked(leaf1, leaf2));
+        }
+        return keccak256(abi.encodePacked(leaf2, leaf1));
     }
 
     function onERC721Received(

@@ -196,12 +196,12 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
         boostTiers[1] = BoostTier({
             price: 0.0025 ether,
             duration: DURATION_7_DAYS,
-            drugMultiplier: 200,     // 2x drugs
-            repMultiplier: 150,      // 1.5x rep
+            drugMultiplier: 125,     // 1.25x drugs
+            repMultiplier: 125,      // 1.25x rep
             extraAttempts: 3,        // 5 base + 3 = 8 max
             freeAreaMovement: false,
             doubleHeistEntries: false,
-            cashMultiplier: 150,     // 1.5x cash
+            cashMultiplier: 125,     // 1.25x cash
             isActive: true
         });
 
@@ -209,19 +209,19 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
         boostTiers[2] = BoostTier({
             price: 0.005 ether,
             duration: DURATION_7_DAYS,
-            drugMultiplier: 200,     // 2x drugs
-            repMultiplier: 200,      // 2x rep
+            drugMultiplier: 150,     // 1.5x drugs
+            repMultiplier: 150,      // 1.5x rep
             extraAttempts: 5,        // 5 base + 5 = 10 max
             freeAreaMovement: false,
             doubleHeistEntries: false,
-            cashMultiplier: 175,     // 1.75x cash
+            cashMultiplier: 150,     // 1.5x cash
             isActive: true
         });
 
         // Tier 3: Kingpin - 0.01 ETH, 7 days
         boostTiers[3] = BoostTier({
             price: 0.01 ether,
-            duration: DURATION_7_DAYS,
+            duration: DURATION_30_DAYS,
             drugMultiplier: 200,     // 2x drugs
             repMultiplier: 200,      // 2x rep
             extraAttempts: 10,       // 5 base + 10 = 15 max
