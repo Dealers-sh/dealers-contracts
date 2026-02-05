@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 /**
  * @title IDealerRendererSVG - Interface for SVG Rendering
@@ -28,6 +28,10 @@ interface IDealerRendererSVG {
     error InvalidRule();
     error DuplicateRule();
     error RuleNotFound();
+    error InvalidPointer();
+    error PoolEmpty();
+    error InsufficientPoolSize();
+    error TooManyReservedOneOfOnes();
 
     // =============================================================
     //                      VIEW FUNCTIONS
@@ -35,9 +39,6 @@ interface IDealerRendererSVG {
 
     /// @notice Generate the SVG artwork for a dealer
     function getSVG(uint256 tokenId, uint256 seed) external view returns (string memory);
-
-    /// @notice Get traits metadata JSON for a given seed
-    function getTraitsMetadata(uint256 seed) external view returns (string memory);
 
     /// @notice Get traits metadata JSON for a specific token
     function getTraitsMetadataForToken(uint256 tokenId, uint256 seed) external view returns (string memory);
@@ -47,6 +48,18 @@ interface IDealerRendererSVG {
 
     /// @notice Check if the distribution has been initialized
     function distributionInitialized() external view returns (bool);
+
+    /// @notice Get the placeholder SVG pointer
+    function placeholderSvgPointer() external view returns (address);
+
+    /// @notice Get the size of the one-of-one SVG pool
+    function getOneOfOneSVGPoolSize() external view returns (uint256);
+
+    /// @notice Get the number of reserved one-of-one token IDs
+    function getReservedOneOfOneCount() external view returns (uint256);
+
+    /// @notice Get the pool index assigned to a token (1-indexed, 0 means not assigned)
+    function tokenPoolIndex(uint256 tokenId) external view returns (uint256);
 
     /// @notice Get the number of incompatibility rules
     function getIncompatibilityRuleCount() external view returns (uint256);
@@ -104,4 +117,56 @@ interface IDealerRendererSVG {
 
     /// @notice Clear all incompatibility rules
     function clearAllIncompatibilityRules() external;
+
+    // =============================================================
+    //                      TRAIT MANAGEMENT
+    // =============================================================
+
+    /// @notice Add a new trait using a FileStore pointer
+    function addTrait(
+        uint8 characterType,
+        uint8 category,
+        string calldata name,
+        uint16 probability,
+        address fileStorePointer
+    ) external;
+
+    /// @notice Add multiple traits using FileStore pointers
+    function batchAddTraits(
+        uint8[] calldata characterTypes,
+        uint8[] calldata categories,
+        string[] calldata names,
+        uint16[] calldata probabilities,
+        address[] calldata fileStorePointers
+    ) external;
+
+    /// @notice Set a one-of-one token using a FileStore pointer
+    function setOneOfOne(
+        uint256 tokenId,
+        string calldata characterName,
+        address fileStorePointer
+    ) external;
+
+    /// @notice Set multiple one-of-one tokens using FileStore pointers
+    function batchSetOneOfOnes(
+        uint256[] calldata tokenIds,
+        string[] calldata characterNames,
+        address[] calldata fileStorePointers
+    ) external;
+
+    // =============================================================
+    //                    PLACEHOLDER & POOL MANAGEMENT
+    // =============================================================
+
+    /// @notice Set the placeholder SVG shown before reveal
+    function setPlaceholderSvg(address pointer) external;
+
+    /// @notice Add a one-of-one SVG to the pool for random assignment
+    function addOneOfOneToPool(string calldata name, address pointer) external;
+
+    /// @notice Add multiple one-of-one SVGs to the pool
+    function batchAddOneOfOnesToPool(
+        string[] calldata names,
+        address[] calldata pointers
+    ) external;
 }

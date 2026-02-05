@@ -14,7 +14,6 @@ import "../utils/IDERandomness.sol";
 
 interface IDealersExeRendererSVG {
     function getSVG(uint256 tokenId, uint256 seed) external view returns (string memory);
-    function getTraitsMetadata(uint256 seed) external view returns (string memory);
     function getTraitsMetadataForToken(uint256 tokenId, uint256 seed) external view returns (string memory);
     function getCharacterType(uint256 tokenId) external view returns (uint8);
     function initializeDistribution(uint256 seed) external;
@@ -385,16 +384,10 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         if (address(svgRenderer) == address(0)) return "";
 
         string memory out;
-        // Prefer token-aware traits (1/1, Special)
         try svgRenderer.getTraitsMetadataForToken(tokenId, seed) returns (string memory tokenMeta) {
             out = tokenMeta;
         } catch {
-            // Fallback to generic
-            try svgRenderer.getTraitsMetadata(seed) returns (string memory genericMeta) {
-                out = genericMeta;
-            } catch {
-                out = "";
-            }
+            out = "";
         }
         if (bytes(out).length == 0) return "";
         return abi.encodePacked(out, ",");

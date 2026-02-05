@@ -3,6 +3,7 @@
 /cache
 /broadcast
 /zkout
+/script/data
 
 # Dependencies
 /lib

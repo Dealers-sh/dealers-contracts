@@ -5,6 +5,7 @@ libs = ['lib']
 optimizer = true
 optimizer_runs = 200
 via_ir = true
+fs_permissions = [{ access = "read-write", path = "script/data/" }]
 solc = "0.8.28"
 
 # Native zkSync compilation profile - skips renderer contracts that use EXTCODECOPY
