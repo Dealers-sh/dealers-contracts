@@ -32,16 +32,6 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     uint8 public constant CATEGORY_COUNT = 12;
 
     // =============================================================
-    //                            ENUMS
-    // =============================================================
-
-    enum CharacterType {
-        NORMAL,
-        SPECIAL,
-        ONE_OF_ONE
-    }
-
-    // =============================================================
     //                            STRUCTS
     // =============================================================
 

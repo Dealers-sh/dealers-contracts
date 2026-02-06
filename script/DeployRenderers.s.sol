@@ -47,14 +47,12 @@ import "../src/nft/DealerRendererHTML.sol";
  *   forge script script/DeployRenderers.s.sol:DeployRenderers \
  *     --rpc-url https://api.testnet.abs.xyz \
  *     --account dealersKeystore \
- *     --sender <YOUR_ADDRESS> \
  *     --broadcast
  *
  * Deploy to Abstract Mainnet:
  *   forge script script/DeployRenderers.s.sol:DeployRenderers \
  *     --rpc-url https://api.mainnet.abs.xyz \
  *     --account dealersKeystore \
- *     --sender <YOUR_ADDRESS> \
  *     --broadcast
  *
  * After deployment, save the addresses and configure them in DealersExeNFT:

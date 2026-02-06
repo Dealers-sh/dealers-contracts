@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "forge-std/Script.sol";
-import "../src/nft/DealerRendererSVG.sol";
+import "../src/nft/IDealerRendererSVG.sol";
 import "../src/nft/IFileStore.sol";
 
 /**
@@ -177,7 +177,7 @@ contract UploadTraits is Script {
         }
 
         if (registerCount > 0) {
-            DealerRendererSVG(renderer).batchAddTraits(
+            IDealerRendererSVG(renderer).batchAddTraits(
                 characterTypes,
                 categories,
                 names,
@@ -232,7 +232,7 @@ contract UploadTraits is Script {
         }
 
         if (traits.length > 0) {
-            DealerRendererSVG(renderer).batchSetOneOfOnes(tids, names, pointers);
+            IDealerRendererSVG(renderer).batchSetOneOfOnes(tids, names, pointers);
             console.log(string.concat("Registered ", vm.toString(traits.length), " one-of-ones with renderer"));
         }
 
@@ -277,7 +277,7 @@ contract UploadTraits is Script {
         }
 
         if (traits.length > 0) {
-            DealerRendererSVG(renderer).batchAddOneOfOnesToPool(names, pointers);
+            IDealerRendererSVG(renderer).batchAddOneOfOnesToPool(names, pointers);
             console.log(string.concat("Added ", vm.toString(traits.length), " one-of-ones to pool"));
         }
 
@@ -317,7 +317,7 @@ contract UploadTraits is Script {
             _updatePlaceholderPointerInJson(jsonPath, pointer);
         }
 
-        DealerRendererSVG(renderer).setPlaceholderSvg(pointer);
+        IDealerRendererSVG(renderer).setPlaceholderSvg(pointer);
         console.log("Set placeholder on renderer");
     }
 
@@ -394,7 +394,7 @@ contract UploadTraits is Script {
             ));
         }
 
-        DealerRendererSVG(renderer).batchAddIncompatibilityRules(catsA, idxsA, catsB, idxsB);
+        IDealerRendererSVG(renderer).batchAddIncompatibilityRules(catsA, idxsA, catsB, idxsB);
         console.log(string.concat("Added ", vm.toString(rules.length), " incompatibility rules to renderer"));
     }
 

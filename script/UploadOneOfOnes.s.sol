@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "forge-std/Script.sol";
-import "../src/nft/DealerRendererSVG.sol";
+import "../src/nft/IDealerRendererSVG.sol";
 import "../src/nft/IFileStore.sol";
 
 /**
@@ -138,7 +138,7 @@ contract UploadOneOfOnes is Script {
 
         console.log("Found pointer:", pointer);
 
-        DealerRendererSVG(renderer).setOneOfOne(tokenId, characterName, pointer);
+        IDealerRendererSVG(renderer).setOneOfOne(tokenId, characterName, pointer);
 
         console.log(string.concat("Successfully assigned ", characterName, " to token ", vm.toString(tokenId)));
 
@@ -153,12 +153,12 @@ contract UploadOneOfOnes is Script {
         console.log("Renderer:", renderer);
         console.log("");
 
-        DealerRendererSVG rendererContract = DealerRendererSVG(renderer);
+        IDealerRendererSVG rendererContract = IDealerRendererSVG(renderer);
 
         require(rendererContract.distributionInitialized(), "Distribution not initialized");
 
         uint256[] memory oneOfOneTokens = rendererContract.getTokenIdsByType(
-            DealerRendererSVG.CharacterType.ONE_OF_ONE,
+            IDealerRendererSVG.CharacterType.ONE_OF_ONE,
             0,
             35
         );
@@ -235,7 +235,7 @@ contract UploadOneOfOnes is Script {
         console.log("   One-of-One Token IDs");
         console.log("==============================================");
 
-        DealerRendererSVG rendererContract = DealerRendererSVG(renderer);
+        IDealerRendererSVG rendererContract = IDealerRendererSVG(renderer);
 
         if (!rendererContract.distributionInitialized()) {
             console.log("Distribution not initialized yet");
@@ -243,7 +243,7 @@ contract UploadOneOfOnes is Script {
         }
 
         uint256[] memory tokens = rendererContract.getTokenIdsByType(
-            DealerRendererSVG.CharacterType.ONE_OF_ONE,
+            IDealerRendererSVG.CharacterType.ONE_OF_ONE,
             0,
             35
         );

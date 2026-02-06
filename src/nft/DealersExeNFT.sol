@@ -119,7 +119,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     // =============================================================
 
     constructor(address _royaltyReceiver)
-        ERC721("Drug Wars Dealers", "DEALERS")
+        ERC721("dealers.exe", "DEALER")
     {
         _initializeOwner(msg.sender);
         royaltyReceiver = _royaltyReceiver;
@@ -348,10 +348,11 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
             svg = "";
         }
 
-        bytes memory attrs = abi.encodePacked(
-            _getStaticTraits(tokenId, seed),
-            _getDynamicTraits(tokenId)
-        );
+        bytes memory staticTraits = _getStaticTraits(tokenId, seed);
+        bytes memory dynamicTraits = _getDynamicTraits(tokenId);
+        bytes memory attrs = staticTraits.length > 0 && dynamicTraits.length > 0
+            ? abi.encodePacked(staticTraits, ",", dynamicTraits)
+            : abi.encodePacked(staticTraits, dynamicTraits);
 
         // Build JSON via bytes => one final copy
         bytes memory json = abi.encodePacked(
@@ -390,7 +391,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
             out = "";
         }
         if (bytes(out).length == 0) return "";
-        return abi.encodePacked(out, ",");
+        return abi.encodePacked(out);
     }
 
     function _getDynamicTraits(uint256 tokenId) private view returns (bytes memory) {

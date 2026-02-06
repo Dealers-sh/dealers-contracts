@@ -12,6 +12,16 @@ pragma solidity ^0.8.28;
  */
 interface IDealerRendererSVG {
     // =============================================================
+    //                            ENUMS
+    // =============================================================
+
+    enum CharacterType {
+        NORMAL,
+        SPECIAL,
+        ONE_OF_ONE
+    }
+
+    // =============================================================
     //                            EVENTS
     // =============================================================
 
@@ -83,6 +93,18 @@ interface IDealerRendererSVG {
         external
         view
         returns (uint8[] memory categories, uint8[] memory indices);
+
+    /// @notice Get token IDs by character type with pagination
+    function getTokenIdsByType(CharacterType charType, uint256 offset, uint256 limit)
+        external
+        view
+        returns (uint256[] memory tokenIds);
+
+    /// @notice Get one-of-one configuration for a token
+    function getOneOfOneInfo(uint256 tokenId)
+        external
+        view
+        returns (string memory characterName, address svgContract, bool exists);
 
     // =============================================================
     //                    STATE-MODIFYING FUNCTIONS

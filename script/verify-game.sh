@@ -4,7 +4,7 @@
 # Usage: source .env && ./script/verify-all.sh
 #
 # Reads contract addresses from environment variables and verifies all contracts.
-# Requires: DRUG_REGISTRY, AREA_REGISTRY, DEALERS_CORE, PAYMENT_HANDLER,
+# Requires: DRUG_REGISTRY, AREA_REGISTRY, DEALERS_CORE, PAYMENT_HANDLER, RANDOMNESS,
 #           DEALERS_NFT, DEALERS_BOOSTS, DEALERS_PVE, DEALERS_PVP,
 #           DEV_WALLET, BANK_VAULT, ROYALTY_RECEIVER
 
@@ -55,13 +55,13 @@ verify_contract() {
     else
         forge verify-contract "$address" \
             "$contract_path" \
+            --constructor-args $constructor_args \
             --verifier etherscan \
             --verifier-url "$VERIFIER_URL" \
             --etherscan-api-key "$ETHERSCAN_API_KEY" \
             --chain "$CHAIN_ID" \
             --compiler-version "$COMPILER_VERSION" \
             --zksync \
-            --constructor-args $constructor_args \
             && echo -e "${GREEN}✓ $name verified${NC}" \
             || echo -e "${RED}✗ $name verification failed${NC}"
     fi
@@ -73,6 +73,7 @@ echo "=== Contracts without constructor args ==="
 echo ""
 verify_contract "$DRUG_REGISTRY" "src/utils/DEDrugRegistry.sol:DEDrugRegistry"
 verify_contract "$DEALERS_CORE" "src/core/DealersExeCore.sol:DealersExeCore"
+verify_contract "$RANDOMNESS" "src/utils/DERandomness.sol:DERandomness"
 
 # Verify contracts with constructor args
 echo "=== Contracts with constructor args ==="

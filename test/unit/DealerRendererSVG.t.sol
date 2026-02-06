@@ -429,7 +429,7 @@ contract DealerRendererSVGTest is Test {
         renderer.initializeDistribution(42);
 
         uint256[] memory specialTokens = renderer.getTokenIdsByType(
-            DealerRendererSVG.CharacterType.SPECIAL,
+            IDealerRendererSVG.CharacterType.SPECIAL,
             0,
             1
         );

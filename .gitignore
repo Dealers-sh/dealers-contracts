@@ -4,6 +4,7 @@
 /broadcast
 /zkout
 /script/data
+/docs
 
 # Dependencies
 /lib

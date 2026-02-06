@@ -17,10 +17,11 @@ import "forge-std/Script.sol";
  *   2. DEAreaRegistry     - Area config (depends on DrugRegistry)
  *   3. DealersExeCore     - Central state management (no dependencies)
  *   4. DEPaymentHandler   - Payment/fee handling (no dependencies)
- *   5. DealersExeNFT      - NFT contract (no dependencies, renderers set later)
- *   6. DealersExeBoosts   - Boost system (depends on Core, NFT, PaymentHandler)
- *   7. DealersExePVE      - PvE game module (depends on Core, NFT, AreaRegistry)
- *   8. DealersExePVP      - PvP game module (depends on Core, NFT, AreaRegistry)
+ *   5. DERandomness       - Randomness provider (no dependencies)
+ *   6. DealersExeNFT      - NFT contract (no dependencies, renderers set later)
+ *   7. DealersExeBoosts   - Boost system (depends on Core, NFT, PaymentHandler)
+ *   8. DealersExePVE      - PvE game module (depends on Core, NFT, AreaRegistry)
+ *   9. DealersExePVP      - PvP game module (depends on Core, NFT, AreaRegistry)
  *
  * After deployment, run SetupAuthorization.s.sol to configure all references.
  *
@@ -67,7 +68,6 @@ import "forge-std/Script.sol";
  *    forge script script/DeployGame.s.sol:DeployGame \
  *      --rpc-url https://api.testnet.abs.xyz \
  *      --account dealersKeystore \
- *      --sender $DEPLOYER_ADDRESS \
  *      --broadcast \
  *      --zksync \
  *      --verify \
@@ -89,16 +89,20 @@ interface IDealersExeCore {
     function setPaymentHandler(address _paymentHandler) external;
     function setDrugRegistry(address _drugRegistry) external;
     function setAreaRegistry(address _areaRegistry) external;
+    function setRandomness(address _randomness) external;
     function drugRegistry() external view returns (address);
     function areaRegistry() external view returns (address);
     function nftContract() external view returns (address);
     function paymentHandler() external view returns (address);
+    function randomness() external view returns (address);
     function authorizedContracts(address) external view returns (bool);
 }
 
 interface IDealersExeNFT {
     function setDealersExeCore(address _core) external;
+    function setRandomness(address _randomness) external;
     function dealersExeCore() external view returns (address);
+    function randomness() external view returns (address);
 }
 
 interface IDrugRegistry {
@@ -116,9 +120,20 @@ interface IAreaRegistry {
     function coreContract() external view returns (address);
 }
 
+interface IRandomness {
+    function owner() external view returns (address);
+}
+
 interface IPVPContract {
     function setDrugRegistry(address _drugRegistry) external;
+    function setRandomness(address _randomness) external;
     function drugRegistry() external view returns (address);
+    function randomness() external view returns (address);
+}
+
+interface IPVEContract {
+    function setRandomness(address _randomness) external;
+    function randomness() external view returns (address);
 }
 
 // =============================================================================
@@ -131,6 +146,7 @@ contract DeployGame is Script {
     address public areaRegistry;
     address public core;
     address public paymentHandler;
+    address public randomness;
     address public nft;
     address public boosts;
     address public pve;
@@ -159,6 +175,7 @@ contract DeployGame is Script {
         _deployAreaRegistry();
         _deployCore();
         _deployPaymentHandler();
+        _deployRandomness();
         _deployNFT();
         _deployBoosts();
         _deployPVE();
@@ -187,6 +204,7 @@ contract DeployGame is Script {
         areaRegistry = vm.envOr("AREA_REGISTRY", address(0));
         core = vm.envOr("DEALERS_CORE", address(0));
         paymentHandler = vm.envOr("PAYMENT_HANDLER", address(0));
+        randomness = vm.envOr("RANDOMNESS", address(0));
         nft = vm.envOr("DEALERS_NFT", address(0));
         boosts = vm.envOr("DEALERS_BOOSTS", address(0));
         pve = vm.envOr("DEALERS_PVE", address(0));
@@ -197,6 +215,7 @@ contract DeployGame is Script {
         if (areaRegistry != address(0)) console.log("Using existing AREA_REGISTRY:", areaRegistry);
         if (core != address(0)) console.log("Using existing DEALERS_CORE:", core);
         if (paymentHandler != address(0)) console.log("Using existing PAYMENT_HANDLER:", paymentHandler);
+        if (randomness != address(0)) console.log("Using existing RANDOMNESS:", randomness);
         if (nft != address(0)) console.log("Using existing DEALERS_NFT:", nft);
         if (boosts != address(0)) console.log("Using existing DEALERS_BOOSTS:", boosts);
         if (pve != address(0)) console.log("Using existing DEALERS_PVE:", pve);
@@ -312,6 +331,27 @@ contract DeployGame is Script {
         console.log("  DEPaymentHandler deployed at:", paymentHandler);
         console.log("    Dev Wallet:", devWallet);
         console.log("    Bank Vault:", bankVault);
+        console.log("");
+    }
+
+    function _deployRandomness() internal {
+        if (randomness != address(0)) {
+            console.log("Skipping DERandomness (already deployed)");
+            console.log("");
+            return;
+        }
+
+        console.log("Deploying DERandomness...");
+
+        bytes memory bytecode = vm.getCode("DERandomness.sol:DERandomness");
+        address deployed;
+        assembly {
+            deployed := create(0, add(bytecode, 0x20), mload(bytecode))
+        }
+        require(deployed != address(0), "DERandomness deployment failed");
+        randomness = deployed;
+
+        console.log("  DERandomness deployed at:", randomness);
         console.log("");
     }
 
@@ -462,6 +502,13 @@ contract DeployGame is Script {
             console.log("  Core -> PaymentHandler: already set");
         }
 
+        if (coreContract.randomness() != randomness) {
+            coreContract.setRandomness(randomness);
+            console.log("  Core -> Randomness: SET");
+        } else {
+            console.log("  Core -> Randomness: already set");
+        }
+
         console.log("");
     }
 
@@ -553,6 +600,14 @@ contract DeployGame is Script {
             console.log("  NFT -> Core: already set");
         }
 
+        // NFT -> Randomness
+        if (nftContract.randomness() != randomness) {
+            nftContract.setRandomness(randomness);
+            console.log("  NFT -> Randomness: SET");
+        } else {
+            console.log("  NFT -> Randomness: already set");
+        }
+
         // PVP -> DrugRegistry
         IPVPContract pvpContract = IPVPContract(pvp);
         if (pvpContract.drugRegistry() != drugRegistry) {
@@ -560,6 +615,23 @@ contract DeployGame is Script {
             console.log("  PVP -> DrugRegistry: SET");
         } else {
             console.log("  PVP -> DrugRegistry: already set");
+        }
+
+        // PVP -> Randomness
+        if (pvpContract.randomness() != randomness) {
+            pvpContract.setRandomness(randomness);
+            console.log("  PVP -> Randomness: SET");
+        } else {
+            console.log("  PVP -> Randomness: already set");
+        }
+
+        // PVE -> Randomness
+        IPVEContract pveContract = IPVEContract(pve);
+        if (pveContract.randomness() != randomness) {
+            pveContract.setRandomness(randomness);
+            console.log("  PVE -> Randomness: SET");
+        } else {
+            console.log("  PVE -> Randomness: already set");
         }
 
         console.log("");
@@ -579,6 +651,7 @@ contract DeployGame is Script {
         console.log("  DEAreaRegistry:", areaRegistry);
         console.log("  DealersExeCore:", core);
         console.log("  DEPaymentHandler:", paymentHandler);
+        console.log("  DERandomness:", randomness);
         console.log("  DealersExeNFT:", nft);
         console.log("  DealersExeBoosts:", boosts);
         console.log("  DealersExePVE:", pve);
@@ -590,6 +663,7 @@ contract DeployGame is Script {
         console.log("AREA_REGISTRY=", areaRegistry);
         console.log("DEALERS_CORE=", core);
         console.log("PAYMENT_HANDLER=", paymentHandler);
+        console.log("RANDOMNESS=", randomness);
         console.log("DEALERS_NFT=", nft);
         console.log("DEALERS_BOOSTS=", boosts);
         console.log("DEALERS_PVE=", pve);
@@ -603,7 +677,7 @@ contract DeployGame is Script {
         console.log("1. Deploy renderers (via EVM mode - no --zksync flag):");
         console.log("   forge script script/DeployRenderers.s.sol:DeployRenderers \\");
         console.log("     --rpc-url https://api.testnet.abs.xyz \\");
-        console.log("     --account dealersKeystore --sender <YOUR_ADDRESS> --broadcast");
+        console.log("     --account dealersKeystore  --broadcast");
         console.log("");
         console.log("2. Set renderers in NFT:");
         console.log("   cast send $DEALERS_NFT \"setContractRendererSVG(address)\" <SVG_ADDRESS>");
