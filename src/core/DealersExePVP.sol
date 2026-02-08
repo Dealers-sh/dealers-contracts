@@ -25,6 +25,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     // =============================================================
 
     struct PVPConfig {
+        uint256 minReputation;
         uint8 baseWinChance;
         uint8 minWinChance;
         uint8 maxWinChance;
@@ -100,6 +101,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     error ContractNotSet();
     error ContractPaused();
     error DefenderExhausted();
+    error InsufficientReputation();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -121,6 +123,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         areaRegistry = IAreaRegistry(_areaRegistry);
 
         config = PVPConfig({
+            minReputation: 100,
             baseWinChance: 50,
             minWinChance: 25,
             maxWinChance: 75,
@@ -166,6 +169,14 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         _;
     }
 
+    modifier reputable(uint256 tokenId) {
+        if (config.minReputation > 0) {
+            (, uint256 rep,,,,) = core.getDealerData(tokenId);
+            if (rep < config.minReputation) revert InsufficientReputation();
+        }
+        _;
+    }
+
     // =============================================================
     //                        MAIN ATTACK FUNCTION
     // =============================================================
@@ -183,6 +194,8 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         dealerExists(attackerId)
         dealerExists(defenderId)
         onlyDealerOwner(attackerId)
+        reputable(attackerId)
+        reputable(defenderId)
     {
         if (attackerId == defenderId) revert SameDealer();
 
@@ -230,15 +243,16 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
      * @return canFight Whether the attack can proceed
      * @return reason Error code: 0=OK, 1=same dealer, 2=attacker not init, 3=defender not init,
      *         4=attacker in jail, 5=attacker in safe house, 6=defender in jail, 7=defender in safe house,
-     *         8=different areas, 9=no attempts, 10=defender exhausted
+     *         8=different areas, 9=no attempts, 10=defender exhausted,
+     *         11=attacker low rep, 12=defender low rep
      */
     function canAttack(uint256 attackerId, uint256 defenderId) external view returns (bool canFight, uint8 reason) {
         if (attackerId == defenderId) return (false, 1);
 
-        (, , uint8 attackerAttempts, , , bool attackerInit) = core.getDealerData(attackerId);
+        (, uint256 attackerRep, uint8 attackerAttempts, , , bool attackerInit) = core.getDealerData(attackerId);
         if (!attackerInit) return (false, 2);
 
-        (, , , , , bool defenderInit) = core.getDealerData(defenderId);
+        (, uint256 defenderRep, , , , bool defenderInit) = core.getDealerData(defenderId);
         if (!defenderInit) return (false, 3);
 
         if (core.isInJail(attackerId)) return (false, 4);
@@ -255,6 +269,11 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         uint256 currentDay = block.timestamp / 1 days;
         if (lastAttackDay[defenderId] == currentDay && attacksReceivedToday[defenderId] >= config.maxAttacksPerDay) {
             return (false, 10);
+        }
+
+        if (config.minReputation > 0) {
+            if (attackerRep < config.minReputation) return (false, 11);
+            if (defenderRep < config.minReputation) return (false, 12);
         }
 
         return (true, 0);
@@ -299,6 +318,11 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
             (, uint256 rep, uint8 attempts, , , bool init) = core.getDealerData(tokenId);
 
             if (!init) {
+                unchecked { ++i; }
+                continue;
+            }
+
+            if (config.minReputation > 0 && rep < config.minReputation) {
                 unchecked { ++i; }
                 continue;
             }
@@ -446,8 +470,14 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     function _canAttackTarget(uint256 attackerId, uint256 defenderId) private view returns (bool) {
         if (core.isInJail(attackerId) || core.isInSafeHouse(attackerId)) return false;
 
-        (, , uint8 attackerAttempts, , , ) = core.getDealerData(attackerId);
+        (, uint256 attackerRep, uint8 attackerAttempts, , , ) = core.getDealerData(attackerId);
         if (attackerAttempts == 0) return false;
+
+        if (config.minReputation > 0) {
+            if (attackerRep < config.minReputation) return false;
+            (, uint256 defenderRep,,,,) = core.getDealerData(defenderId);
+            if (defenderRep < config.minReputation) return false;
+        }
 
         uint256 currentDay = block.timestamp / 1 days;
         if (lastAttackDay[defenderId] == currentDay && attacksReceivedToday[defenderId] >= config.maxAttacksPerDay) {

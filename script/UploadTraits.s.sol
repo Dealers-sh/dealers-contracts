@@ -91,19 +91,6 @@ contract UploadTraits is Script {
         vm.stopBroadcast();
     }
 
-    function uploadOneOfOnesToPool(address renderer) external {
-        vm.startBroadcast();
-        console.log("==============================================");
-        console.log("   Uploading One-of-Ones to Pool from traits.json");
-        console.log("==============================================");
-        console.log("Renderer:", renderer);
-        console.log("");
-
-        _uploadOneOfOnesToPoolFromJson(renderer);
-
-        vm.stopBroadcast();
-    }
-
     function uploadPlaceholder(address renderer) external {
         vm.startBroadcast();
         console.log("==============================================");
@@ -117,18 +104,6 @@ contract UploadTraits is Script {
         vm.stopBroadcast();
     }
 
-    function uploadIncompatibilityRules(address renderer) external {
-        vm.startBroadcast();
-        console.log("==============================================");
-        console.log("   Uploading Incompatibility Rules from traits.json");
-        console.log("==============================================");
-        console.log("Renderer:", renderer);
-        console.log("");
-
-        _uploadIncompatibilityRulesFromJson(renderer);
-
-        vm.stopBroadcast();
-    }
 
     function _uploadTraitsFromJson(address renderer, uint8 charType) internal {
         string memory jsonPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
@@ -240,59 +215,6 @@ contract UploadTraits is Script {
         console.log(string.concat("Summary: uploaded ", vm.toString(uploadCount), ", skipped ", vm.toString(skipCount)));
     }
 
-    function _uploadOneOfOnesToPoolFromJson(address renderer) internal {
-        string memory jsonPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
-        string memory json = vm.readFile(jsonPath);
-
-        bytes memory traitsArray = vm.parseJson(json, ".oneofonepool");
-        OneOfOneJson[] memory traits = abi.decode(traitsArray, (OneOfOneJson[]));
-
-        console.log(string.concat("Found ", vm.toString(traits.length), " one-of-ones for pool"));
-
-        uint256 uploadCount = 0;
-        uint256 skipCount = 0;
-
-        string[] memory names = new string[](traits.length);
-        address[] memory pointers = new address[](traits.length);
-
-        for (uint256 i = 0; i < traits.length; i++) {
-            OneOfOneJson memory t = traits[i];
-
-            address pointer;
-            if (t.pointer != address(0)) {
-                pointer = t.pointer;
-                skipCount++;
-                console.log(string.concat("  Skip (cached): ", t.name));
-            } else {
-                string memory uniqueName = string.concat("dealers-pool-", t.name, "-", vm.toString(block.timestamp));
-                (pointer,) = FILE_STORE.createFile(uniqueName, t.content);
-                uploadCount++;
-                console.log(string.concat("  Uploaded: ", t.name, " -> ", vm.toString(pointer)));
-
-                _updatePoolPointerInJson(jsonPath, i, pointer);
-            }
-
-            names[i] = t.name;
-            pointers[i] = pointer;
-        }
-
-        if (traits.length > 0) {
-            IDealerRendererSVG(renderer).batchAddOneOfOnesToPool(names, pointers);
-            console.log(string.concat("Added ", vm.toString(traits.length), " one-of-ones to pool"));
-        }
-
-        console.log("");
-        console.log(string.concat("Summary: uploaded ", vm.toString(uploadCount), ", skipped ", vm.toString(skipCount)));
-    }
-
-    function _updatePoolPointerInJson(
-        string memory jsonPath,
-        uint256 index,
-        address pointer
-    ) internal {
-        _updatePointerInJson(jsonPath, "oneofonepool", index, pointer);
-    }
-
     function _uploadPlaceholderFromJson(address renderer) internal {
         string memory jsonPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
         string memory json = vm.readFile(jsonPath);
@@ -359,44 +281,6 @@ contract UploadTraits is Script {
         vm.writeFile(jsonPath, newJson);
     }
 
-    function _uploadIncompatibilityRulesFromJson(address renderer) internal {
-        string memory jsonPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
-        string memory json = vm.readFile(jsonPath);
-
-        bytes memory rulesData = vm.parseJson(json, ".incompatibilityRules");
-        if (rulesData.length == 0) {
-            console.log("No incompatibility rules found in traits.json");
-            return;
-        }
-
-        IncompatibilityRuleJson[] memory rules = abi.decode(rulesData, (IncompatibilityRuleJson[]));
-
-        console.log(string.concat("Found ", vm.toString(rules.length), " incompatibility rules"));
-
-        if (rules.length == 0) {
-            return;
-        }
-
-        uint8[] memory catsA = new uint8[](rules.length);
-        uint8[] memory idxsA = new uint8[](rules.length);
-        uint8[] memory catsB = new uint8[](rules.length);
-        uint8[] memory idxsB = new uint8[](rules.length);
-
-        for (uint256 i = 0; i < rules.length; i++) {
-            catsA[i] = rules[i].categoryA;
-            idxsA[i] = rules[i].traitIndexA;
-            catsB[i] = rules[i].categoryB;
-            idxsB[i] = rules[i].traitIndexB;
-            console.log(string.concat(
-                "  Rule ", vm.toString(i), ": cat", vm.toString(rules[i].categoryA),
-                "[", vm.toString(rules[i].traitIndexA), "] <-> cat",
-                vm.toString(rules[i].categoryB), "[", vm.toString(rules[i].traitIndexB), "]"
-            ));
-        }
-
-        IDealerRendererSVG(renderer).batchAddIncompatibilityRules(catsA, idxsA, catsB, idxsB);
-        console.log(string.concat("Added ", vm.toString(rules.length), " incompatibility rules to renderer"));
-    }
 
     function _updatePointerInJson(
         string memory jsonPath,
@@ -535,9 +419,3 @@ struct PlaceholderJson {
     address pointer;
 }
 
-struct IncompatibilityRuleJson {
-    uint8 categoryA;
-    uint8 categoryB;
-    uint8 traitIndexA;
-    uint8 traitIndexB;
-}

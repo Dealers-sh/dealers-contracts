@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "forge-std/Script.sol";
+import "../src/nft/DealersExeNFT.sol";
 
 /**
  * @title RedeployNFT - Redeploy NFT and reconfigure all references
@@ -24,18 +25,11 @@ import "forge-std/Script.sol";
  *   RENDERER_HTML    - Set HTML renderer after deployment
  */
 
-interface IDealersExeCore {
+interface IDealersExeCoreAdmin {
     function setNFTContract(address _nftContract) external;
     function authorizeContract(address contractAddress, bool authorized) external;
     function nftContract() external view returns (address);
     function authorizedContracts(address) external view returns (bool);
-}
-
-interface IDealersExeNFT {
-    function setDealersExeCore(address _core) external;
-    function setRandomness(address _randomness) external;
-    function setContractRendererSVG(address _renderer) external;
-    function setContractRendererHTML(address _renderer) external;
 }
 
 contract RedeployNFT is Script {
@@ -62,20 +56,12 @@ contract RedeployNFT is Script {
 
         // 1. Deploy new NFT
         console.log("1. Deploying DealersExeNFT...");
-        bytes memory bytecode = abi.encodePacked(
-            vm.getCode("DealersExeNFT.sol:DealersExeNFT"),
-            abi.encode(royaltyReceiver)
-        );
-        address nft;
-        assembly {
-            nft := create(0, add(bytecode, 0x20), mload(bytecode))
-        }
-        require(nft != address(0), "DealersExeNFT deployment failed");
+        DealersExeNFT nftContract = new DealersExeNFT(royaltyReceiver);
+        address nft = address(nftContract);
         console.log("   Deployed at:", nft);
 
         // 2. Configure NFT references
         console.log("2. Configuring NFT references...");
-        IDealersExeNFT nftContract = IDealersExeNFT(nft);
         nftContract.setDealersExeCore(core);
         console.log("   NFT -> Core: SET");
         nftContract.setRandomness(randomness);
@@ -93,7 +79,7 @@ contract RedeployNFT is Script {
 
         // 4. Update Core to point to new NFT
         console.log("3. Updating Core references...");
-        IDealersExeCore coreContract = IDealersExeCore(core);
+        IDealersExeCoreAdmin coreContract = IDealersExeCoreAdmin(core);
         coreContract.setNFTContract(nft);
         console.log("   Core -> NFT: SET");
 

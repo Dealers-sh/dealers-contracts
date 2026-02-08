@@ -19,17 +19,17 @@ import "../src/nft/IFileStore.sol";
  *    - Filename = character name (e.g., "Satoshi.svg" → name="Satoshi")
  *    - Saves pointers to script/data/{network}/pointers-oneofone.json
  *
- * 2. Assign to tokens (after initializeDistribution):
- *    - Call getTokenIdsByType(ONE_OF_ONE, 0, 35) to get assigned token IDs
+ * 2. Assign to tokens:
+ *    - Token IDs are determined off-chain (no on-chain distribution)
  *    - Use assignOneOfOne() to link a character to a specific token ID
  *
  * ============================================================================
  *                           IMPORTANT NOTES
  * ============================================================================
  *
- * - ONE_OF_ONE_COUNT = 35 tokens are reserved during initializeDistribution()
- * - You can upload fewer SVGs than 35 (currently 22)
- * - Tokens without assigned SVG will render as Normal characters
+ * - Token IDs for one-of-ones are determined off-chain
+ * - You can upload fewer SVGs than total one-of-one slots
+ * - Tokens without assigned SVG will show placeholder or revert
  * - Upload step is separate from assignment to allow flexibility
  *
  * ============================================================================
@@ -43,16 +43,16 @@ import "../src/nft/IFileStore.sol";
  *     --account dealersKeystore \
  *     --broadcast
  *
- * Assign a specific one-of-one to a token (after distribution initialized):
+ * Assign a specific one-of-one to a token:
  *   forge script script/UploadOneOfOnes.s.sol:UploadOneOfOnes \
  *     --sig "assignOneOfOne(address,uint256,string)" <RENDERER> <TOKEN_ID> "Satoshi" \
  *     --rpc-url https://api.testnet.abs.xyz \
  *     --account dealersKeystore \
  *     --broadcast
  *
- * Assign all uploaded one-of-ones to tokens (sequential assignment):
+ * Assign all uploaded one-of-ones to explicit token IDs:
  *   forge script script/UploadOneOfOnes.s.sol:UploadOneOfOnes \
- *     --sig "assignAllOneOfOnes(address)" <RENDERER> \
+ *     --sig "assignAllOneOfOnes(address,uint256[])" <RENDERER> "[1,42,100,...]" \
  *     --rpc-url https://api.testnet.abs.xyz \
  *     --account dealersKeystore \
  *     --broadcast
@@ -145,25 +145,16 @@ contract UploadOneOfOnes is Script {
         vm.stopBroadcast();
     }
 
-    function assignAllOneOfOnes(address renderer) external {
+    function assignAllOneOfOnes(address renderer, uint256[] calldata oneOfOneTokenIds) external {
         vm.startBroadcast();
         console.log("==============================================");
         console.log("   Assigning All One-of-Ones to Tokens");
         console.log("==============================================");
         console.log("Renderer:", renderer);
+        console.log(string.concat("Token IDs provided: ", vm.toString(oneOfOneTokenIds.length)));
         console.log("");
 
         IDealerRendererSVG rendererContract = IDealerRendererSVG(renderer);
-
-        require(rendererContract.distributionInitialized(), "Distribution not initialized");
-
-        uint256[] memory oneOfOneTokens = rendererContract.getTokenIdsByType(
-            IDealerRendererSVG.CharacterType.ONE_OF_ONE,
-            0,
-            35
-        );
-
-        console.log(string.concat("Found ", vm.toString(oneOfOneTokens.length), " one-of-one token slots"));
 
         string memory pointerJsonPath = _getPointerJsonPath();
         string memory existingJson = _loadExistingPointers(pointerJsonPath);
@@ -175,7 +166,7 @@ contract UploadOneOfOnes is Script {
         console.log("");
 
         uint256 assignedCount = 0;
-        uint256 maxAssignments = files.length < oneOfOneTokens.length ? files.length : oneOfOneTokens.length;
+        uint256 maxAssignments = files.length < oneOfOneTokenIds.length ? files.length : oneOfOneTokenIds.length;
 
         uint256[] memory tokenIds = new uint256[](maxAssignments);
         string[] memory names = new string[](maxAssignments);
@@ -190,17 +181,17 @@ contract UploadOneOfOnes is Script {
                 continue;
             }
 
-            (, , bool exists) = rendererContract.getOneOfOneInfo(oneOfOneTokens[i]);
+            (, , bool exists) = rendererContract.getOneOfOneInfo(oneOfOneTokenIds[i]);
             if (exists) {
-                console.log(string.concat("  Token ", vm.toString(oneOfOneTokens[i]), " already assigned - skipping"));
+                console.log(string.concat("  Token ", vm.toString(oneOfOneTokenIds[i]), " already assigned - skipping"));
                 continue;
             }
 
-            tokenIds[assignedCount] = oneOfOneTokens[i];
+            tokenIds[assignedCount] = oneOfOneTokenIds[i];
             names[assignedCount] = characterName;
             pointers[assignedCount] = pointer;
 
-            console.log(string.concat("  Preparing: ", characterName, " -> token ", vm.toString(oneOfOneTokens[i])));
+            console.log(string.concat("  Preparing: ", characterName, " -> token ", vm.toString(oneOfOneTokenIds[i])));
             assignedCount++;
         }
 
@@ -225,36 +216,24 @@ contract UploadOneOfOnes is Script {
         console.log("   Assignment Complete");
         console.log("==============================================");
         console.log("Total assigned:", assignedCount);
-        console.log(string.concat("Remaining slots: ", vm.toString(oneOfOneTokens.length - assignedCount)));
 
         vm.stopBroadcast();
     }
 
-    function listOneOfOneTokens(address renderer) external view {
+    function listOneOfOneTokens(uint256[] calldata tokenIds, address renderer) external view {
         console.log("==============================================");
         console.log("   One-of-One Token IDs");
         console.log("==============================================");
 
         IDealerRendererSVG rendererContract = IDealerRendererSVG(renderer);
 
-        if (!rendererContract.distributionInitialized()) {
-            console.log("Distribution not initialized yet");
-            return;
-        }
-
-        uint256[] memory tokens = rendererContract.getTokenIdsByType(
-            IDealerRendererSVG.CharacterType.ONE_OF_ONE,
-            0,
-            35
-        );
-
-        console.log(string.concat("Found ", vm.toString(tokens.length), " one-of-one tokens:"));
-        for (uint256 i = 0; i < tokens.length; i++) {
-            (string memory name, address pointer, bool exists) = rendererContract.getOneOfOneInfo(tokens[i]);
+        console.log(string.concat("Checking ", vm.toString(tokenIds.length), " token IDs:"));
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            (string memory name, address pointer, bool exists) = rendererContract.getOneOfOneInfo(tokenIds[i]);
             if (exists) {
-                console.log(string.concat("  Token ", vm.toString(tokens[i]), ": ", name, " -> ", vm.toString(pointer)));
+                console.log(string.concat("  Token ", vm.toString(tokenIds[i]), ": ", name, " -> ", vm.toString(pointer)));
             } else {
-                console.log(string.concat("  Token ", vm.toString(tokens[i]), ": (unassigned)"));
+                console.log(string.concat("  Token ", vm.toString(tokenIds[i]), ": (unassigned)"));
             }
         }
     }

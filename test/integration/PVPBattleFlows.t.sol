@@ -14,61 +14,81 @@ contract PVPBattleFlowsTest is BaseTest {
         defenderToken = _mintAndMoveToManhattan(player2);
 
         vm.prank(owner);
+        core.updateReputation(attackerToken, 200);
+        vm.prank(owner);
+        core.updateReputation(defenderToken, 200);
+
+        vm.prank(owner);
         core.updateDrugBalance(defenderToken, DRUG_WEED, 100);
         vm.prank(owner);
         core.updateDrugBalance(defenderToken, DRUG_XTC, 50);
+
+        vm.warp(1 hours + 1);
     }
 
     function test_pvpFlow_attackerWins() public {
+        vm.prank(owner);
+        core.setDealerStats(attackerToken, 25, 0);
+
         uint256 defenderWeedBefore = core.getDrugBalance(defenderToken, DRUG_WEED);
         uint256 defenderXtcBefore = core.getDrugBalance(defenderToken, DRUG_XTC);
+        uint256 defenderCocaineBefore = core.getDrugBalance(defenderToken, DRUG_COCAINE);
         uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
         uint256 attackerXtcBefore = core.getDrugBalance(attackerToken, DRUG_XTC);
+        uint256 attackerCocaineBefore = core.getDrugBalance(attackerToken, DRUG_COCAINE);
 
         bool attackerWon = false;
         uint256 prevrandaoValue = 0;
 
         vm.startPrank(player1);
 
-        while (!attackerWon && prevrandaoValue < 500) {
+        while (!attackerWon && prevrandaoValue < 2000) {
             vm.prevrandao(bytes32(prevrandaoValue));
 
             uint256 snapshotId = vm.snapshotState();
 
             try pvp.attack(attackerToken, defenderToken) {
-                uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
-                uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
-
-                if (attackerWeedAfter > attackerWeedBefore) {
-                    attackerWon = true;
-
-                    uint256 defenderXtcAfter = core.getDrugBalance(defenderToken, DRUG_XTC);
+                if (!core.isInJail(attackerToken)) {
+                    uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
                     uint256 attackerXtcAfter = core.getDrugBalance(attackerToken, DRUG_XTC);
+                    uint256 attackerCocaineAfter = core.getDrugBalance(attackerToken, DRUG_COCAINE);
 
-                    uint256 expectedWeedStolen = (defenderWeedBefore * 1) / 100;
-                    uint256 expectedXtcStolen = (defenderXtcBefore * 1) / 100;
+                    bool gainedAny = (attackerWeedAfter > attackerWeedBefore) ||
+                                     (attackerXtcAfter > attackerXtcBefore) ||
+                                     (attackerCocaineAfter > attackerCocaineBefore);
 
-                    assertEq(
-                        defenderWeedAfter,
-                        defenderWeedBefore - expectedWeedStolen,
-                        "Defender should lose 1% weed"
-                    );
-                    assertEq(
-                        defenderXtcAfter,
-                        defenderXtcBefore - expectedXtcStolen,
-                        "Defender should lose 1% XTC"
-                    );
-                    assertEq(
-                        attackerWeedAfter,
-                        attackerWeedBefore + expectedWeedStolen,
-                        "Attacker should gain 1% weed"
-                    );
-                    assertEq(
-                        attackerXtcAfter,
-                        attackerXtcBefore + expectedXtcStolen,
-                        "Attacker should gain 1% XTC"
-                    );
-                    break;
+                    if (gainedAny) {
+                        attackerWon = true;
+
+                        uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
+                        uint256 defenderXtcAfter = core.getDrugBalance(defenderToken, DRUG_XTC);
+                        uint256 defenderCocaineAfter = core.getDrugBalance(defenderToken, DRUG_COCAINE);
+
+                        uint256 typesStolen = 0;
+                        if (defenderWeedAfter < defenderWeedBefore) typesStolen++;
+                        if (defenderXtcAfter < defenderXtcBefore) typesStolen++;
+                        if (defenderCocaineAfter < defenderCocaineBefore) typesStolen++;
+
+                        assertEq(typesStolen, 1, "Exactly one drug type should be stolen");
+
+                        if (defenderWeedAfter < defenderWeedBefore) {
+                            uint256 stolen = defenderWeedBefore - defenderWeedAfter;
+                            uint256 expected = _ceilDiv(defenderWeedBefore * 2, 100);
+                            assertEq(stolen, expected, "Should steal 2% of weed (rounded up)");
+                            assertEq(attackerWeedAfter, attackerWeedBefore + stolen, "Attacker gains stolen weed");
+                        } else if (defenderXtcAfter < defenderXtcBefore) {
+                            uint256 stolen = defenderXtcBefore - defenderXtcAfter;
+                            uint256 expected = _ceilDiv(defenderXtcBefore * 2, 100);
+                            assertEq(stolen, expected, "Should steal 2% of XTC (rounded up)");
+                            assertEq(attackerXtcAfter, attackerXtcBefore + stolen, "Attacker gains stolen XTC");
+                        } else {
+                            uint256 stolen = defenderCocaineBefore - defenderCocaineAfter;
+                            uint256 expected = _ceilDiv(defenderCocaineBefore * 2, 100);
+                            assertEq(stolen, expected, "Should steal 2% of cocaine (rounded up)");
+                            assertEq(attackerCocaineAfter, attackerCocaineBefore + stolen, "Attacker gains stolen cocaine");
+                        }
+                        break;
+                    }
                 }
             } catch {}
 
@@ -80,48 +100,64 @@ contract PVPBattleFlowsTest is BaseTest {
 
         vm.stopPrank();
 
-        if (!attackerWon) {
-            emit log("Note: Attacker win not found within iteration limit - test inconclusive");
-        }
+        assertTrue(attackerWon, "Should find attacker win within 2000 attempts");
     }
 
     function test_pvpFlow_defenderWins() public {
         vm.prank(owner);
+        core.setDealerStats(defenderToken, 0, 25);
+        vm.prank(owner);
         core.updateDrugBalance(attackerToken, DRUG_WEED, 80);
 
         uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
-        uint256 defenderWeedBefore = core.getDrugBalance(defenderToken, DRUG_WEED);
+        uint256 attackerXtcBefore = core.getDrugBalance(attackerToken, DRUG_XTC);
+        uint256 attackerCocaineBefore = core.getDrugBalance(attackerToken, DRUG_COCAINE);
 
         bool defenderWon = false;
         uint256 prevrandaoValue = 0;
 
         vm.startPrank(player1);
 
-        while (!defenderWon && prevrandaoValue < 500) {
+        while (!defenderWon && prevrandaoValue < 2000) {
             vm.prevrandao(bytes32(prevrandaoValue));
 
             uint256 snapshotId = vm.snapshotState();
 
             try pvp.attack(attackerToken, defenderToken) {
-                uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
-                uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
+                if (!core.isInJail(attackerToken)) {
+                    uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
+                    uint256 attackerXtcAfter = core.getDrugBalance(attackerToken, DRUG_XTC);
+                    uint256 attackerCocaineAfter = core.getDrugBalance(attackerToken, DRUG_COCAINE);
 
-                if (attackerWeedAfter < attackerWeedBefore && defenderWeedAfter > defenderWeedBefore) {
-                    defenderWon = true;
+                    bool lostAny = (attackerWeedAfter < attackerWeedBefore) ||
+                                   (attackerXtcAfter < attackerXtcBefore) ||
+                                   (attackerCocaineAfter < attackerCocaineBefore);
 
-                    uint256 expectedStolen = (attackerWeedBefore * 1) / 100;
+                    if (lostAny) {
+                        defenderWon = true;
 
-                    assertEq(
-                        attackerWeedAfter,
-                        attackerWeedBefore - expectedStolen,
-                        "Attacker (loser) should lose 1% drugs"
-                    );
-                    assertEq(
-                        defenderWeedAfter,
-                        defenderWeedBefore + expectedStolen,
-                        "Defender (winner) should gain 1% drugs"
-                    );
-                    break;
+                        uint256 typesLost = 0;
+                        if (attackerWeedAfter < attackerWeedBefore) typesLost++;
+                        if (attackerXtcAfter < attackerXtcBefore) typesLost++;
+                        if (attackerCocaineAfter < attackerCocaineBefore) typesLost++;
+
+                        assertEq(typesLost, 1, "Exactly one drug type should be stolen from loser");
+
+                        if (attackerWeedAfter < attackerWeedBefore) {
+                            uint256 stolen = attackerWeedBefore - attackerWeedAfter;
+                            uint256 expected = _ceilDiv(attackerWeedBefore * 2, 100);
+                            assertEq(stolen, expected, "Should lose 2% of weed (rounded up)");
+                        } else if (attackerXtcAfter < attackerXtcBefore) {
+                            uint256 stolen = attackerXtcBefore - attackerXtcAfter;
+                            uint256 expected = _ceilDiv(attackerXtcBefore * 2, 100);
+                            assertEq(stolen, expected, "Should lose 2% of XTC (rounded up)");
+                        } else {
+                            uint256 stolen = attackerCocaineBefore - attackerCocaineAfter;
+                            uint256 expected = _ceilDiv(attackerCocaineBefore * 2, 100);
+                            assertEq(stolen, expected, "Should lose 2% of cocaine (rounded up)");
+                        }
+                        break;
+                    }
                 }
             } catch {}
 
@@ -133,9 +169,7 @@ contract PVPBattleFlowsTest is BaseTest {
 
         vm.stopPrank();
 
-        if (!defenderWon) {
-            emit log("Note: Defender win not found within iteration limit - test inconclusive");
-        }
+        assertTrue(defenderWon, "Should find defender win within 2000 attempts");
     }
 
     function test_pvpFlow_attackerArrestedMidFight() public {
@@ -158,7 +192,7 @@ contract PVPBattleFlowsTest is BaseTest {
 
         vm.startPrank(player1);
 
-        while (!arrested && prevrandaoValue < 500) {
+        while (!arrested && prevrandaoValue < 2000) {
             vm.prevrandao(bytes32(prevrandaoValue));
 
             uint256 snapshotId = vm.snapshotState();
@@ -215,6 +249,8 @@ contract PVPBattleFlowsTest is BaseTest {
         uint256 brooklynToken = _mintNFT(player1);
         vm.prank(owner);
         core.moveToArea(brooklynToken, 2);
+        vm.prank(owner);
+        core.updateReputation(brooklynToken, 200);
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVP.DifferentArea.selector);
@@ -238,8 +274,9 @@ contract PVPBattleFlowsTest is BaseTest {
 
     function test_pvpFlow_cannotAttackFromSafeHouse() public {
         uint256 safeToken = _mintNFT(player1);
+        vm.prank(owner);
+        core.updateReputation(safeToken, 200);
 
-        // Move to safe house (starts in Manhattan now)
         vm.prank(player1);
         core.travel{value: 0}(safeToken, SAFE_HOUSE);
 
@@ -312,5 +349,10 @@ contract PVPBattleFlowsTest is BaseTest {
                                       (defenderRepAfter != defenderRepBefore);
             assertTrue(reputationChanged, "Reputation should change after battle");
         }
+    }
+
+    function _ceilDiv(uint256 a, uint256 b) internal pure returns (uint256) {
+        if (a == 0) return 0;
+        return (a - 1) / b + 1;
     }
 }

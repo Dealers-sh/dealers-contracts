@@ -12,15 +12,13 @@ import {MerkleProofLib} from "solady/src/utils/MerkleProofLib.sol";
 import "../core/IDealersExeCore.sol";
 import "../utils/IDERandomness.sol";
 
-interface IDealersExeRendererSVG {
+interface IDealerRendererSVG {
     function getSVG(uint256 tokenId, uint256 seed) external view returns (string memory);
     function getTraitsMetadataForToken(uint256 tokenId, uint256 seed) external view returns (string memory);
     function getCharacterType(uint256 tokenId) external view returns (uint8);
-    function initializeDistribution(uint256 seed) external;
-    function distributionInitialized() external view returns (bool);
 }
 
-interface IDealersExeRendererHTML {
+interface IDealerRendererHTML {
     function getHTML(string memory svg) external view returns (string memory);
 }
 
@@ -70,8 +68,8 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
 
     mapping(uint256 => uint256) public tokenSeeds;
 
-    IDealersExeRendererSVG  public contractRendererSVG;
-    IDealersExeRendererHTML public contractRendererHTML;
+    IDealerRendererSVG  public contractRendererSVG;
+    IDealerRendererHTML public contractRendererHTML;
     IDERandomness public randomness;
 
     // =============================================================
@@ -84,7 +82,6 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     event RendererHTMLChanged(address indexed newAddress);
     event DealersExeCoreUpdated(address indexed newCore);
     event BatchMetadataUpdate(uint256 _fromTokenId, uint256 _toTokenId);
-    event DistributionInitialized(uint256 seed);
     event RandomnessUpdated(address indexed newAddress);
     event FamilyMerkleRootSet(bytes32 indexed root);
     event WhitelistMerkleRootSet(bytes32 indexed root);
@@ -109,7 +106,6 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     error InvalidAddress();
     error TransferFailed();
     error InsufficientBalance();
-    error DistributionAlreadyInitialized();
     error RendererNotSet();
     error ETHTransferFailed();
     error ContractPaused();
@@ -123,7 +119,6 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     {
         _initializeOwner(msg.sender);
         royaltyReceiver = _royaltyReceiver;
-        reserve(RESERVE_SUPPLY);
     }
 
     // =============================================================
@@ -340,7 +335,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
 
         uint256 seed = tokenSeeds[tokenId];
         string memory svg;
-        IDealersExeRendererSVG svgRenderer = contractRendererSVG;
+        IDealerRendererSVG svgRenderer = contractRendererSVG;
 
         if (address(svgRenderer) != address(0)) {
             svg = svgRenderer.getSVG(tokenId, seed);
@@ -381,7 +376,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     }
 
     function _getStaticTraits(uint256 tokenId, uint256 seed) private view returns (bytes memory) {
-        IDealersExeRendererSVG svgRenderer = contractRendererSVG;
+        IDealerRendererSVG svgRenderer = contractRendererSVG;
         if (address(svgRenderer) == address(0)) return "";
 
         string memory out;
@@ -418,7 +413,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     }
 
     function _getAnimationUrl(string memory svg) private view returns (bytes memory) {
-        IDealersExeRendererHTML htmlRenderer = contractRendererHTML;
+        IDealerRendererHTML htmlRenderer = contractRendererHTML;
         if (address(htmlRenderer) == address(0)) return "";
         return abi.encodePacked(
             '"animation_url":"data:text/html;base64,',
@@ -432,50 +427,18 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     // =============================================================
 
     /**
-     * @notice Initialize the character type distribution in the renderer
-     * @param seed Random seed for distribution initialization
-     */
-    function initializeRendererDistribution(uint256 seed) external onlyOwner {
-        IDealersExeRendererSVG svgRenderer = contractRendererSVG;
-        if (address(svgRenderer) == address(0)) revert RendererNotSet();
-
-        try svgRenderer.distributionInitialized() returns (bool initialized) {
-            if (initialized) revert DistributionAlreadyInitialized();
-            svgRenderer.initializeDistribution(seed);
-            emit DistributionInitialized(seed);
-        } catch {
-            // keep explicit revert so the caller knows renderer lacks this API
-            revert("Renderer does not support distribution");
-        }
-    }
-
-    /**
      * @notice Get the character type for a specific token
      * @param tokenId The token ID to query
      * @return Character type identifier (0 if renderer not set)
      */
     function getCharacterType(uint256 tokenId) external view returns (uint8) {
         if (!_exists(tokenId)) revert TokenDoesNotExist();
-        IDealersExeRendererSVG svgRenderer = contractRendererSVG;
+        IDealerRendererSVG svgRenderer = contractRendererSVG;
         if (address(svgRenderer) == address(0)) return 0;
         try svgRenderer.getCharacterType(tokenId) returns (uint8 t) {
             return t;
         } catch {
             return 0;
-        }
-    }
-
-    /**
-     * @notice Check if the renderer distribution has been initialized
-     * @return True if distribution is initialized, false otherwise
-     */
-    function isDistributionInitialized() external view returns (bool) {
-        IDealersExeRendererSVG svgRenderer = contractRendererSVG;
-        if (address(svgRenderer) == address(0)) return false;
-        try svgRenderer.distributionInitialized() returns (bool b) {
-            return b;
-        } catch {
-            return false;
         }
     }
 
@@ -499,7 +462,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      */
     function setContractRendererSVG(address newAddress) external onlyOwner {
         if (newAddress == address(0)) revert InvalidAddress();
-        contractRendererSVG = IDealersExeRendererSVG(newAddress);
+        contractRendererSVG = IDealerRendererSVG(newAddress);
         emit RendererSVGChanged(newAddress);
         emit BatchMetadataUpdate(1, MAX_SUPPLY);
     }
@@ -510,7 +473,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      */
     function setContractRendererHTML(address newAddress) external onlyOwner {
         if (newAddress == address(0)) revert InvalidAddress();
-        contractRendererHTML = IDealersExeRendererHTML(newAddress);
+        contractRendererHTML = IDealerRendererHTML(newAddress);
         emit RendererHTMLChanged(newAddress);
         emit BatchMetadataUpdate(1, MAX_SUPPLY);
     }

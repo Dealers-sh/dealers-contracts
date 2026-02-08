@@ -13,8 +13,10 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
  * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
- * @dev Generates dynamic SVG art for dealers based on token seed and character type.
- *      Supports three character types: Normal, Special, and One-of-One.
+ * @dev Renders dynamic SVG art for dealers from stored trait indices.
+ *      Traits are generated off-chain and uploaded via batchSetTraits.
+ *      Character type is packed in byte 13 (bits 96-103) of storedTraits.
+ *      One-of-ones have their own complete SVG via oneOfOnes mapping.
  *      Uses SSTORE2 for gas-efficient on-chain SVG storage.
  * @author Dealers.Exe Team
  */
@@ -26,9 +28,6 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     // =============================================================
 
     uint256 public constant MAX_SUPPLY = 8888;
-    uint256 public constant SPECIAL_COUNT = 500;
-    uint256 public constant ONE_OF_ONE_COUNT = 35;
-    uint256 public constant NORMAL_COUNT = MAX_SUPPLY - SPECIAL_COUNT - ONE_OF_ONE_COUNT;
     uint8 public constant CATEGORY_COUNT = 12;
 
     // =============================================================
@@ -66,65 +65,41 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     //                            STORAGE
     // =============================================================
 
-    mapping(uint256 => CharacterType) public tokenTypeAssignments;
-    bool public distributionInitialized;
-
     mapping(uint8 => mapping(uint8 => TraitConfig[])) public traits;
 
     mapping(uint256 => OneOfOneData) public oneOfOnes;
-    mapping(uint256 => bool) public isReservedOneOfOne;
-    uint256[] public reservedOneOfOneTokenIds;
 
     address public placeholderSvgPointer;
+    bool public revealed;
 
-    struct OneOfOneSVG {
-        string name;
-        address svgPointer;
-    }
-    OneOfOneSVG[] public oneOfOneSVGPool;
-
-    mapping(uint256 => uint256) public tokenPoolIndex;
-
-    // Array size must match CATEGORY_COUNT
     string[12] public categoryNames = [
         "Backdrop", "Head", "Expression", "Eyes", "Nose", "Eartip",
         "Ear Accessory", "Facial Hair", "Mouth", "Chin", "Neck", "Accessory"
     ];
 
-    struct IncompatibilityRule {
-        uint16 traitA;
-        uint16 traitB;
-    }
-
-    uint16 public constant MAX_RULES = 256;
-    IncompatibilityRule[] public incompatibilityRules;
-    mapping(uint16 => bool) private _hasIncompatibilities;
+    // Packed: 12 trait uint8s (bytes 0-11) + charType uint8 (byte 12) = 13 bytes in one slot.
+    // bytes32(0) = not stored.
+    mapping(uint256 => bytes32) public storedTraits;
 
     // =============================================================
     //                            EVENTS
     // =============================================================
 
-    event DistributionInitialized();
-    event CharacterTypeAssigned(uint256 indexed tokenId, CharacterType characterType);
     event TraitAdded(uint8 indexed characterType, uint8 indexed category, uint256 traitIndex, string name, uint16 probability);
     event OneOfOneSet(uint256 indexed tokenId, string characterName);
     event PlaceholderSvgSet(address indexed pointer);
-    event OneOfOneAddedToPool(uint256 indexed index, string name);
-    event PoolSvgAssigned(uint256 indexed tokenId, uint256 indexed poolIndex);
+    event Revealed();
 
     // =============================================================
     //                            ERRORS
     // =============================================================
 
-    error NotInitialized();
     error InvalidTokenId();
-    error InvalidTokenType();
     error InvalidCharacterType();
     error InvalidCategory();
     error InvalidTraitIndex();
     error InvalidProbability();
     error ArrayLengthMismatch();
-    error InvalidOneOfOneConfiguration();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -135,176 +110,128 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     }
 
     // =============================================================
-    //                    DISTRIBUTION / ASSIGNMENT
+    //                      CHARACTER TYPE
     // =============================================================
 
-    /**
-     * @notice Initialize character type distribution using Fisher-Yates shuffle
-     * @dev Reserved one-of-ones (set via setOneOfOne before reveal) are forced as ONE_OF_ONE.
-     *      Remaining ONE_OF_ONE slots are filled randomly and assigned pool SVGs.
-     * @param seed Random seed for deterministic shuffling
-     */
-    function initializeDistribution(uint256 seed) external onlyOwner {
-        if (distributionInitialized) revert AlreadyInitialized();
-
-        uint256 reservedCount = reservedOneOfOneTokenIds.length;
-        if (reservedCount > ONE_OF_ONE_COUNT) revert TooManyReservedOneOfOnes();
-
-        uint256 randomOneOfOneSlots = ONE_OF_ONE_COUNT - reservedCount;
-        uint256 poolSize = oneOfOneSVGPool.length;
-        if (poolSize < randomOneOfOneSlots) revert InsufficientPoolSize();
-
-        for (uint256 i; i < reservedCount; ) {
-            uint256 tid = reservedOneOfOneTokenIds[i];
-            tokenTypeAssignments[tid] = CharacterType.ONE_OF_ONE;
-            emit CharacterTypeAssigned(tid, CharacterType.ONE_OF_ONE);
-            unchecked { ++i; }
-        }
-
-        uint256[] memory nonReservedTokenIds = new uint256[](MAX_SUPPLY - reservedCount);
-        uint256 nrIdx;
-        for (uint256 i = 1; i <= MAX_SUPPLY; ) {
-            if (!isReservedOneOfOne[i]) {
-                nonReservedTokenIds[nrIdx] = i;
-                unchecked { ++nrIdx; }
-            }
-            unchecked { ++i; }
-        }
-
-        for (uint256 i = nonReservedTokenIds.length - 1; i > 0; ) {
-            uint256 j = uint256(keccak256(abi.encode(seed, i))) % (i + 1);
-            (nonReservedTokenIds[i], nonReservedTokenIds[j]) = (nonReservedTokenIds[j], nonReservedTokenIds[i]);
-            unchecked { --i; }
-        }
-
-        uint256[] memory poolIndices = new uint256[](poolSize);
-        for (uint256 i; i < poolSize; ) {
-            poolIndices[i] = i + 1;
-            unchecked { ++i; }
-        }
-        for (uint256 i = poolSize - 1; i > 0; ) {
-            uint256 j = uint256(keccak256(abi.encode(seed, "pool", i))) % (i + 1);
-            (poolIndices[i], poolIndices[j]) = (poolIndices[j], poolIndices[i]);
-            unchecked { --i; }
-        }
-
-        uint256 idx;
-        for (uint256 i; i < randomOneOfOneSlots; ) {
-            uint256 tid = nonReservedTokenIds[idx];
-            tokenTypeAssignments[tid] = CharacterType.ONE_OF_ONE;
-            tokenPoolIndex[tid] = poolIndices[i];
-            emit CharacterTypeAssigned(tid, CharacterType.ONE_OF_ONE);
-            emit PoolSvgAssigned(tid, poolIndices[i]);
-            unchecked { ++i; ++idx; }
-        }
-
-        for (uint256 i; i < SPECIAL_COUNT; ) {
-            uint256 tid = nonReservedTokenIds[idx];
-            tokenTypeAssignments[tid] = CharacterType.SPECIAL;
-            emit CharacterTypeAssigned(tid, CharacterType.SPECIAL);
-            unchecked { ++i; ++idx; }
-        }
-
-        uint256 remaining = nonReservedTokenIds.length;
-        for (uint256 i = idx; i < remaining; ) {
-            uint256 tid = nonReservedTokenIds[i];
-            tokenTypeAssignments[tid] = CharacterType.NORMAL;
-            emit CharacterTypeAssigned(tid, CharacterType.NORMAL);
-            unchecked { ++i; }
-        }
-
-        distributionInitialized = true;
-        emit DistributionInitialized();
-    }
-
-    /**
-     * @notice Get the character type for a token as uint8
-     * @param tokenId The token ID to query
-     * @return Character type as uint8 (0=Normal, 1=Special, 2=OneOfOne)
-     */
     function getCharacterType(uint256 tokenId) public view returns (uint8) {
         if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
-        if (!distributionInitialized) {
-            return uint8(CharacterType.NORMAL);
+        if (oneOfOnes[tokenId].exists) return uint8(CharacterType.ONE_OF_ONE);
+        return uint8(uint256(storedTraits[tokenId]) >> 96);
+    }
+
+    // =============================================================
+    //                        STORED TRAITS
+    // =============================================================
+
+    function batchSetTraits(
+        uint256[] calldata tokenIds,
+        bytes32[] calldata packedTraits
+    ) external onlyOwner {
+        uint256 len = tokenIds.length;
+        if (len != packedTraits.length) revert ArrayLengthMismatch();
+
+        for (uint256 i; i < len; ) {
+            uint256 tokenId = tokenIds[i];
+            if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
+
+            storedTraits[tokenId] = packedTraits[i];
+            emit TraitsStored(tokenId);
+            unchecked { ++i; }
         }
-        return uint8(tokenTypeAssignments[tokenId]);
+    }
+
+    function setTraitForToken(
+        uint256 tokenId,
+        uint8 category,
+        uint8 traitIndex
+    ) external onlyOwner {
+        if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
+        if (category >= CATEGORY_COUNT) revert InvalidCategory();
+
+        bytes32 packed = storedTraits[tokenId];
+        uint256 shift = uint256(category) * 8;
+        uint256 mask = ~(uint256(0xFF) << shift);
+        packed = bytes32((uint256(packed) & mask) | (uint256(traitIndex) << shift));
+
+        storedTraits[tokenId] = packed;
+        emit TraitUpdated(tokenId, category, traitIndex);
+    }
+
+    function getStoredTraits(uint256 tokenId) external view returns (uint8[12] memory result) {
+        CharacterData memory d = _unpackCharacterData(storedTraits[tokenId]);
+        result[0] = d.backdrop;
+        result[1] = d.head;
+        result[2] = d.expression;
+        result[3] = d.eyes;
+        result[4] = d.nose;
+        result[5] = d.eartip;
+        result[6] = d.earAccessory;
+        result[7] = d.facialHair;
+        result[8] = d.mouth;
+        result[9] = d.chin;
+        result[10] = d.neck;
+        result[11] = d.accessory;
+    }
+
+    function isTraitStored(uint256 tokenId) external view returns (bool) {
+        return storedTraits[tokenId] != bytes32(0);
     }
 
     // =============================================================
     //                           RENDERING
     // =============================================================
 
-    /**
-     * @notice Generate the complete SVG for a token
-     * @param tokenId The token ID to render
-     * @param seed Random seed for trait selection
-     * @return Complete SVG string
-     */
-    function getSVG(uint256 tokenId, uint256 seed) external view returns (string memory) {
-        if (!distributionInitialized && placeholderSvgPointer != address(0)) {
-            return string(_readFileStorePointer(placeholderSvgPointer));
-        }
+    function getSVG(uint256 tokenId, uint256 /* seed */) external view returns (string memory) {
+        bytes memory inner;
 
-        CharacterType charType = _getCharacterTypeEnum(tokenId);
-
-        OneOfOneData storage ooo = oneOfOnes[tokenId];
-        if (charType == CharacterType.ONE_OF_ONE && ooo.exists) {
-            return string(_readFileStorePointer(ooo.completeSvgContract));
-        }
-
-        if (charType == CharacterType.ONE_OF_ONE) {
-            uint256 poolIdx = tokenPoolIndex[tokenId];
-            if (poolIdx > 0 && poolIdx <= oneOfOneSVGPool.length) {
-                return string(_readFileStorePointer(oneOfOneSVGPool[poolIdx - 1].svgPointer));
+        if (!revealed) {
+            if (placeholderSvgPointer == address(0)) revert TraitsNotStored();
+            inner = _readFileStorePointer(placeholderSvgPointer);
+        } else if (oneOfOnes[tokenId].exists) {
+            inner = _readFileStorePointer(oneOfOnes[tokenId].completeSvgContract);
+        } else {
+            bytes32 packed = storedTraits[tokenId];
+            if (packed == bytes32(0)) {
+                if (placeholderSvgPointer != address(0)) {
+                    inner = _readFileStorePointer(placeholderSvgPointer);
+                } else {
+                    revert TraitsNotStored();
+                }
+            } else {
+                CharacterType charType = CharacterType(uint8(uint256(packed) >> 96));
+                inner = _assembleSVG(_unpackCharacterData(packed), charType);
             }
-            revert InvalidOneOfOneConfiguration();
         }
 
-        CharacterData memory data = _generateCharacterData(seed, charType);
-        return _assembleSVG(data, charType);
+        return string(abi.encodePacked(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" id="', tokenId.toString(), '">',
+            inner,
+            "</svg>"
+        ));
     }
 
-    /**
-     * @notice Get traits metadata JSON for a specific token
-     * @param tokenId The token ID to query
-     * @param seed Random seed for trait selection
-     * @return JSON string of trait metadata
-     */
-    function getTraitsMetadataForToken(uint256 tokenId, uint256 seed) public view returns (string memory) {
-        if (!distributionInitialized) {
+    function getTraitsMetadataForToken(uint256 tokenId, uint256 /* seed */) public view returns (string memory) {
+        if (!revealed) {
             return '{"trait_type":"Status","value":"Unrevealed"}';
         }
 
-        CharacterType charType = _getCharacterTypeEnum(tokenId);
-
-        OneOfOneData storage ooo = oneOfOnes[tokenId];
-        if (charType == CharacterType.ONE_OF_ONE && ooo.exists) {
-            return _formatOneOfOneMetadata(ooo.characterName);
+        if (oneOfOnes[tokenId].exists) {
+            return _formatOneOfOneMetadata(oneOfOnes[tokenId].characterName);
         }
 
-        if (charType == CharacterType.ONE_OF_ONE) {
-            uint256 poolIdx = tokenPoolIndex[tokenId];
-            if (poolIdx > 0 && poolIdx <= oneOfOneSVGPool.length) {
-                return _formatOneOfOneMetadata(oneOfOneSVGPool[poolIdx - 1].name);
-            }
+        bytes32 packed = storedTraits[tokenId];
+        if (packed == bytes32(0)) {
+            return '{"trait_type":"Status","value":"Unrevealed"}';
         }
 
-        CharacterData memory data = _generateCharacterData(seed, charType);
-        return _formatTraitsMetadata(data, charType);
+        CharacterType charType = CharacterType(uint8(uint256(packed) >> 96));
+        return _formatTraitsMetadata(_unpackCharacterData(packed), charType);
     }
 
     // =============================================================
     //                         TRAIT MANAGEMENT
     // =============================================================
 
-    /**
-     * @notice Add a new trait to the configuration using a FileStore pointer
-     * @param characterType Type of character (0=Normal, 1=Special, 2=OneOfOne)
-     * @param category Trait category index (0-11)
-     * @param name Human-readable trait name
-     * @param probability Weight for random selection
-     * @param fileStorePointer SSTORE2 pointer to ABI-encoded File struct
-     */
     function addTrait(
         uint8 characterType,
         uint8 category,
@@ -323,14 +250,6 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         emit TraitAdded(characterType, category, arr.length - 1, name, probability);
     }
 
-    /**
-     * @notice Add multiple traits in a single transaction using FileStore pointers
-     * @param characterTypes Array of character types
-     * @param categories Array of category indices
-     * @param names Array of trait names
-     * @param probabilities Array of selection weights
-     * @param fileStorePointers Array of SSTORE2 pointers to ABI-encoded File structs
-     */
     function batchAddTraits(
         uint8[] calldata characterTypes,
         uint8[] calldata categories,
@@ -362,24 +281,13 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         }
     }
 
-    /**
-     * @notice Set a complete SVG for a one-of-one token using a FileStore pointer
-     * @param tokenId The token ID to configure
-     * @param characterName Name for the unique character
-     * @param fileStorePointer SSTORE2 pointer to ABI-encoded File struct
-     */
     function setOneOfOne(
         uint256 tokenId,
         string calldata characterName,
         address fileStorePointer
     ) external onlyOwner {
         if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
-        if (distributionInitialized && tokenTypeAssignments[tokenId] != CharacterType.ONE_OF_ONE) {
-            revert InvalidTokenType();
-        }
         if (fileStorePointer == address(0)) revert InvalidPointer();
-
-        _reserveOneOfOne(tokenId);
 
         oneOfOnes[tokenId] = OneOfOneData({
             characterName: characterName,
@@ -390,12 +298,6 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         emit OneOfOneSet(tokenId, characterName);
     }
 
-    /**
-     * @notice Set multiple one-of-one tokens in a single transaction using FileStore pointers
-     * @param tokenIds Array of token IDs
-     * @param characterNames Array of character names
-     * @param fileStorePointers Array of SSTORE2 pointers to ABI-encoded File structs
-     */
     function batchSetOneOfOnes(
         uint256[] calldata tokenIds,
         string[] calldata characterNames,
@@ -407,12 +309,7 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         for (uint256 i; i < len; ) {
             uint256 tid = tokenIds[i];
             if (tid == 0 || tid > MAX_SUPPLY) revert InvalidTokenId();
-            if (distributionInitialized && tokenTypeAssignments[tid] != CharacterType.ONE_OF_ONE) {
-                revert InvalidTokenType();
-            }
             if (fileStorePointers[i] == address(0)) revert InvalidPointer();
-
-            _reserveOneOfOne(tid);
 
             oneOfOnes[tid] = OneOfOneData({
                 characterName: characterNames[i],
@@ -426,204 +323,28 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     }
 
     // =============================================================
-    //                    PLACEHOLDER & POOL MANAGEMENT
+    //                    PLACEHOLDER MANAGEMENT
     // =============================================================
 
-    /**
-     * @notice Set the placeholder SVG shown before reveal
-     * @param pointer SSTORE2 pointer to ABI-encoded File struct
-     */
     function setPlaceholderSvg(address pointer) external onlyOwner {
         if (pointer == address(0)) revert InvalidPointer();
         placeholderSvgPointer = pointer;
         emit PlaceholderSvgSet(pointer);
     }
 
-    /**
-     * @notice Add a one-of-one SVG to the pool for random assignment
-     * @param name Character name for the one-of-one
-     * @param pointer SSTORE2 pointer to ABI-encoded File struct
-     */
-    function addOneOfOneToPool(string calldata name, address pointer) external onlyOwner {
-        if (distributionInitialized) revert AlreadyInitialized();
-        if (pointer == address(0)) revert InvalidPointer();
-
-        oneOfOneSVGPool.push(OneOfOneSVG({name: name, svgPointer: pointer}));
-        emit OneOfOneAddedToPool(oneOfOneSVGPool.length - 1, name);
-    }
-
-    /**
-     * @notice Add multiple one-of-one SVGs to the pool in a single transaction
-     * @param names Array of character names
-     * @param pointers Array of SSTORE2 pointers to ABI-encoded File structs
-     */
-    function batchAddOneOfOnesToPool(
-        string[] calldata names,
-        address[] calldata pointers
-    ) external onlyOwner {
-        if (distributionInitialized) revert AlreadyInitialized();
-        uint256 len = names.length;
-        if (len != pointers.length) revert ArrayLengthMismatch();
-
-        for (uint256 i; i < len; ) {
-            if (pointers[i] == address(0)) revert InvalidPointer();
-            oneOfOneSVGPool.push(OneOfOneSVG({name: names[i], svgPointer: pointers[i]}));
-            emit OneOfOneAddedToPool(oneOfOneSVGPool.length - 1, names[i]);
-            unchecked { ++i; }
-        }
-    }
-
     // =============================================================
-    //                 INCOMPATIBILITY RULE MANAGEMENT
+    //                      REVEAL MANAGEMENT
     // =============================================================
 
-    function addIncompatibilityRule(
-        uint8 categoryA,
-        uint8 traitIndexA,
-        uint8 categoryB,
-        uint8 traitIndexB
-    ) external onlyOwner {
-        if (distributionInitialized) revert RulesLocked();
-        if (categoryA >= CATEGORY_COUNT || categoryB >= CATEGORY_COUNT) revert InvalidCategory();
-        if (traitIndexA == 0 || traitIndexB == 0) revert InvalidRule();
-        if (incompatibilityRules.length >= MAX_RULES) revert MaxRulesExceeded();
-
-        uint16 traitA = _encodeTraitId(categoryA, traitIndexA);
-        uint16 traitB = _encodeTraitId(categoryB, traitIndexB);
-        (uint16 normA, uint16 normB) = _normalizeRule(traitA, traitB);
-
-        (, bool found) = _findRuleIndex(normA, normB);
-        if (found) revert DuplicateRule();
-
-        incompatibilityRules.push(IncompatibilityRule({traitA: normA, traitB: normB}));
-        _hasIncompatibilities[normA] = true;
-        _hasIncompatibilities[normB] = true;
-
-        emit IncompatibilityRuleAdded(categoryA, traitIndexA, categoryB, traitIndexB);
-    }
-
-    function batchAddIncompatibilityRules(
-        uint8[] calldata categoriesA,
-        uint8[] calldata traitIndicesA,
-        uint8[] calldata categoriesB,
-        uint8[] calldata traitIndicesB
-    ) external onlyOwner {
-        if (distributionInitialized) revert RulesLocked();
-        uint256 len = categoriesA.length;
-        if (len != traitIndicesA.length || len != categoriesB.length || len != traitIndicesB.length) {
-            revert ArrayLengthMismatch();
-        }
-        if (incompatibilityRules.length + len > MAX_RULES) revert MaxRulesExceeded();
-
-        for (uint256 i; i < len; ) {
-            uint8 catA = categoriesA[i];
-            uint8 idxA = traitIndicesA[i];
-            uint8 catB = categoriesB[i];
-            uint8 idxB = traitIndicesB[i];
-
-            if (catA >= CATEGORY_COUNT || catB >= CATEGORY_COUNT) revert InvalidCategory();
-            if (idxA == 0 || idxB == 0) revert InvalidRule();
-
-            uint16 traitA = _encodeTraitId(catA, idxA);
-            uint16 traitB = _encodeTraitId(catB, idxB);
-            (uint16 normA, uint16 normB) = _normalizeRule(traitA, traitB);
-
-            (, bool found) = _findRuleIndex(normA, normB);
-            if (found) revert DuplicateRule();
-
-            incompatibilityRules.push(IncompatibilityRule({traitA: normA, traitB: normB}));
-            _hasIncompatibilities[normA] = true;
-            _hasIncompatibilities[normB] = true;
-
-            emit IncompatibilityRuleAdded(catA, idxA, catB, idxB);
-            unchecked { ++i; }
-        }
-    }
-
-    function removeIncompatibilityRule(
-        uint8 categoryA,
-        uint8 traitIndexA,
-        uint8 categoryB,
-        uint8 traitIndexB
-    ) external onlyOwner {
-        if (distributionInitialized) revert RulesLocked();
-
-        uint16 traitA = _encodeTraitId(categoryA, traitIndexA);
-        uint16 traitB = _encodeTraitId(categoryB, traitIndexB);
-        (uint16 normA, uint16 normB) = _normalizeRule(traitA, traitB);
-
-        (uint256 idx, bool found) = _findRuleIndex(normA, normB);
-        if (!found) revert RuleNotFound();
-
-        uint256 lastIdx = incompatibilityRules.length - 1;
-        if (idx != lastIdx) {
-            incompatibilityRules[idx] = incompatibilityRules[lastIdx];
-        }
-        incompatibilityRules.pop();
-
-        emit IncompatibilityRuleRemoved(categoryA, traitIndexA, categoryB, traitIndexB);
-    }
-
-    function clearAllIncompatibilityRules() external onlyOwner {
-        if (distributionInitialized) revert RulesLocked();
-
-        uint256 count = incompatibilityRules.length;
-        for (uint256 i; i < count; ) {
-            IncompatibilityRule storage rule = incompatibilityRules[i];
-            _hasIncompatibilities[rule.traitA] = false;
-            _hasIncompatibilities[rule.traitB] = false;
-            unchecked { ++i; }
-        }
-        delete incompatibilityRules;
-
-        emit AllIncompatibilityRulesCleared(count);
+    function reveal() external onlyOwner {
+        revealed = true;
+        emit Revealed();
     }
 
     // =============================================================
     //                         VIEW FUNCTIONS
     // =============================================================
 
-    /**
-     * @notice Get paginated list of token IDs by character type
-     * @param charType The character type to filter by
-     * @param offset Number of matches to skip
-     * @param limit Maximum number of results to return
-     * @return tokenIds Array of matching token IDs
-     */
-    function getTokenIdsByType(CharacterType charType, uint256 offset, uint256 limit)
-        external
-        view
-        returns (uint256[] memory tokenIds)
-    {
-        if (!distributionInitialized) revert NotInitialized();
-
-        uint256[] memory res = new uint256[](limit);
-        uint256 found;
-        uint256 skipped;
-
-        for (uint256 i = 1; i <= MAX_SUPPLY && found < limit; ) {
-            if (tokenTypeAssignments[i] == charType) {
-                if (skipped >= offset) {
-                    res[found] = i;
-                    unchecked { ++found; }
-                } else {
-                    unchecked { ++skipped; }
-                }
-            }
-            unchecked { ++i; }
-        }
-
-        assembly { mstore(res, found) }
-        return res;
-    }
-
-    /**
-     * @notice Get one-of-one configuration for a token
-     * @param tokenId The token ID to query
-     * @return characterName The unique character name
-     * @return svgContract SSTORE2 pointer address
-     * @return exists Whether the one-of-one is configured
-     */
     function getOneOfOneInfo(uint256 tokenId)
         external
         view
@@ -631,81 +352,6 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     {
         OneOfOneData storage ooo = oneOfOnes[tokenId];
         return (ooo.characterName, ooo.completeSvgContract, ooo.exists);
-    }
-
-    /**
-     * @notice Get the size of the one-of-one SVG pool
-     * @return Number of SVGs in the pool
-     */
-    function getOneOfOneSVGPoolSize() external view returns (uint256) {
-        return oneOfOneSVGPool.length;
-    }
-
-    function getReservedOneOfOneCount() external view returns (uint256) {
-        return reservedOneOfOneTokenIds.length;
-    }
-
-    function getIncompatibilityRuleCount() external view returns (uint256) {
-        return incompatibilityRules.length;
-    }
-
-    function getIncompatibilityRule(uint256 index)
-        external
-        view
-        returns (uint8 categoryA, uint8 traitIndexA, uint8 categoryB, uint8 traitIndexB)
-    {
-        if (index >= incompatibilityRules.length) revert InvalidTraitIndex();
-        IncompatibilityRule storage rule = incompatibilityRules[index];
-        (categoryA, traitIndexA) = _decodeTraitId(rule.traitA);
-        (categoryB, traitIndexB) = _decodeTraitId(rule.traitB);
-    }
-
-    function areTraitsIncompatible(
-        uint8 categoryA,
-        uint8 traitIndexA,
-        uint8 categoryB,
-        uint8 traitIndexB
-    ) external view returns (bool) {
-        uint16 traitA = _encodeTraitId(categoryA, traitIndexA);
-        uint16 traitB = _encodeTraitId(categoryB, traitIndexB);
-        return _areIncompatible(traitA, traitB);
-    }
-
-    function getIncompatibleTraits(uint8 category, uint8 traitIndex)
-        external
-        view
-        returns (uint8[] memory categories, uint8[] memory indices)
-    {
-        uint16 targetTrait = _encodeTraitId(category, traitIndex);
-        uint256 count;
-        uint256 len = incompatibilityRules.length;
-
-        for (uint256 i; i < len; ) {
-            IncompatibilityRule storage rule = incompatibilityRules[i];
-            if (rule.traitA == targetTrait || rule.traitB == targetTrait) {
-                unchecked { ++count; }
-            }
-            unchecked { ++i; }
-        }
-
-        categories = new uint8[](count);
-        indices = new uint8[](count);
-        uint256 idx;
-
-        for (uint256 i; i < len; ) {
-            IncompatibilityRule storage rule = incompatibilityRules[i];
-            uint16 other;
-            if (rule.traitA == targetTrait) {
-                other = rule.traitB;
-            } else if (rule.traitB == targetTrait) {
-                other = rule.traitA;
-            } else {
-                unchecked { ++i; }
-                continue;
-            }
-            (categories[idx], indices[idx]) = _decodeTraitId(other);
-            unchecked { ++idx; ++i; }
-        }
     }
 
     // =============================================================
@@ -718,197 +364,23 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         return bytes(file.read());
     }
 
-    function _reserveOneOfOne(uint256 tokenId) internal {
-        if (!isReservedOneOfOne[tokenId]) {
-            if (reservedOneOfOneTokenIds.length >= ONE_OF_ONE_COUNT) {
-                revert TooManyReservedOneOfOnes();
-            }
-            isReservedOneOfOne[tokenId] = true;
-            reservedOneOfOneTokenIds.push(tokenId);
-        }
+    function _unpackCharacterData(bytes32 packed) internal pure returns (CharacterData memory d) {
+        uint256 v = uint256(packed);
+        d.backdrop     = uint8(v);
+        d.head         = uint8(v >> 8);
+        d.expression   = uint8(v >> 16);
+        d.eyes         = uint8(v >> 24);
+        d.nose         = uint8(v >> 32);
+        d.eartip       = uint8(v >> 40);
+        d.earAccessory = uint8(v >> 48);
+        d.facialHair   = uint8(v >> 56);
+        d.mouth        = uint8(v >> 64);
+        d.chin         = uint8(v >> 72);
+        d.neck         = uint8(v >> 80);
+        d.accessory    = uint8(v >> 88);
     }
 
-    function _getCharacterTypeEnum(uint256 tokenId) internal view returns (CharacterType) {
-        if (!distributionInitialized) return CharacterType.NORMAL;
-        if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
-        return tokenTypeAssignments[tokenId];
-    }
-
-    function _encodeTraitId(uint8 category, uint8 traitIndex) internal pure returns (uint16) {
-        return (uint16(category) << 8) | uint16(traitIndex);
-    }
-
-    function _decodeTraitId(uint16 packed) internal pure returns (uint8 category, uint8 traitIndex) {
-        category = uint8(packed >> 8);
-        traitIndex = uint8(packed & 0xFF);
-    }
-
-    function _normalizeRule(uint16 a, uint16 b) internal pure returns (uint16, uint16) {
-        return a < b ? (a, b) : (b, a);
-    }
-
-    function _findRuleIndex(uint16 traitA, uint16 traitB) internal view returns (uint256, bool) {
-        uint256 len = incompatibilityRules.length;
-        for (uint256 i; i < len; ) {
-            IncompatibilityRule storage rule = incompatibilityRules[i];
-            if (rule.traitA == traitA && rule.traitB == traitB) {
-                return (i, true);
-            }
-            unchecked { ++i; }
-        }
-        return (0, false);
-    }
-
-    function _areIncompatible(uint16 traitA, uint16 traitB) internal view returns (bool) {
-        if (!_hasIncompatibilities[traitA] && !_hasIncompatibilities[traitB]) {
-            return false;
-        }
-        (uint16 normA, uint16 normB) = _normalizeRule(traitA, traitB);
-        (, bool found) = _findRuleIndex(normA, normB);
-        return found;
-    }
-
-    function _hasConflict(uint16 candidateTrait, uint8[12] memory selectedTraits) internal view returns (bool) {
-        if (!_hasIncompatibilities[candidateTrait]) return false;
-
-        for (uint8 cat; cat < CATEGORY_COUNT; ) {
-            uint8 sel = selectedTraits[cat];
-            if (sel != 0) {
-                uint16 existingTrait = _encodeTraitId(cat, sel);
-                if (_areIncompatible(candidateTrait, existingTrait)) {
-                    return true;
-                }
-            }
-            unchecked { ++cat; }
-        }
-        return false;
-    }
-
-    function _selectTraitWithConflictResolution(
-        uint8 characterType,
-        uint8 category,
-        uint256 baseSeed,
-        uint8[12] memory selectedTraits
-    ) internal view returns (uint8) {
-        uint8 selection = _selectTraitByProbability(characterType, category, baseSeed);
-        if (selection == 0) return 0;
-
-        uint16 candidateTrait = _encodeTraitId(category, selection);
-        if (!_hasConflict(candidateTrait, selectedTraits)) {
-            return selection;
-        }
-
-        for (uint8 attempt = 1; attempt <= 5; ) {
-            uint256 newSeed = uint256(keccak256(abi.encode(baseSeed, category, attempt)));
-            selection = _selectTraitByProbability(characterType, category, newSeed);
-            if (selection == 0) return 0;
-
-            candidateTrait = _encodeTraitId(category, selection);
-            if (!_hasConflict(candidateTrait, selectedTraits)) {
-                return selection;
-            }
-            unchecked { ++attempt; }
-        }
-
-        TraitConfig[] storage arr = traits[characterType][category];
-        if (arr.length == 0 && characterType != uint8(CharacterType.NORMAL)) {
-            arr = traits[uint8(CharacterType.NORMAL)][category];
-        }
-        uint256 n = arr.length;
-        for (uint8 i = 1; i <= n; ) {
-            candidateTrait = _encodeTraitId(category, i);
-            if (!_hasConflict(candidateTrait, selectedTraits)) {
-                return i;
-            }
-            unchecked { ++i; }
-        }
-
-        return _selectTraitByProbability(characterType, category, baseSeed);
-    }
-
-    function _generateCharacterData(uint256 seed, CharacterType charType) internal view returns (CharacterData memory d) {
-        if (incompatibilityRules.length == 0) {
-            return _generateCharacterDataSimple(seed, charType);
-        }
-        return _generateCharacterDataWithRules(seed, charType);
-    }
-
-    function _generateCharacterDataSimple(uint256 seed, CharacterType charType) internal view returns (CharacterData memory d) {
-        uint8 t = uint8(charType);
-
-        d.backdrop     = _selectTraitByProbability(t, 0,  uint256(seed >> 8));
-        d.head         = _selectTraitByProbability(t, 1,  uint256(seed >> 16));
-        d.expression   = _selectTraitByProbability(t, 2,  uint256(seed >> 24));
-        d.eyes         = _selectTraitByProbability(t, 3,  uint256(seed >> 32));
-        d.nose         = _selectTraitByProbability(t, 4,  uint256(seed >> 40));
-        d.eartip       = _selectTraitByProbability(t, 5,  uint256(seed >> 48));
-        d.earAccessory = _selectTraitByProbability(t, 6,  uint256(seed >> 56));
-        d.facialHair   = _selectTraitByProbability(t, 7,  uint256(seed >> 64));
-        d.mouth        = _selectTraitByProbability(t, 8,  uint256(seed >> 72));
-        d.chin         = _selectTraitByProbability(t, 9,  uint256(seed >> 80));
-        d.neck         = _selectTraitByProbability(t, 10, uint256(seed >> 88));
-        d.accessory    = _selectTraitByProbability(t, 11, uint256(seed >> 96));
-    }
-
-    function _generateCharacterDataWithRules(uint256 seed, CharacterType charType) internal view returns (CharacterData memory d) {
-        uint8 t = uint8(charType);
-        uint8[12] memory selected;
-
-        selected[0] = _selectTraitWithConflictResolution(t, 0, uint256(seed >> 8), selected);
-        selected[1] = _selectTraitWithConflictResolution(t, 1, uint256(seed >> 16), selected);
-        selected[2] = _selectTraitWithConflictResolution(t, 2, uint256(seed >> 24), selected);
-        selected[3] = _selectTraitWithConflictResolution(t, 3, uint256(seed >> 32), selected);
-        selected[4] = _selectTraitWithConflictResolution(t, 4, uint256(seed >> 40), selected);
-        selected[5] = _selectTraitWithConflictResolution(t, 5, uint256(seed >> 48), selected);
-        selected[6] = _selectTraitWithConflictResolution(t, 6, uint256(seed >> 56), selected);
-        selected[7] = _selectTraitWithConflictResolution(t, 7, uint256(seed >> 64), selected);
-        selected[8] = _selectTraitWithConflictResolution(t, 8, uint256(seed >> 72), selected);
-        selected[9] = _selectTraitWithConflictResolution(t, 9, uint256(seed >> 80), selected);
-        selected[10] = _selectTraitWithConflictResolution(t, 10, uint256(seed >> 88), selected);
-        selected[11] = _selectTraitWithConflictResolution(t, 11, uint256(seed >> 96), selected);
-
-        d.backdrop = selected[0];
-        d.head = selected[1];
-        d.expression = selected[2];
-        d.eyes = selected[3];
-        d.nose = selected[4];
-        d.eartip = selected[5];
-        d.earAccessory = selected[6];
-        d.facialHair = selected[7];
-        d.mouth = selected[8];
-        d.chin = selected[9];
-        d.neck = selected[10];
-        d.accessory = selected[11];
-    }
-
-    function _selectTraitByProbability(uint8 characterType, uint8 category, uint256 rnd) internal view returns (uint8) {
-        TraitConfig[] storage arr = traits[characterType][category];
-        if (arr.length == 0 && characterType != uint8(CharacterType.NORMAL)) {
-            arr = traits[uint8(CharacterType.NORMAL)][category];
-        }
-        uint256 n = arr.length;
-        if (n == 0) return 0;
-
-        uint256 total;
-        for (uint256 i; i < n; ) {
-            total += arr[i].probability;
-            unchecked { ++i; }
-        }
-        if (total == 0) return 0;
-
-        uint256 roll = rnd % total;
-        uint256 acc;
-        for (uint8 i; i < n; ) {
-            acc += arr[i].probability;
-            if (roll < acc) {
-                return i + 1;
-            }
-            unchecked { ++i; }
-        }
-        return uint8(n);
-    }
-
-    function _assembleSVG(CharacterData memory d, CharacterType charType) internal view returns (string memory) {
+    function _assembleSVG(CharacterData memory d, CharacterType charType) internal view returns (bytes memory) {
         uint8 t = uint8(charType);
         uint8[12] memory idx = [
             d.backdrop, d.head, d.expression, d.eyes,
@@ -934,13 +406,7 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
             unchecked { ++i; }
         }
 
-        return string(
-            abi.encodePacked(
-                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">',
-                layers,
-                "</svg>"
-            )
-        );
+        return layers;
     }
 
     function _formatOneOfOneMetadata(string memory nm) internal view returns (string memory) {

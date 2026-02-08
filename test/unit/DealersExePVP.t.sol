@@ -22,6 +22,9 @@ contract DealersExePVPTest is BaseTest {
 
         attackerToken = _mintAndInitialize(player1);
         defenderToken = _mintAndInitialize(player2);
+
+        _setReputation(attackerToken, 200);
+        _setReputation(defenderToken, 200);
     }
 
     // =============================================================
@@ -87,9 +90,21 @@ contract DealersExePVPTest is BaseTest {
         core.authorizeContract(address(this), false);
     }
 
+    function _setReputation(uint256 tokenId, uint256 targetRep) internal {
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
+        (, uint256 currentRep,,,,) = core.getDealerData(tokenId);
+        int256 change = int256(targetRep) - int256(currentRep);
+        core.updateReputation(tokenId, change);
+        vm.prank(owner);
+        core.authorizeContract(address(this), false);
+    }
+
     function _setupDealersForPVP() internal {
         _moveDealerToArea(attackerToken, AREA_MANHATTAN);
         _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 200);
+        _setReputation(defenderToken, 200);
         _addDrugsToDealer(attackerToken, DRUG_WEED, 1000);
         _addDrugsToDealer(defenderToken, DRUG_WEED, 1000);
     }
@@ -127,24 +142,31 @@ contract DealersExePVPTest is BaseTest {
             _setDealerStats(defenderToken, 0, 25);
         }
 
-        uint256 winChance = pvp.calculateWinChance(attackerToken, defenderToken);
+        (, uint256 attackerRepBefore,,,,) = core.getDealerData(attackerToken);
 
         for (uint256 i = 1; i < 10000; i++) {
-            uint256 randomness = uint256(keccak256(abi.encodePacked(
-                bytes32(i),
-                block.timestamp,
-                attackerToken,
-                defenderToken,
-                player1,
-                block.timestamp
-            )));
+            uint256 snapshotId = vm.snapshotState();
 
-            bool wouldWin = ((randomness >> 8) % 100) < winChance;
-            if (wantWin == wouldWin) {
-                return i;
+            vm.prevrandao(bytes32(i));
+            vm.prank(player1);
+
+            try pvp.attack(attackerToken, defenderToken) {
+                bool arrested = core.isInJail(attackerToken);
+                (, uint256 attackerRepAfter,,,,) = core.getDealerData(attackerToken);
+
+                vm.revertToState(snapshotId);
+
+                if (arrested) continue;
+
+                bool attackerWon = attackerRepAfter > attackerRepBefore;
+                if (wantWin == attackerWon) {
+                    return i;
+                }
+            } catch {
+                vm.revertToState(snapshotId);
             }
         }
-        return 1;
+        revert("Could not find suitable prevrandao");
     }
 
     function _executeAttackWithPrevrandao(uint256 prevrandaoValue) internal {
@@ -571,6 +593,7 @@ contract DealersExePVPTest is BaseTest {
         for (uint256 i = 0; i < 3; i++) {
             uint256 newAttacker = _mintAndInitialize(address(uint160(100 + i)));
             _moveDealerToArea(newAttacker, AREA_MANHATTAN);
+            _setReputation(newAttacker, 200);
             _addDrugsToDealer(newAttacker, DRUG_WEED, 1000);
 
             vm.prank(address(uint160(100 + i)));
@@ -579,6 +602,7 @@ contract DealersExePVPTest is BaseTest {
 
         uint256 fourthAttacker = _mintAndInitialize(address(uint160(200)));
         _moveDealerToArea(fourthAttacker, AREA_MANHATTAN);
+        _setReputation(fourthAttacker, 200);
         _addDrugsToDealer(fourthAttacker, DRUG_WEED, 1000);
 
         vm.prank(address(uint160(200)));
@@ -593,6 +617,7 @@ contract DealersExePVPTest is BaseTest {
         for (uint256 i = 0; i < 3; i++) {
             uint256 loopAttacker = _mintAndInitialize(address(uint160(100 + i)));
             _moveDealerToArea(loopAttacker, AREA_MANHATTAN);
+            _setReputation(loopAttacker, 200);
             _addDrugsToDealer(loopAttacker, DRUG_WEED, 1000);
 
             vm.prank(address(uint160(100 + i)));
@@ -603,6 +628,7 @@ contract DealersExePVPTest is BaseTest {
 
         uint256 newAttacker = _mintAndInitialize(address(uint160(300)));
         _moveDealerToArea(newAttacker, AREA_MANHATTAN);
+        _setReputation(newAttacker, 200);
         _addDrugsToDealer(newAttacker, DRUG_WEED, 1000);
 
         vm.prank(address(uint160(300)));
@@ -667,5 +693,88 @@ contract DealersExePVPTest is BaseTest {
         vm.prank(owner);
         vm.expectRevert(DealersExePVP.ContractNotSet.selector);
         pvp.setRandomness(address(0));
+    }
+
+    // =============================================================
+    //                     MIN REPUTATION (6 tests)
+    // =============================================================
+
+    function test_attack_revertAttackerBelowMinReputation() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 50);
+        _setReputation(defenderToken, 200);
+
+        vm.prank(player1);
+        vm.expectRevert(DealersExePVP.InsufficientReputation.selector);
+        pvp.attack(attackerToken, defenderToken);
+    }
+
+    function test_attack_revertDefenderBelowMinReputation() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 200);
+        _setReputation(defenderToken, 50);
+
+        vm.prank(player1);
+        vm.expectRevert(DealersExePVP.InsufficientReputation.selector);
+        pvp.attack(attackerToken, defenderToken);
+    }
+
+    function test_attack_succeedsWhenBothMeetMinReputation() public {
+        _setupDealersForPVP();
+        _mockJailChance(attackerToken, 0);
+
+        vm.prank(player1);
+        pvp.attack(attackerToken, defenderToken);
+    }
+
+    function test_attack_succeedsWhenMinReputationDisabled() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 0);
+        _setReputation(defenderToken, 0);
+        _addDrugsToDealer(attackerToken, DRUG_WEED, 1000);
+        _addDrugsToDealer(defenderToken, DRUG_WEED, 1000);
+        _mockJailChance(attackerToken, 0);
+
+        vm.prank(owner);
+        pvp.setPVPConfig(DealersExePVP.PVPConfig({
+            minReputation: 0,
+            baseWinChance: 50,
+            minWinChance: 25,
+            maxWinChance: 75,
+            maxAttacksPerDay: 3,
+            drugStealPercent: 2,
+            cashStealPercent: 1,
+            rarityWeightCommon: 50,
+            rarityWeightUncommon: 30,
+            rarityWeightRare: 20
+        }));
+
+        vm.prank(player1);
+        pvp.attack(attackerToken, defenderToken);
+    }
+
+    function test_canAttack_returnsReason11ForLowAttackerRep() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 50);
+        _setReputation(defenderToken, 200);
+
+        (bool canFight, uint8 reason) = pvp.canAttack(attackerToken, defenderToken);
+        assertFalse(canFight);
+        assertEq(reason, 11);
+    }
+
+    function test_canAttack_returnsReason12ForLowDefenderRep() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 200);
+        _setReputation(defenderToken, 50);
+
+        (bool canFight, uint8 reason) = pvp.canAttack(attackerToken, defenderToken);
+        assertFalse(canFight);
+        assertEq(reason, 12);
     }
 }

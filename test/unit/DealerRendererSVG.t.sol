@@ -13,9 +13,8 @@ contract DealerRendererSVGTest is Test {
     address public owner;
     address public nonOwner;
 
-    event IncompatibilityRuleAdded(uint8 categoryA, uint8 traitIndexA, uint8 categoryB, uint8 traitIndexB);
-    event IncompatibilityRuleRemoved(uint8 categoryA, uint8 traitIndexA, uint8 categoryB, uint8 traitIndexB);
-    event AllIncompatibilityRulesCleared(uint256 count);
+    event TraitsStored(uint256 indexed tokenId);
+    event TraitUpdated(uint256 indexed tokenId, uint8 indexed category, uint8 traitIndex);
 
     function setUp() public {
         owner = address(this);
@@ -54,433 +53,478 @@ contract DealerRendererSVGTest is Test {
         }
     }
 
-    function _addPoolSvgs(uint256 count) internal {
-        bytes memory dummySvg = bytes("<svg><text>Pool SVG</text></svg>");
-        for (uint256 i; i < count; i++) {
-            address ptr = _createFileStorePointer(dummySvg);
-            renderer.addOneOfOneToPool(string(abi.encodePacked("Pool", i)), ptr);
+    function _packTraits(uint8[12] memory t) internal pure returns (bytes32) {
+        return _packTraitsWithType(t, 0);
+    }
+
+    function _packTraitsWithType(uint8[12] memory t, uint8 charType) internal pure returns (bytes32) {
+        return bytes32(
+            uint256(t[0]) |
+            (uint256(t[1]) << 8) |
+            (uint256(t[2]) << 16) |
+            (uint256(t[3]) << 24) |
+            (uint256(t[4]) << 32) |
+            (uint256(t[5]) << 40) |
+            (uint256(t[6]) << 48) |
+            (uint256(t[7]) << 56) |
+            (uint256(t[8]) << 64) |
+            (uint256(t[9]) << 72) |
+            (uint256(t[10]) << 80) |
+            (uint256(t[11]) << 88) |
+            (uint256(charType) << 96)
+        );
+    }
+
+    function _svgPrefix(uint256 tokenId) internal pure returns (string memory) {
+        return string(abi.encodePacked(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" id="',
+            vm.toString(tokenId),
+            '">'
+        ));
+    }
+
+    function _wrapSvg(uint256 tokenId, string memory inner) internal pure returns (string memory) {
+        return string(abi.encodePacked(_svgPrefix(tokenId), inner, "</svg>"));
+    }
+
+    // =============================================================
+    //                    BATCH SET TRAITS TESTS
+    // =============================================================
+
+    function test_batchSetTraits_storesAndReadsBack() public {
+        uint256[] memory ids = new uint256[](2);
+        bytes32[] memory packed = new bytes32[](2);
+
+        ids[0] = 100;
+        ids[1] = 200;
+
+        uint8[12] memory t1 = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2];
+        uint8[12] memory t2 = [5, 4, 3, 2, 1, 5, 4, 3, 2, 1, 5, 4];
+
+        packed[0] = _packTraits(t1);
+        packed[1] = _packTraits(t2);
+
+        renderer.batchSetTraits(ids, packed);
+
+        uint8[12] memory result1 = renderer.getStoredTraits(ids[0]);
+        uint8[12] memory result2 = renderer.getStoredTraits(ids[1]);
+
+        for (uint8 i; i < 12; i++) {
+            assertEq(result1[i], t1[i]);
+            assertEq(result2[i], t2[i]);
         }
     }
 
-    function _setupForDistribution() internal {
-        _addPoolSvgs(35);
-    }
-
-    // =============================================================
-    //                      RULE ADDITION TESTS
-    // =============================================================
-
-    function test_addIncompatibilityRule_success() public {
-        vm.expectEmit(true, true, true, true);
-        emit IncompatibilityRuleAdded(0, 1, 1, 2);
-
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-
-        assertEq(renderer.getIncompatibilityRuleCount(), 1);
-    }
-
-    function test_addIncompatibilityRule_revertsWhenLocked() public {
-        _setupForDistribution();
-        renderer.initializeDistribution(12345);
-
-        vm.expectRevert(IDealerRendererSVG.RulesLocked.selector);
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-    }
-
-    function test_addIncompatibilityRule_revertsInvalidCategoryA() public {
-        vm.expectRevert(DealerRendererSVG.InvalidCategory.selector);
-        renderer.addIncompatibilityRule(12, 1, 1, 2);
-    }
-
-    function test_addIncompatibilityRule_revertsInvalidCategoryB() public {
-        vm.expectRevert(DealerRendererSVG.InvalidCategory.selector);
-        renderer.addIncompatibilityRule(0, 1, 12, 2);
-    }
-
-    function test_addIncompatibilityRule_revertsInvalidTraitIndexA() public {
-        vm.expectRevert(IDealerRendererSVG.InvalidRule.selector);
-        renderer.addIncompatibilityRule(0, 0, 1, 2);
-    }
-
-    function test_addIncompatibilityRule_revertsInvalidTraitIndexB() public {
-        vm.expectRevert(IDealerRendererSVG.InvalidRule.selector);
-        renderer.addIncompatibilityRule(0, 1, 1, 0);
-    }
-
-    function test_addIncompatibilityRule_revertsDuplicate() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-
-        vm.expectRevert(IDealerRendererSVG.DuplicateRule.selector);
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-    }
-
-    function test_addIncompatibilityRule_revertsDuplicateReversed() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-
-        vm.expectRevert(IDealerRendererSVG.DuplicateRule.selector);
-        renderer.addIncompatibilityRule(1, 2, 0, 1);
-    }
-
-    function test_addIncompatibilityRule_revertsMaxExceeded() public {
-        for (uint16 i; i < 256; i++) {
-            uint8 catA = uint8(i % 12);
-            uint8 catB = uint8((i + 1) % 12);
-            uint8 idxA = uint8((i / 12) % 5) + 1;
-            uint8 idxB = uint8((i / 60) % 5) + 1;
-            if (catA == catB && idxA == idxB) {
-                idxB = idxA == 5 ? 1 : idxA + 1;
-            }
-            renderer.addIncompatibilityRule(catA, idxA, catB, idxB);
-        }
-
-        vm.expectRevert(IDealerRendererSVG.MaxRulesExceeded.selector);
-        renderer.addIncompatibilityRule(0, 1, 11, 5);
-    }
-
-    function test_addIncompatibilityRule_revertsNonOwner() public {
-        vm.prank(nonOwner);
-        vm.expectRevert();
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-    }
-
-    // =============================================================
-    //                    BATCH ADDITION TESTS
-    // =============================================================
-
-    function test_batchAddIncompatibilityRules_success() public {
-        uint8[] memory catsA = new uint8[](2);
-        uint8[] memory idxsA = new uint8[](2);
-        uint8[] memory catsB = new uint8[](2);
-        uint8[] memory idxsB = new uint8[](2);
-
-        catsA[0] = 0; idxsA[0] = 1; catsB[0] = 1; idxsB[0] = 2;
-        catsA[1] = 2; idxsA[1] = 3; catsB[1] = 3; idxsB[1] = 4;
-
-        renderer.batchAddIncompatibilityRules(catsA, idxsA, catsB, idxsB);
-
-        assertEq(renderer.getIncompatibilityRuleCount(), 2);
-    }
-
-    function test_batchAddIncompatibilityRules_revertsArrayMismatch() public {
-        uint8[] memory catsA = new uint8[](2);
-        uint8[] memory idxsA = new uint8[](1);
-        uint8[] memory catsB = new uint8[](2);
-        uint8[] memory idxsB = new uint8[](2);
+    function test_batchSetTraits_revertsArrayLengthMismatch() public {
+        uint256[] memory ids = new uint256[](2);
+        bytes32[] memory packed = new bytes32[](1);
 
         vm.expectRevert(DealerRendererSVG.ArrayLengthMismatch.selector);
-        renderer.batchAddIncompatibilityRules(catsA, idxsA, catsB, idxsB);
+        renderer.batchSetTraits(ids, packed);
     }
 
-    function test_batchAddIncompatibilityRules_revertsMaxExceeded() public {
-        for (uint16 i; i < 255; i++) {
-            uint8 catA = uint8(i % 12);
-            uint8 catB = uint8((i + 1) % 12);
-            uint8 idxA = uint8((i / 12) % 5) + 1;
-            uint8 idxB = uint8((i / 60) % 5) + 1;
-            if (catA == catB && idxA == idxB) {
-                idxB = idxA == 5 ? 1 : idxA + 1;
+    function test_batchSetTraits_revertsInvalidTokenId() public {
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 0;
+        packed[0] = bytes32(uint256(1));
+
+        vm.expectRevert(DealerRendererSVG.InvalidTokenId.selector);
+        renderer.batchSetTraits(ids, packed);
+    }
+
+    function test_batchSetTraits_revertsInvalidTokenIdTooHigh() public {
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 8889;
+        packed[0] = bytes32(uint256(1));
+
+        vm.expectRevert(DealerRendererSVG.InvalidTokenId.selector);
+        renderer.batchSetTraits(ids, packed);
+    }
+
+    function test_batchSetTraits_revertsNonOwner() public {
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 1;
+        packed[0] = bytes32(uint256(1));
+
+        vm.prank(nonOwner);
+        vm.expectRevert();
+        renderer.batchSetTraits(ids, packed);
+    }
+
+    function test_batchSetTraits_emitsEvents() public {
+        uint256[] memory ids = new uint256[](2);
+        bytes32[] memory packed = new bytes32[](2);
+        ids[0] = 1;
+        ids[1] = 2;
+        packed[0] = bytes32(uint256(1));
+        packed[1] = bytes32(uint256(2));
+
+        vm.expectEmit(true, true, true, true);
+        emit TraitsStored(1);
+        vm.expectEmit(true, true, true, true);
+        emit TraitsStored(2);
+
+        renderer.batchSetTraits(ids, packed);
+    }
+
+    // =============================================================
+    //                  SET TRAIT FOR TOKEN TESTS
+    // =============================================================
+
+    function test_setTraitForToken_modifiesSingleCategory() public {
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 1;
+        uint8[12] memory t = [uint8(1), 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2];
+        packed[0] = _packTraits(t);
+        renderer.batchSetTraits(ids, packed);
+
+        renderer.setTraitForToken(1, 3, 99);
+
+        uint8[12] memory result = renderer.getStoredTraits(1);
+        assertEq(result[0], 1);
+        assertEq(result[1], 2);
+        assertEq(result[2], 3);
+        assertEq(result[3], 99);
+        assertEq(result[4], 5);
+        assertEq(result[5], 1);
+        assertEq(result[6], 2);
+        assertEq(result[7], 3);
+        assertEq(result[8], 4);
+        assertEq(result[9], 5);
+        assertEq(result[10], 1);
+        assertEq(result[11], 2);
+    }
+
+    function test_setTraitForToken_revertsInvalidTokenId() public {
+        vm.expectRevert(DealerRendererSVG.InvalidTokenId.selector);
+        renderer.setTraitForToken(0, 0, 1);
+    }
+
+    function test_setTraitForToken_revertsInvalidCategory() public {
+        vm.expectRevert(DealerRendererSVG.InvalidCategory.selector);
+        renderer.setTraitForToken(1, 12, 1);
+    }
+
+    function test_setTraitForToken_revertsNonOwner() public {
+        vm.prank(nonOwner);
+        vm.expectRevert();
+        renderer.setTraitForToken(1, 0, 1);
+    }
+
+    function test_setTraitForToken_emitsEvent() public {
+        vm.expectEmit(true, true, true, true);
+        emit TraitUpdated(1, 3, 99);
+
+        renderer.setTraitForToken(1, 3, 99);
+    }
+
+    // =============================================================
+    //                      isTraitStored TESTS
+    // =============================================================
+
+    function test_isTraitStored_falseByDefault() public view {
+        assertFalse(renderer.isTraitStored(1));
+    }
+
+    function test_isTraitStored_trueAfterSet() public {
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 1;
+        packed[0] = _packTraits([uint8(1), 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2]);
+        renderer.batchSetTraits(ids, packed);
+
+        assertTrue(renderer.isTraitStored(1));
+    }
+
+    // =============================================================
+    //                    CHARACTER TYPE TESTS
+    // =============================================================
+
+    function test_getCharacterType_normal() public {
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 100;
+        packed[0] = _packTraitsWithType([uint8(1), 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2], 0);
+        renderer.batchSetTraits(ids, packed);
+
+        assertEq(renderer.getCharacterType(100), 0);
+    }
+
+    function test_getCharacterType_special() public {
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 100;
+        packed[0] = _packTraitsWithType([uint8(1), 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2], 1);
+        renderer.batchSetTraits(ids, packed);
+
+        assertEq(renderer.getCharacterType(100), 1);
+    }
+
+    function test_getCharacterType_oneOfOne() public {
+        address ptr = _createFileStorePointer(bytes("<text>1of1</text>"));
+        renderer.setOneOfOne(100, "Legend", ptr);
+
+        assertEq(renderer.getCharacterType(100), 2);
+    }
+
+    function test_getCharacterType_defaultBeforeTraits() public view {
+        assertEq(renderer.getCharacterType(100), 0);
+    }
+
+    function test_getCharacterType_revertsInvalidTokenId() public {
+        vm.expectRevert(DealerRendererSVG.InvalidTokenId.selector);
+        renderer.getCharacterType(0);
+
+        vm.expectRevert(DealerRendererSVG.InvalidTokenId.selector);
+        renderer.getCharacterType(8889);
+    }
+
+    // =============================================================
+    //                      getSVG TESTS
+    // =============================================================
+
+    function test_getSVG_returnsPlaceholderWhenTraitsNotStored() public {
+        bytes memory placeholderInner = bytes("<text>Unrevealed</text>");
+        address ptr = _createFileStorePointer(placeholderInner);
+        renderer.setPlaceholderSvg(ptr);
+
+        string memory svg = renderer.getSVG(1, 0);
+        assertEq(svg, _wrapSvg(1, "<text>Unrevealed</text>"));
+    }
+
+    function test_getSVG_revertsTraitsNotStoredNoPlaceholder() public {
+        vm.expectRevert(IDealerRendererSVG.TraitsNotStored.selector);
+        renderer.getSVG(1, 0);
+    }
+
+    function test_getSVG_readsStoredTraits() public {
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 100;
+        packed[0] = _packTraits([uint8(1), 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2]);
+        renderer.batchSetTraits(ids, packed);
+        renderer.reveal();
+
+        string memory svg = renderer.getSVG(100, 0);
+        assertTrue(bytes(svg).length > 50);
+    }
+
+    function test_getSVG_containsTokenIdAttribute() public {
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 100;
+        packed[0] = _packTraits([uint8(1), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        renderer.batchSetTraits(ids, packed);
+        renderer.reveal();
+
+        string memory svg = renderer.getSVG(100, 0);
+        string memory expectedPrefix = _svgPrefix(100);
+
+        bytes memory svgBytes = bytes(svg);
+        bytes memory prefixBytes = bytes(expectedPrefix);
+
+        for (uint256 i; i < prefixBytes.length; i++) {
+            assertEq(svgBytes[i], prefixBytes[i]);
+        }
+    }
+
+    function test_getSVG_oneOfOne() public {
+        bytes memory innerContent = bytes("<text>Legend</text>");
+        address ptr = _createFileStorePointer(innerContent);
+        renderer.setOneOfOne(404, "TheLegend", ptr);
+        renderer.reveal();
+
+        string memory svg = renderer.getSVG(404, 0);
+        assertEq(svg, _wrapSvg(404, "<text>Legend</text>"));
+    }
+
+    function test_getSVG_showsPlaceholderBeforeRevealEvenWithTraits() public {
+        bytes memory placeholderInner = bytes("<text>Unrevealed</text>");
+        address ptr = _createFileStorePointer(placeholderInner);
+        renderer.setPlaceholderSvg(ptr);
+
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 100;
+        packed[0] = _packTraits([uint8(1), 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2]);
+        renderer.batchSetTraits(ids, packed);
+
+        string memory svg = renderer.getSVG(100, 0);
+        assertEq(svg, _wrapSvg(100, "<text>Unrevealed</text>"));
+    }
+
+    function test_getSVG_showsPlaceholderBeforeRevealEvenWithOneOfOne() public {
+        bytes memory placeholderInner = bytes("<text>Unrevealed</text>");
+        address placeholderPtr = _createFileStorePointer(placeholderInner);
+        renderer.setPlaceholderSvg(placeholderPtr);
+
+        address oooPtr = _createFileStorePointer(bytes("<text>Legend</text>"));
+        renderer.setOneOfOne(404, "TheLegend", oooPtr);
+
+        string memory svg = renderer.getSVG(404, 0);
+        assertEq(svg, _wrapSvg(404, "<text>Unrevealed</text>"));
+    }
+
+    function test_getSVG_specialUsesSpecialTraitPool() public {
+        bytes memory specialSvg = bytes("<circle class='special'/>");
+        for (uint8 cat; cat < 12; cat++) {
+            address ptr = _createFileStorePointer(specialSvg);
+            renderer.addTrait(1, cat, "SpecialTrait", 100, ptr);
+        }
+
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 500;
+        packed[0] = _packTraitsWithType([uint8(1), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 1);
+        renderer.batchSetTraits(ids, packed);
+        renderer.reveal();
+
+        string memory svg = renderer.getSVG(500, 0);
+        assertTrue(bytes(svg).length > 50);
+    }
+
+    // =============================================================
+    //                  TRAITS METADATA TESTS
+    // =============================================================
+
+    function test_getTraitsMetadata_unrevealedWhenTraitsNotStored() public view {
+        string memory metadata = renderer.getTraitsMetadataForToken(1, 12345);
+        assertEq(metadata, '{"trait_type":"Status","value":"Unrevealed"}');
+    }
+
+    function test_getTraitsMetadata_returnsCorrectNames() public {
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 100;
+        packed[0] = _packTraits([uint8(1), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        renderer.batchSetTraits(ids, packed);
+        renderer.reveal();
+
+        string memory metadata = renderer.getTraitsMetadataForToken(100, 0);
+        assertTrue(bytes(metadata).length > 50);
+
+        bytes memory metaBytes = bytes(metadata);
+        bool hasNormalType = false;
+        for (uint256 i = 0; i < metaBytes.length - 5; i++) {
+            if (metaBytes[i] == "N" && metaBytes[i+1] == "o" && metaBytes[i+2] == "r" &&
+                metaBytes[i+3] == "m" && metaBytes[i+4] == "a" && metaBytes[i+5] == "l") {
+                hasNormalType = true;
+                break;
             }
-            renderer.addIncompatibilityRule(catA, idxA, catB, idxB);
         }
-
-        uint8[] memory catsA = new uint8[](2);
-        uint8[] memory idxsA = new uint8[](2);
-        uint8[] memory catsB = new uint8[](2);
-        uint8[] memory idxsB = new uint8[](2);
-
-        catsA[0] = 0; idxsA[0] = 1; catsB[0] = 11; idxsB[0] = 5;
-        catsA[1] = 1; idxsA[1] = 1; catsB[1] = 11; idxsB[1] = 5;
-
-        vm.expectRevert(IDealerRendererSVG.MaxRulesExceeded.selector);
-        renderer.batchAddIncompatibilityRules(catsA, idxsA, catsB, idxsB);
+        assertTrue(hasNormalType);
     }
 
-    function test_batchAddIncompatibilityRules_revertsWhenLocked() public {
-        _setupForDistribution();
-        renderer.initializeDistribution(12345);
+    function test_getTraitsMetadata_unrevealedEvenWithTraitsStored() public {
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 100;
+        packed[0] = _packTraits([uint8(1), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        renderer.batchSetTraits(ids, packed);
 
-        uint8[] memory catsA = new uint8[](1);
-        uint8[] memory idxsA = new uint8[](1);
-        uint8[] memory catsB = new uint8[](1);
-        uint8[] memory idxsB = new uint8[](1);
-
-        catsA[0] = 0; idxsA[0] = 1; catsB[0] = 1; idxsB[0] = 2;
-
-        vm.expectRevert(IDealerRendererSVG.RulesLocked.selector);
-        renderer.batchAddIncompatibilityRules(catsA, idxsA, catsB, idxsB);
+        string memory metadata = renderer.getTraitsMetadataForToken(100, 0);
+        assertEq(metadata, '{"trait_type":"Status","value":"Unrevealed"}');
     }
 
-    // =============================================================
-    //                      RULE REMOVAL TESTS
-    // =============================================================
+    function test_getTraitsMetadata_specialFallsBackToNormal() public {
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 100;
+        packed[0] = _packTraitsWithType([uint8(1), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 1);
+        renderer.batchSetTraits(ids, packed);
+        renderer.reveal();
 
-    function test_removeIncompatibilityRule_success() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-        assertEq(renderer.getIncompatibilityRuleCount(), 1);
-
-        vm.expectEmit(true, true, true, true);
-        emit IncompatibilityRuleRemoved(0, 1, 1, 2);
-
-        renderer.removeIncompatibilityRule(0, 1, 1, 2);
-
-        assertEq(renderer.getIncompatibilityRuleCount(), 0);
-    }
-
-    function test_removeIncompatibilityRule_revertsNotFound() public {
-        vm.expectRevert(IDealerRendererSVG.RuleNotFound.selector);
-        renderer.removeIncompatibilityRule(0, 1, 1, 2);
-    }
-
-    function test_removeIncompatibilityRule_revertsWhenLocked() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-        _setupForDistribution();
-        renderer.initializeDistribution(12345);
-
-        vm.expectRevert(IDealerRendererSVG.RulesLocked.selector);
-        renderer.removeIncompatibilityRule(0, 1, 1, 2);
-    }
-
-    function test_removeIncompatibilityRule_worksReversed() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-        renderer.removeIncompatibilityRule(1, 2, 0, 1);
-
-        assertEq(renderer.getIncompatibilityRuleCount(), 0);
-    }
-
-    // =============================================================
-    //                      CLEAR RULES TESTS
-    // =============================================================
-
-    function test_clearAllIncompatibilityRules_success() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-        renderer.addIncompatibilityRule(2, 3, 3, 4);
-
-        vm.expectEmit(true, true, true, true);
-        emit AllIncompatibilityRulesCleared(2);
-
-        renderer.clearAllIncompatibilityRules();
-
-        assertEq(renderer.getIncompatibilityRuleCount(), 0);
-    }
-
-    function test_clearAllIncompatibilityRules_revertsWhenLocked() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-        _setupForDistribution();
-        renderer.initializeDistribution(12345);
-
-        vm.expectRevert(IDealerRendererSVG.RulesLocked.selector);
-        renderer.clearAllIncompatibilityRules();
-    }
-
-    // =============================================================
-    //                      VIEW FUNCTIONS TESTS
-    // =============================================================
-
-    function test_getIncompatibilityRuleCount() public {
-        assertEq(renderer.getIncompatibilityRuleCount(), 0);
-
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-        assertEq(renderer.getIncompatibilityRuleCount(), 1);
-
-        renderer.addIncompatibilityRule(2, 3, 3, 4);
-        assertEq(renderer.getIncompatibilityRuleCount(), 2);
-    }
-
-    function test_getIncompatibilityRule() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-
-        (uint8 catA, uint8 idxA, uint8 catB, uint8 idxB) = renderer.getIncompatibilityRule(0);
-
-        assertEq(catA, 0);
-        assertEq(idxA, 1);
-        assertEq(catB, 1);
-        assertEq(idxB, 2);
-    }
-
-    function test_getIncompatibilityRule_revertsInvalidIndex() public {
-        vm.expectRevert(DealerRendererSVG.InvalidTraitIndex.selector);
-        renderer.getIncompatibilityRule(0);
-    }
-
-    function test_areTraitsIncompatible_true() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-
-        assertTrue(renderer.areTraitsIncompatible(0, 1, 1, 2));
-        assertTrue(renderer.areTraitsIncompatible(1, 2, 0, 1));
-    }
-
-    function test_areTraitsIncompatible_false() public {
-        assertFalse(renderer.areTraitsIncompatible(0, 1, 1, 2));
-
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-        assertFalse(renderer.areTraitsIncompatible(0, 1, 2, 3));
-    }
-
-    function test_getIncompatibleTraits() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-        renderer.addIncompatibilityRule(0, 1, 2, 3);
-
-        (uint8[] memory cats, uint8[] memory idxs) = renderer.getIncompatibleTraits(0, 1);
-
-        assertEq(cats.length, 2);
-        assertEq(idxs.length, 2);
-
-        bool found1_2 = false;
-        bool found2_3 = false;
-        for (uint256 i; i < cats.length; i++) {
-            if (cats[i] == 1 && idxs[i] == 2) found1_2 = true;
-            if (cats[i] == 2 && idxs[i] == 3) found2_3 = true;
-        }
-        assertTrue(found1_2);
-        assertTrue(found2_3);
-    }
-
-    function test_getIncompatibleTraits_empty() public {
-        (uint8[] memory cats, uint8[] memory idxs) = renderer.getIncompatibleTraits(0, 1);
-
-        assertEq(cats.length, 0);
-        assertEq(idxs.length, 0);
-    }
-
-    // =============================================================
-    //                  CONFLICT RESOLUTION TESTS
-    // =============================================================
-
-    function test_conflictResolution_avoidsConflicts() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 1);
-
-        uint256 seed = 12345;
-        string memory svg = renderer.getSVG(1, seed);
-
-        assertTrue(bytes(svg).length > 0);
-    }
-
-    function test_conflictResolution_determinism() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 1);
-        renderer.addIncompatibilityRule(2, 2, 3, 2);
-
-        uint256 seed = 67890;
-
-        string memory svg1 = renderer.getSVG(1, seed);
-        string memory svg2 = renderer.getSVG(1, seed);
-
-        assertEq(keccak256(bytes(svg1)), keccak256(bytes(svg2)));
-    }
-
-    function test_noRules_usesSimplePath() public {
-        uint256 seed = 12345;
-        string memory svg = renderer.getSVG(1, seed);
-
-        assertTrue(bytes(svg).length > 0);
-    }
-
-    function test_conflictResolution_multipleRulesPerTrait() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 1);
-        renderer.addIncompatibilityRule(0, 1, 2, 1);
-        renderer.addIncompatibilityRule(0, 1, 3, 1);
-
-        uint256 seed = 11111;
-        string memory svg = renderer.getSVG(1, seed);
-
-        assertTrue(bytes(svg).length > 0);
-    }
-
-    // =============================================================
-    //                      EDGE CASES TESTS
-    // =============================================================
-
-    function test_bidirectionalDetection() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-
-        assertTrue(renderer.areTraitsIncompatible(0, 1, 1, 2));
-        assertTrue(renderer.areTraitsIncompatible(1, 2, 0, 1));
-    }
-
-    function test_sameCategoryDifferentTraits() public {
-        renderer.addIncompatibilityRule(0, 1, 0, 2);
-
-        assertTrue(renderer.areTraitsIncompatible(0, 1, 0, 2));
-        assertEq(renderer.getIncompatibilityRuleCount(), 1);
-    }
-
-    function test_ruleRemovalMaintainsOtherRules() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-        renderer.addIncompatibilityRule(2, 3, 3, 4);
-        renderer.addIncompatibilityRule(4, 5, 5, 1);
-
-        renderer.removeIncompatibilityRule(2, 3, 3, 4);
-
-        assertEq(renderer.getIncompatibilityRuleCount(), 2);
-        assertTrue(renderer.areTraitsIncompatible(0, 1, 1, 2));
-        assertTrue(renderer.areTraitsIncompatible(4, 5, 5, 1));
-        assertFalse(renderer.areTraitsIncompatible(2, 3, 3, 4));
-    }
-
-    function test_clearAndReaddRules() public {
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-        renderer.clearAllIncompatibilityRules();
-
-        renderer.addIncompatibilityRule(0, 1, 1, 2);
-        assertEq(renderer.getIncompatibilityRuleCount(), 1);
-    }
-
-    function test_specialCharacter_fallsBackToNormalTraits() public {
-        _setupForDistribution();
-        renderer.initializeDistribution(42);
-
-        uint256[] memory specialTokens = renderer.getTokenIdsByType(
-            IDealerRendererSVG.CharacterType.SPECIAL,
-            0,
-            1
-        );
-        require(specialTokens.length > 0, "No SPECIAL tokens found");
-
-        uint256 specialTokenId = specialTokens[0];
-        uint256 seed = 12345;
-
-        string memory svg = renderer.getSVG(specialTokenId, seed);
-        assertTrue(bytes(svg).length > 50, "SVG should contain traits from NORMAL fallback");
-
-        string memory metadata = renderer.getTraitsMetadataForToken(specialTokenId, seed);
-        assertTrue(bytes(metadata).length > 50, "Metadata should contain traits from NORMAL fallback");
+        string memory metadata = renderer.getTraitsMetadataForToken(100, 0);
+        assertTrue(bytes(metadata).length > 50);
 
         bytes memory metaBytes = bytes(metadata);
         bool hasSpecialType = false;
-        for (uint256 i = 0; i < metaBytes.length - 7; i++) {
+        for (uint256 i = 0; i < metaBytes.length - 6; i++) {
             if (metaBytes[i] == "S" && metaBytes[i+1] == "p" && metaBytes[i+2] == "e" &&
                 metaBytes[i+3] == "c" && metaBytes[i+4] == "i" && metaBytes[i+5] == "a" && metaBytes[i+6] == "l") {
                 hasSpecialType = true;
                 break;
             }
         }
-        assertTrue(hasSpecialType, "Metadata should show Character Type as Special");
+        assertTrue(hasSpecialType);
+    }
+
+    function test_getTraitsMetadata_oneOfOne() public {
+        address ptr = _createFileStorePointer(bytes("<text>1of1</text>"));
+        renderer.setOneOfOne(100, "TheBoss", ptr);
+        renderer.reveal();
+
+        string memory metadata = renderer.getTraitsMetadataForToken(100, 0);
+
+        bytes memory metaBytes = bytes(metadata);
+        bool hasOneOfOne = false;
+        for (uint256 i = 0; i < metaBytes.length - 9; i++) {
+            if (metaBytes[i] == "O" && metaBytes[i+1] == "n" && metaBytes[i+2] == "e" &&
+                metaBytes[i+3] == " " && metaBytes[i+4] == "o" && metaBytes[i+5] == "f") {
+                hasOneOfOne = true;
+                break;
+            }
+        }
+        assertTrue(hasOneOfOne);
     }
 
     // =============================================================
-    //                      FUZZ TESTS
+    //                    PACK / UNPACK ROUNDTRIP
     // =============================================================
 
-    function testFuzz_addIncompatibilityRule(uint8 catA, uint8 idxA, uint8 catB, uint8 idxB) public {
-        catA = uint8(bound(catA, 0, 11));
-        catB = uint8(bound(catB, 0, 11));
-        idxA = uint8(bound(idxA, 1, 255));
-        idxB = uint8(bound(idxB, 1, 255));
+    function test_packUnpack_roundtrip() public {
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 1;
 
-        renderer.addIncompatibilityRule(catA, idxA, catB, idxB);
+        uint8[12] memory t = [uint8(1), 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+        packed[0] = _packTraits(t);
+        renderer.batchSetTraits(ids, packed);
 
-        assertTrue(renderer.areTraitsIncompatible(catA, idxA, catB, idxB));
+        uint8[12] memory result = renderer.getStoredTraits(1);
+        for (uint8 i; i < 12; i++) {
+            assertEq(result[i], t[i]);
+        }
     }
 
-    function testFuzz_conflictResolution_neverReverts(uint256 seed) public {
-        renderer.addIncompatibilityRule(0, 1, 1, 1);
-        renderer.addIncompatibilityRule(1, 2, 2, 2);
+    function test_packUnpack_maxValues() public {
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 1;
 
-        string memory svg = renderer.getSVG(1, seed);
-        assertTrue(bytes(svg).length > 0);
+        uint8[12] memory t = [uint8(255), 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255];
+        packed[0] = _packTraits(t);
+        renderer.batchSetTraits(ids, packed);
+
+        uint8[12] memory result = renderer.getStoredTraits(1);
+        for (uint8 i; i < 12; i++) {
+            assertEq(result[i], 255);
+        }
+    }
+
+    function test_packWithType_preservesCharType() public {
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 1;
+
+        uint8[12] memory t = [uint8(1), 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+        packed[0] = _packTraitsWithType(t, 1);
+        renderer.batchSetTraits(ids, packed);
+
+        uint8[12] memory result = renderer.getStoredTraits(1);
+        for (uint8 i; i < 12; i++) {
+            assertEq(result[i], t[i]);
+        }
+
+        assertEq(renderer.getCharacterType(1), 1);
     }
 
     // =============================================================
-    //                    FILESTORE INTEGRATION TESTS
+    //                TRAIT UPLOAD TESTS
     // =============================================================
 
     function test_addTrait_withFileStorePointer() public {
@@ -528,8 +572,12 @@ contract DealerRendererSVGTest is Test {
         renderer.batchAddTraits(characterTypes, categories, names, probabilities, pointers);
     }
 
+    // =============================================================
+    //                  ONE-OF-ONE TESTS
+    // =============================================================
+
     function test_setOneOfOne_withFileStorePointer() public {
-        bytes memory svgData = bytes("<svg><text>One of One</text></svg>");
+        bytes memory svgData = bytes("<text>One of One</text>");
         address ptr = _createFileStorePointer(svgData);
 
         renderer.setOneOfOne(1, "Legendary", ptr);
@@ -553,8 +601,8 @@ contract DealerRendererSVGTest is Test {
         tokenIds[0] = 1; names[0] = "Legend1";
         tokenIds[1] = 2; names[1] = "Legend2";
 
-        pointers[0] = _createFileStorePointer(bytes("<svg>1</svg>"));
-        pointers[1] = _createFileStorePointer(bytes("<svg>2</svg>"));
+        pointers[0] = _createFileStorePointer(bytes("<text>1</text>"));
+        pointers[1] = _createFileStorePointer(bytes("<text>2</text>"));
 
         renderer.batchSetOneOfOnes(tokenIds, names, pointers);
 
@@ -574,37 +622,11 @@ contract DealerRendererSVGTest is Test {
         tokenIds[0] = 1; names[0] = "Test1";
         tokenIds[1] = 2; names[1] = "Test2";
 
-        pointers[0] = _createFileStorePointer(bytes("<svg/>"));
+        pointers[0] = _createFileStorePointer(bytes("<text/>"));
         pointers[1] = address(0);
 
         vm.expectRevert(IDealerRendererSVG.InvalidPointer.selector);
         renderer.batchSetOneOfOnes(tokenIds, names, pointers);
-    }
-
-    function test_getSVG_readsFromFileStorePointer() public {
-        bytes memory svgContent = bytes("<rect x='0' y='0' width='100' height='100'/>");
-        address ptr = _createFileStorePointer(svgContent);
-
-        renderer.addTrait(0, 0, "TestRect", 10000, ptr);
-
-        uint256 seed = 999999;
-        string memory svg = renderer.getSVG(1, seed);
-
-        assertTrue(bytes(svg).length > 0);
-        assertGt(bytes(svg).length, 50);
-    }
-
-    function test_getSVG_oneOfOne_readsFromFileStorePointer() public {
-        bytes memory fullSvg = bytes('<svg xmlns="http://www.w3.org/2000/svg"><text>Legend</text></svg>');
-        address ptr = _createFileStorePointer(fullSvg);
-
-        renderer.setOneOfOne(404, "TheLegend", ptr);
-
-        _setupForDistribution();
-        renderer.initializeDistribution(42);
-
-        string memory svg = renderer.getSVG(404, 0);
-        assertEq(svg, string(fullSvg));
     }
 
     // =============================================================
@@ -612,7 +634,7 @@ contract DealerRendererSVGTest is Test {
     // =============================================================
 
     function test_setPlaceholderSvg_success() public {
-        bytes memory placeholderData = bytes('<svg><text>Unrevealed</text></svg>');
+        bytes memory placeholderData = bytes("<text>Unrevealed</text>");
         address ptr = _createFileStorePointer(placeholderData);
 
         renderer.setPlaceholderSvg(ptr);
@@ -625,146 +647,77 @@ contract DealerRendererSVGTest is Test {
         renderer.setPlaceholderSvg(address(0));
     }
 
-    function test_getSVG_returnsPlaceholderBeforeReveal() public {
-        bytes memory placeholderData = bytes('<svg><text>Unrevealed</text></svg>');
-        address ptr = _createFileStorePointer(placeholderData);
+    // =============================================================
+    //                      REVEAL TESTS
+    // =============================================================
 
-        renderer.setPlaceholderSvg(ptr);
-
-        string memory svg = renderer.getSVG(1, 12345);
-        assertEq(svg, string(placeholderData));
+    function test_reveal_setsFlag() public {
+        assertFalse(renderer.revealed());
+        renderer.reveal();
+        assertTrue(renderer.revealed());
     }
 
-    function test_getSVG_returnsRealSvgAfterReveal() public {
-        bytes memory placeholderData = bytes('<svg><text>Unrevealed</text></svg>');
-        address ptr = _createFileStorePointer(placeholderData);
-
-        renderer.setPlaceholderSvg(ptr);
-        _setupForDistribution();
-        renderer.initializeDistribution(42);
-
-        string memory svg = renderer.getSVG(1, 12345);
-        assertFalse(keccak256(bytes(svg)) == keccak256(placeholderData));
-    }
-
-    function test_getTraitsMetadata_returnsUnrevealedBeforeDistribution() public {
-        string memory metadata = renderer.getTraitsMetadataForToken(1, 12345);
-        assertEq(metadata, '{"trait_type":"Status","value":"Unrevealed"}');
+    function test_reveal_revertsNonOwner() public {
+        vm.prank(nonOwner);
+        vm.expectRevert();
+        renderer.reveal();
     }
 
     // =============================================================
-    //                    POOL SVG TESTS
+    //                      OWNER ACCESS TESTS
     // =============================================================
 
-    function test_addOneOfOneToPool_success() public {
-        bytes memory svgData = bytes('<svg><text>Pool 1</text></svg>');
-        address ptr = _createFileStorePointer(svgData);
+    function test_addTrait_revertsNonOwner() public {
+        address ptr = _createFileStorePointer(bytes("<rect/>"));
 
-        renderer.addOneOfOneToPool("PoolChar1", ptr);
-
-        assertEq(renderer.getOneOfOneSVGPoolSize(), 1);
+        vm.prank(nonOwner);
+        vm.expectRevert();
+        renderer.addTrait(0, 0, "Test", 100, ptr);
     }
 
-    function test_addOneOfOneToPool_revertsAfterDistribution() public {
-        _setupForDistribution();
-        renderer.initializeDistribution(42);
+    // =============================================================
+    //                      FUZZ TESTS
+    // =============================================================
 
-        bytes memory svgData = bytes('<svg><text>Pool</text></svg>');
-        address ptr = _createFileStorePointer(svgData);
+    function testFuzz_packUnpack_roundtrip(
+        uint8 a, uint8 b, uint8 c, uint8 d, uint8 e, uint8 f,
+        uint8 g, uint8 h, uint8 i, uint8 j, uint8 k, uint8 l
+    ) public {
+        uint8[12] memory t = [a, b, c, d, e, f, g, h, i, j, k, l];
+        bytes32 packed = _packTraits(t);
 
-        vm.expectRevert(Ownable.AlreadyInitialized.selector);
-        renderer.addOneOfOneToPool("Late", ptr);
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packedArr = new bytes32[](1);
+        ids[0] = 1;
+        packedArr[0] = packed;
+        renderer.batchSetTraits(ids, packedArr);
+
+        uint8[12] memory result = renderer.getStoredTraits(1);
+        for (uint8 idx; idx < 12; idx++) {
+            assertEq(result[idx], t[idx]);
+        }
     }
 
-    function test_batchAddOneOfOnesToPool_success() public {
-        string[] memory names = new string[](3);
-        address[] memory pointers = new address[](3);
+    function testFuzz_setTraitForToken_preservesOtherCategories(uint8 category, uint8 newValue) public {
+        category = uint8(bound(category, 0, 11));
 
-        names[0] = "Pool1";
-        names[1] = "Pool2";
-        names[2] = "Pool3";
+        uint8[12] memory t = [uint8(10), 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120];
 
-        pointers[0] = _createFileStorePointer(bytes("<svg>1</svg>"));
-        pointers[1] = _createFileStorePointer(bytes("<svg>2</svg>"));
-        pointers[2] = _createFileStorePointer(bytes("<svg>3</svg>"));
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 1;
+        packed[0] = _packTraits(t);
+        renderer.batchSetTraits(ids, packed);
 
-        renderer.batchAddOneOfOnesToPool(names, pointers);
+        renderer.setTraitForToken(1, category, newValue);
 
-        assertEq(renderer.getOneOfOneSVGPoolSize(), 3);
-    }
-
-    function test_initializeDistribution_revertsInsufficientPool() public {
-        vm.expectRevert(IDealerRendererSVG.InsufficientPoolSize.selector);
-        renderer.initializeDistribution(42);
-    }
-
-    function test_initializeDistribution_reservedTokensGetTheirSvg() public {
-        bytes memory reservedSvg = bytes('<svg><text>Reserved 404</text></svg>');
-        address reservedPtr = _createFileStorePointer(reservedSvg);
-
-        renderer.setOneOfOne(404, "404", reservedPtr);
-        _setupForDistribution();
-        renderer.initializeDistribution(42);
-
-        assertEq(renderer.getCharacterType(404), 2);
-
-        string memory svg = renderer.getSVG(404, 0);
-        assertEq(svg, string(reservedSvg));
-    }
-
-    function test_initializeDistribution_randomOneOfOnesGetPoolSvgs() public {
-        _setupForDistribution();
-        renderer.initializeDistribution(42);
-
-        uint256 foundPoolAssignment = 0;
-        for (uint256 i = 1; i <= 8888 && foundPoolAssignment == 0; i++) {
-            if (renderer.getCharacterType(i) == 2) {
-                uint256 poolIdx = renderer.tokenPoolIndex(i);
-                if (poolIdx > 0) {
-                    foundPoolAssignment = i;
-                }
+        uint8[12] memory result = renderer.getStoredTraits(1);
+        for (uint8 idx; idx < 12; idx++) {
+            if (idx == category) {
+                assertEq(result[idx], newValue);
+            } else {
+                assertEq(result[idx], t[idx]);
             }
         }
-
-        assertTrue(foundPoolAssignment > 0, "Should find at least one pool-assigned one-of-one");
-    }
-
-    function test_getSVG_poolAssignedOneOfOne() public {
-        bytes memory poolSvg = bytes('<svg><text>Pool SVG Content</text></svg>');
-        address poolPtr = _createFileStorePointer(poolSvg);
-
-        string[] memory names = new string[](35);
-        address[] memory pointers = new address[](35);
-        for (uint256 i; i < 35; i++) {
-            names[i] = string(abi.encodePacked("PoolChar", i));
-            pointers[i] = poolPtr;
-        }
-        renderer.batchAddOneOfOnesToPool(names, pointers);
-
-        renderer.initializeDistribution(42);
-
-        uint256 poolAssignedToken;
-        for (uint256 i = 1; i <= 8888; i++) {
-            if (renderer.getCharacterType(i) == 2 && renderer.tokenPoolIndex(i) > 0) {
-                poolAssignedToken = i;
-                break;
-            }
-        }
-
-        string memory svg = renderer.getSVG(poolAssignedToken, 0);
-        assertEq(svg, string(poolSvg));
-    }
-
-    function test_reservedOneOfOnes_forcedAsOneOfOne() public {
-        renderer.setOneOfOne(1, "First", _createFileStorePointer(bytes("<svg>1</svg>")));
-        renderer.setOneOfOne(8888, "Last", _createFileStorePointer(bytes("<svg>8888</svg>")));
-        renderer.setOneOfOne(4444, "Middle", _createFileStorePointer(bytes("<svg>4444</svg>")));
-
-        _setupForDistribution();
-        renderer.initializeDistribution(999);
-
-        assertEq(renderer.getCharacterType(1), 2);
-        assertEq(renderer.getCharacterType(8888), 2);
-        assertEq(renderer.getCharacterType(4444), 2);
     }
 }

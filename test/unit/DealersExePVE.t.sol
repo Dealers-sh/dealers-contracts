@@ -30,8 +30,8 @@ contract DealersExePVETest is Test, IERC721Receiver {
     address public bankVault;
     address public signer;
 
-    uint256 constant DEALER_ID_1 = 201;
-    uint256 constant DEALER_ID_2 = 202;
+    uint256 constant DEALER_ID_1 = 1;
+    uint256 constant DEALER_ID_2 = 2;
 
     uint256 constant DRUG_WEED = 1;
     uint256 constant DRUG_XTC = 2;
