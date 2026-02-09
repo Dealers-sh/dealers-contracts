@@ -148,14 +148,14 @@ contract BoostGameplayTest is BaseTest {
 
         boosts.purchaseBoost{value: KINGPIN_PRICE}(tokenId, KINGPIN_ID);
 
-        assertEq(core.getCashMultiplier(tokenId), 200, "Cash multiplier should be 200 (2x)");
+        assertEq(core.getCashMultiplier(tokenId), 175, "Cash multiplier should be 175 (1.75x)");
 
         vm.stopPrank();
 
         uint256 sellAmount = 20;
         uint256 sellPrice = 1;
         uint256 baseCashReward = sellAmount * sellPrice;
-        uint256 expectedBoostedCash = (baseCashReward * 200) / 100;
+        uint256 expectedBoostedCash = (baseCashReward * 175) / 100;
 
         bool foundWin = false;
         uint256 prevrandaoValue = 0;
@@ -186,7 +186,7 @@ contract BoostGameplayTest is BaseTest {
                     assertEq(
                         cashAfter,
                         cashBefore + expectedBoostedCash,
-                        "WIN SELL with boost: Should receive 2x cash"
+                        "WIN SELL with boost: Should receive 1.75x cash"
                     );
                     break;
                 }
@@ -312,7 +312,7 @@ contract BoostGameplayTest is BaseTest {
     function test_boost_allTierConfigurations() public {
         DealersExeBoosts.BoostTier memory grinder = boosts.getBoostTier(GRINDER_ID);
         assertEq(grinder.price, GRINDER_PRICE, "Grinder price");
-        assertEq(grinder.duration, 7 days, "Grinder duration");
+        assertEq(grinder.duration, 3 days, "Grinder duration");
         assertEq(grinder.drugMultiplier, 125, "Grinder drug mult");
         assertEq(grinder.repMultiplier, 125, "Grinder rep mult");
         assertEq(grinder.cashMultiplier, 125, "Grinder cash mult");
@@ -333,9 +333,9 @@ contract BoostGameplayTest is BaseTest {
         DealersExeBoosts.BoostTier memory kingpin = boosts.getBoostTier(KINGPIN_ID);
         assertEq(kingpin.price, KINGPIN_PRICE, "Kingpin price");
         assertEq(kingpin.duration, 30 days, "Kingpin duration");
-        assertEq(kingpin.drugMultiplier, 200, "Kingpin drug mult");
+        assertEq(kingpin.drugMultiplier, 175, "Kingpin drug mult");
         assertEq(kingpin.repMultiplier, 200, "Kingpin rep mult");
-        assertEq(kingpin.cashMultiplier, 200, "Kingpin cash mult");
+        assertEq(kingpin.cashMultiplier, 175, "Kingpin cash mult");
         assertEq(kingpin.extraAttempts, 10, "Kingpin extra attempts");
         assertTrue(kingpin.freeAreaMovement, "Kingpin free movement");
         assertTrue(kingpin.doubleHeistEntries, "Kingpin double heist");

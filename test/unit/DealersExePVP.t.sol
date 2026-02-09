@@ -109,11 +109,6 @@ contract DealersExePVPTest is BaseTest {
         _addDrugsToDealer(defenderToken, DRUG_WEED, 1000);
     }
 
-    function _executeAttack() internal {
-        vm.prank(player1);
-        pvp.attack(attackerToken, defenderToken);
-    }
-
     function _mockJailChance(uint256 tokenId, uint8 chance) internal {
         vm.mockCall(
             address(core),
@@ -126,53 +121,47 @@ contract DealersExePVPTest is BaseTest {
         vm.clearMockedCalls();
     }
 
-    function _findPrevrandaoForOutcome(bool wantWin, bool wantArrest) internal returns (uint256) {
-        if (wantArrest) {
-            _mockJailChance(attackerToken, 100);
-            return 1;
-        }
-
-        _mockJailChance(attackerToken, 0);
-
-        if (wantWin) {
-            _setDealerStats(attackerToken, 25, 0);
-            _setDealerStats(defenderToken, 0, 0);
-        } else {
-            _setDealerStats(attackerToken, 0, 0);
-            _setDealerStats(defenderToken, 0, 25);
-        }
-
-        (, uint256 attackerRepBefore,,,,) = core.getDealerData(attackerToken);
-
-        for (uint256 i = 1; i < 10000; i++) {
-            uint256 snapshotId = vm.snapshotState();
-
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-
-            try pvp.attack(attackerToken, defenderToken) {
-                bool arrested = core.isInJail(attackerToken);
-                (, uint256 attackerRepAfter,,,,) = core.getDealerData(attackerToken);
-
-                vm.revertToState(snapshotId);
-
-                if (arrested) continue;
-
-                bool attackerWon = attackerRepAfter > attackerRepBefore;
-                if (wantWin == attackerWon) {
-                    return i;
-                }
-            } catch {
-                vm.revertToState(snapshotId);
-            }
-        }
-        revert("Could not find suitable prevrandao");
+    function _mockRandomness(uint256 value) internal {
+        vm.mockCall(
+            address(randomness),
+            abi.encodeWithSignature("getRandomness(bytes32)"),
+            abi.encode(value)
+        );
     }
 
-    function _executeAttackWithPrevrandao(uint256 prevrandaoValue) internal {
-        vm.prevrandao(bytes32(prevrandaoValue));
+    function _buildRng(uint8 jailRoll, uint8 winRoll, uint8 rarityRoll) internal pure returns (uint256) {
+        return uint256(jailRoll)
+            | (uint256(winRoll) << 8)
+            | (uint256(rarityRoll) << 16);
+    }
+
+    function _setupForWin() internal {
+        _mockJailChance(attackerToken, 0);
+        _setDealerStats(attackerToken, 25, 0);
+        _setDealerStats(defenderToken, 0, 0);
+        _mockRandomness(_buildRng(50, 0, 10));
+    }
+
+    function _setupForLoss() internal {
+        _mockJailChance(attackerToken, 0);
+        _setDealerStats(attackerToken, 0, 0);
+        _setDealerStats(defenderToken, 0, 25);
+        _mockRandomness(_buildRng(50, 99, 10));
+    }
+
+    function _setupForArrest() internal {
+        _mockJailChance(attackerToken, 100);
+        _mockRandomness(_buildRng(0, 0, 10));
+    }
+
+    function _executeAttack() internal {
         vm.prank(player1);
         pvp.attack(attackerToken, defenderToken);
+    }
+
+    function _ceilDiv(uint256 a, uint256 b) internal pure returns (uint256) {
+        if (a == 0) return 0;
+        return (a - 1) / b + 1;
     }
 
     // =============================================================
@@ -311,70 +300,33 @@ contract DealersExePVPTest is BaseTest {
         _setupDealersForPVP();
 
         uint256 defenderWeedBefore = core.getDrugBalance(defenderToken, DRUG_WEED);
-        uint256 defenderXtcBefore = core.getDrugBalance(defenderToken, DRUG_XTC);
-        uint256 defenderCocaineBefore = core.getDrugBalance(defenderToken, DRUG_COCAINE);
         uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
-        uint256 attackerXtcBefore = core.getDrugBalance(attackerToken, DRUG_XTC);
-        uint256 attackerCocaineBefore = core.getDrugBalance(attackerToken, DRUG_COCAINE);
 
-        uint256 prevrandao = _findPrevrandaoForOutcome(true, false);
-        require(prevrandao > 0, "Could not find valid prevrandao for win");
-        _executeAttackWithPrevrandao(prevrandao);
+        _setupForWin();
+        _executeAttack();
 
         uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
-        uint256 defenderXtcAfter = core.getDrugBalance(defenderToken, DRUG_XTC);
-        uint256 defenderCocaineAfter = core.getDrugBalance(defenderToken, DRUG_COCAINE);
         uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
-        uint256 attackerXtcAfter = core.getDrugBalance(attackerToken, DRUG_XTC);
-        uint256 attackerCocaineAfter = core.getDrugBalance(attackerToken, DRUG_COCAINE);
 
-        uint256 drugsChanged = 0;
-        if (defenderWeedAfter < defenderWeedBefore) drugsChanged++;
-        if (defenderXtcAfter < defenderXtcBefore) drugsChanged++;
-        if (defenderCocaineAfter < defenderCocaineBefore) drugsChanged++;
+        uint256 stolen = defenderWeedBefore - defenderWeedAfter;
+        uint256 expected = _ceilDiv(defenderWeedBefore * 2, 100);
+        assertEq(stolen, expected, "Defender should lose 2% of weed");
 
-        assertEq(drugsChanged, 1, "Exactly one drug type should be stolen");
-
-        uint256 totalStolen =
-            (attackerWeedAfter - attackerWeedBefore) +
-            (attackerXtcAfter - attackerXtcBefore) +
-            (attackerCocaineAfter - attackerCocaineBefore);
-        assertGt(totalStolen, 0, "Some drugs should be stolen");
+        uint256 transferred = stolen / 2;
+        assertEq(attackerWeedAfter, attackerWeedBefore + transferred, "Attacker gains half of stolen");
     }
 
     function test_attack_attackerLoses_defenderSteals() public {
         _setupDealersForPVP();
 
         uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
-        uint256 attackerXtcBefore = core.getDrugBalance(attackerToken, DRUG_XTC);
-        uint256 attackerCocaineBefore = core.getDrugBalance(attackerToken, DRUG_COCAINE);
-        uint256 defenderWeedBefore = core.getDrugBalance(defenderToken, DRUG_WEED);
-        uint256 defenderXtcBefore = core.getDrugBalance(defenderToken, DRUG_XTC);
-        uint256 defenderCocaineBefore = core.getDrugBalance(defenderToken, DRUG_COCAINE);
 
-        uint256 prevrandao = _findPrevrandaoForOutcome(false, false);
-        require(prevrandao > 0, "Could not find valid prevrandao for loss");
-        _executeAttackWithPrevrandao(prevrandao);
+        _setupForLoss();
+        _executeAttack();
 
         uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
-        uint256 attackerXtcAfter = core.getDrugBalance(attackerToken, DRUG_XTC);
-        uint256 attackerCocaineAfter = core.getDrugBalance(attackerToken, DRUG_COCAINE);
-        uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
-        uint256 defenderXtcAfter = core.getDrugBalance(defenderToken, DRUG_XTC);
-        uint256 defenderCocaineAfter = core.getDrugBalance(defenderToken, DRUG_COCAINE);
 
-        uint256 attackerDrugsLost = 0;
-        if (attackerWeedAfter < attackerWeedBefore) attackerDrugsLost++;
-        if (attackerXtcAfter < attackerXtcBefore) attackerDrugsLost++;
-        if (attackerCocaineAfter < attackerCocaineBefore) attackerDrugsLost++;
-
-        assertEq(attackerDrugsLost, 1, "Attacker should lose exactly one drug type");
-
-        uint256 defenderTotalGained =
-            (defenderWeedAfter - defenderWeedBefore) +
-            (defenderXtcAfter - defenderXtcBefore) +
-            (defenderCocaineAfter - defenderCocaineBefore);
-        assertGt(defenderTotalGained, 0, "Defender should gain some drugs");
+        assertLt(attackerWeedAfter, attackerWeedBefore, "Attacker should lose drugs");
     }
 
     function test_attack_winnerGetsRepBoost() public {
@@ -382,9 +334,8 @@ contract DealersExePVPTest is BaseTest {
 
         (, uint256 attackerRepBefore,,,,) = core.getDealerData(attackerToken);
 
-        uint256 prevrandao = _findPrevrandaoForOutcome(true, false);
-        require(prevrandao > 0, "Could not find valid prevrandao for win");
-        _executeAttackWithPrevrandao(prevrandao);
+        _setupForWin();
+        _executeAttack();
 
         (, uint256 attackerRepAfter,,,,) = core.getDealerData(attackerToken);
 
@@ -396,9 +347,8 @@ contract DealersExePVPTest is BaseTest {
 
         (, uint256 attackerRepBefore,,,,) = core.getDealerData(attackerToken);
 
-        uint256 prevrandao = _findPrevrandaoForOutcome(false, false);
-        require(prevrandao > 0, "Could not find valid prevrandao for loss");
-        _executeAttackWithPrevrandao(prevrandao);
+        _setupForLoss();
+        _executeAttack();
 
         (, uint256 attackerRepAfter,,,,) = core.getDealerData(attackerToken);
 
@@ -418,21 +368,12 @@ contract DealersExePVPTest is BaseTest {
         uint256 defenderXtcBefore = core.getDrugBalance(defenderToken, DRUG_XTC);
         uint256 defenderCocaineBefore = core.getDrugBalance(defenderToken, DRUG_COCAINE);
 
-        uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
-        uint256 attackerXtcBefore = core.getDrugBalance(attackerToken, DRUG_XTC);
-        uint256 attackerCocaineBefore = core.getDrugBalance(attackerToken, DRUG_COCAINE);
-
-        uint256 prevrandao = _findPrevrandaoForOutcome(true, false);
-        require(prevrandao > 0, "Could not find valid prevrandao for win");
-        _executeAttackWithPrevrandao(prevrandao);
+        _setupForWin();
+        _executeAttack();
 
         uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
         uint256 defenderXtcAfter = core.getDrugBalance(defenderToken, DRUG_XTC);
         uint256 defenderCocaineAfter = core.getDrugBalance(defenderToken, DRUG_COCAINE);
-
-        uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
-        uint256 attackerXtcAfter = core.getDrugBalance(attackerToken, DRUG_XTC);
-        uint256 attackerCocaineAfter = core.getDrugBalance(attackerToken, DRUG_COCAINE);
 
         uint256 drugTypesStolen = 0;
         if (defenderWeedAfter < defenderWeedBefore) drugTypesStolen++;
@@ -440,21 +381,12 @@ contract DealersExePVPTest is BaseTest {
         if (defenderCocaineAfter < defenderCocaineBefore) drugTypesStolen++;
 
         assertEq(drugTypesStolen, 1, "Only one drug type should be stolen");
-
-        uint256 totalStolen =
-            (attackerWeedAfter - attackerWeedBefore) +
-            (attackerXtcAfter - attackerXtcBefore) +
-            (attackerCocaineAfter - attackerCocaineBefore);
-        assertGt(totalStolen, 0, "Winner should steal some drugs");
     }
 
     function test_attack_noStealIfZeroBalance() public {
-        // Dealers now start in Manhattan, no need to move
-        // Remove all drugs from defender to test zero balance steal
         vm.startPrank(owner);
         core.authorizeContract(address(this), true);
 
-        // Remove starter drugs from defender
         uint256 defenderWeed = core.getDrugBalance(defenderToken, DRUG_WEED);
         uint256 defenderXtc = core.getDrugBalance(defenderToken, DRUG_XTC);
         uint256 defenderCocaine = core.getDrugBalance(defenderToken, DRUG_COCAINE);
@@ -466,16 +398,10 @@ contract DealersExePVPTest is BaseTest {
         core.authorizeContract(address(this), false);
         vm.stopPrank();
 
-        uint256 defenderWeedBefore = core.getDrugBalance(defenderToken, DRUG_WEED);
+        _setupForWin();
+        _executeAttack();
 
-        uint256 prevrandao = _findPrevrandaoForOutcome(true, false);
-        require(prevrandao > 0, "Could not find valid prevrandao for win");
-        _executeAttackWithPrevrandao(prevrandao);
-
-        uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
-
-        assertEq(defenderWeedBefore, 0, "Defender Weed should be 0");
-        assertEq(defenderWeedAfter, 0, "No Weed stolen from zero balance");
+        assertEq(core.getDrugBalance(defenderToken, DRUG_WEED), 0, "No Weed stolen from zero balance");
     }
 
     function test_attack_roundsUpSteal() public {
@@ -497,14 +423,14 @@ contract DealersExePVPTest is BaseTest {
 
         uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
 
-        uint256 prevrandao = _findPrevrandaoForOutcome(true, false);
-        require(prevrandao > 0, "Could not find valid prevrandao for win");
-        _executeAttackWithPrevrandao(prevrandao);
+        _setupForWin();
+        _executeAttack();
 
         uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
         uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
 
-        assertEq(attackerWeedAfter, attackerWeedBefore + 1, "2% of 10 = 0.2 rounds UP to 1");
+        // stolen = ceilDiv(10 * 2, 100) = 1, transferred = 1/2 = 0 (burned entirely)
+        assertEq(attackerWeedAfter, attackerWeedBefore, "stolen=1, transferred=1/2=0, winner gets nothing");
         assertEq(defenderWeedAfter, 9, "Defender loses 1 (rounded up from 0.2)");
     }
 
@@ -518,21 +444,12 @@ contract DealersExePVPTest is BaseTest {
         uint256 defenderXtcBefore = core.getDrugBalance(defenderToken, DRUG_XTC);
         uint256 defenderCocaineBefore = core.getDrugBalance(defenderToken, DRUG_COCAINE);
 
-        uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
-        uint256 attackerXtcBefore = core.getDrugBalance(attackerToken, DRUG_XTC);
-        uint256 attackerCocaineBefore = core.getDrugBalance(attackerToken, DRUG_COCAINE);
-
-        uint256 prevrandao = _findPrevrandaoForOutcome(true, false);
-        require(prevrandao > 0, "Could not find valid prevrandao for win");
-        _executeAttackWithPrevrandao(prevrandao);
+        _setupForWin();
+        _executeAttack();
 
         uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
         uint256 defenderXtcAfter = core.getDrugBalance(defenderToken, DRUG_XTC);
         uint256 defenderCocaineAfter = core.getDrugBalance(defenderToken, DRUG_COCAINE);
-
-        uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
-        uint256 attackerXtcAfter = core.getDrugBalance(attackerToken, DRUG_XTC);
-        uint256 attackerCocaineAfter = core.getDrugBalance(attackerToken, DRUG_COCAINE);
 
         uint256 drugTypesDefenderLost = 0;
         if (defenderWeedAfter < defenderWeedBefore) drugTypesDefenderLost++;
@@ -540,12 +457,6 @@ contract DealersExePVPTest is BaseTest {
         if (defenderCocaineAfter < defenderCocaineBefore) drugTypesDefenderLost++;
 
         assertEq(drugTypesDefenderLost, 1, "Defender should lose exactly one drug type");
-
-        uint256 totalAttackerGained =
-            (attackerWeedAfter - attackerWeedBefore) +
-            (attackerXtcAfter - attackerXtcBefore) +
-            (attackerCocaineAfter - attackerCocaineBefore);
-        assertGt(totalAttackerGained, 0, "Attacker should gain drugs from one type");
     }
 
     // =============================================================
@@ -558,9 +469,8 @@ contract DealersExePVPTest is BaseTest {
 
         uint256 defenderDrugsBefore = core.getDrugBalance(defenderToken, DRUG_WEED);
 
-        uint256 prevrandao = _findPrevrandaoForOutcome(false, true);
-        require(prevrandao > 0, "Could not find valid prevrandao for arrest");
-        _executeAttackWithPrevrandao(prevrandao);
+        _setupForArrest();
+        _executeAttack();
 
         assertTrue(core.isInJail(attackerToken), "Attacker should be in jail");
         assertEq(
@@ -574,9 +484,8 @@ contract DealersExePVPTest is BaseTest {
         _setupDealersForPVP();
         _setHeatLevel(attackerToken, 5);
 
-        uint256 prevrandao = _findPrevrandaoForOutcome(false, true);
-        require(prevrandao > 0, "Could not find valid prevrandao for arrest");
-        _executeAttackWithPrevrandao(prevrandao);
+        _setupForArrest();
+        _executeAttack();
 
         assertTrue(core.isInJail(attackerToken), "Attacker should be in jail");
         assertFalse(core.isInJail(defenderToken), "Defender should not be in jail");
@@ -654,7 +563,6 @@ contract DealersExePVPTest is BaseTest {
 
     function test_attack_allowedAfterUnpause() public {
         _setupDealersForPVP();
-        _mockJailChance(attackerToken, 0);
 
         vm.prank(owner);
         pvp.pause();
@@ -662,9 +570,8 @@ contract DealersExePVPTest is BaseTest {
         vm.prank(owner);
         pvp.unpause();
 
-        uint256 prevrandao = _findPrevrandaoForOutcome(true, false);
-        require(prevrandao > 0, "Could not find valid prevrandao for win");
-        _executeAttackWithPrevrandao(prevrandao);
+        _setupForWin();
+        _executeAttack();
     }
 
     // =============================================================

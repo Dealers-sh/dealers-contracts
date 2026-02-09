@@ -253,7 +253,7 @@ contract DealersExeCoreTest is BaseTest {
         core.sendToJail(tokenId1);
         (, uint256 repAfter, , , , ) = core.getDealerData(tokenId1);
 
-        (, , , , , uint8 jailRepPenaltyPercent, , , ) = core.config();
+        (, , , , , uint8 jailRepPenaltyPercent, , , , ) = core.config();
         uint256 expectedPenalty = (repBefore * jailRepPenaltyPercent) / 100;
         assertEq(repAfter, repBefore - expectedPenalty);
     }
@@ -272,7 +272,7 @@ contract DealersExeCoreTest is BaseTest {
         core.sendToJail(tokenId1);
         (, uint256 repAfter, , , , ) = core.getDealerData(tokenId1);
 
-        (, , , , , , uint256 jailRepPenaltyCap, , ) = core.config();
+        (, , , , , , uint256 jailRepPenaltyCap, , , ) = core.config();
         assertEq(repAfter, repBefore - jailRepPenaltyCap);
     }
 
@@ -292,6 +292,81 @@ contract DealersExeCoreTest is BaseTest {
 
         (, uint256 repAfterSecondJail, , , , ) = core.getDealerData(tokenId1);
         assertEq(repAfterFirstJail, repAfterSecondJail);
+    }
+
+    function test_sendToJail_confiscates3PercentOfOneRandomDrug() public {
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
+
+        core.updateDrugBalance(tokenId1, 1, 900);
+        _moveOutOfSafeHouse(tokenId1);
+
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
+
+        uint256 weedBefore = core.getDrugBalance(tokenId1, 1);
+        uint256 xtcBefore = core.getDrugBalance(tokenId1, 2);
+        uint256 cocaineBefore = core.getDrugBalance(tokenId1, 3);
+
+        core.sendToJail(tokenId1);
+
+        uint256 weedAfter = core.getDrugBalance(tokenId1, 1);
+        uint256 xtcAfter = core.getDrugBalance(tokenId1, 2);
+        uint256 cocaineAfter = core.getDrugBalance(tokenId1, 3);
+
+        uint256 drugsLost;
+        if (weedAfter < weedBefore) drugsLost++;
+        if (xtcAfter < xtcBefore) drugsLost++;
+        if (cocaineAfter < cocaineBefore) drugsLost++;
+
+        assertEq(drugsLost, 1, "Exactly one drug type should be confiscated");
+    }
+
+    function test_sendToJail_confiscationRoundsUp() public {
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
+
+        // Remove all drugs first
+        uint256 weedBal = core.getDrugBalance(tokenId1, 1);
+        uint256 xtcBal = core.getDrugBalance(tokenId1, 2);
+        uint256 cocaineBal = core.getDrugBalance(tokenId1, 3);
+        if (weedBal > 0) core.updateDrugBalance(tokenId1, 1, -int256(weedBal));
+        if (xtcBal > 0) core.updateDrugBalance(tokenId1, 2, -int256(xtcBal));
+        if (cocaineBal > 0) core.updateDrugBalance(tokenId1, 3, -int256(cocaineBal));
+
+        // Add exactly 10 weed (3% of 10 = 0.3, rounds up to 1)
+        core.updateDrugBalance(tokenId1, 1, 10);
+        _moveOutOfSafeHouse(tokenId1);
+
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
+
+        core.sendToJail(tokenId1);
+
+        uint256 weedAfter = core.getDrugBalance(tokenId1, 1);
+        assertEq(weedAfter, 9, "3% of 10 = 0.3 rounds up to 1, leaving 9");
+    }
+
+    function test_sendToJail_noConfiscationWithZeroDrugs() public {
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
+
+        // Remove all drugs
+        uint256 weedBal = core.getDrugBalance(tokenId1, 1);
+        uint256 xtcBal = core.getDrugBalance(tokenId1, 2);
+        uint256 cocaineBal = core.getDrugBalance(tokenId1, 3);
+        if (weedBal > 0) core.updateDrugBalance(tokenId1, 1, -int256(weedBal));
+        if (xtcBal > 0) core.updateDrugBalance(tokenId1, 2, -int256(xtcBal));
+        if (cocaineBal > 0) core.updateDrugBalance(tokenId1, 3, -int256(cocaineBal));
+
+        _moveOutOfSafeHouse(tokenId1);
+
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
+
+        // Should not revert
+        core.sendToJail(tokenId1);
+        assertTrue(core.isInJail(tokenId1));
     }
 
     function test_payBail_exitsJail() public {
@@ -351,7 +426,7 @@ contract DealersExeCoreTest is BaseTest {
         uint8 heatBefore = core.getHeatLevel(tokenId1);
         assertEq(heatBefore, 3);
 
-        (, uint256 bribeFee, , , , , , , ) = core.config();
+        (, uint256 bribeFee, , , , , , , , ) = core.config();
         vm.prank(player1);
         core.bribeCop{value: bribeFee}(tokenId1);
 
@@ -430,7 +505,7 @@ contract DealersExeCoreTest is BaseTest {
     }
 
     function dealers_resetAttempts(uint256 tokenId) internal {
-        (uint256 resetFee, , , , , , , , ) = core.config();
+        (uint256 resetFee, , , , , , , , , ) = core.config();
         vm.prank(player1);
         core.purchaseAttemptReset{value: resetFee}(tokenId);
     }
@@ -469,7 +544,7 @@ contract DealersExeCoreTest is BaseTest {
         core.useAttempt(tokenId1);
         core.useAttempt(tokenId1);
 
-        (uint256 resetFee, , , , , , , , ) = core.config();
+        (uint256 resetFee, , , , , , , , , ) = core.config();
         vm.prank(player1);
         core.purchaseAttemptReset{value: resetFee}(tokenId1);
 
@@ -609,7 +684,7 @@ contract DealersExeCoreTest is BaseTest {
 
         core.spendCash(tokenId1, core.STARTER_CASH() - 5);
 
-        (, , uint256 topupPrice, uint256 topupAmount, uint256 purchaseThreshold, , , , ) = core.config();
+        (, , uint256 topupPrice, uint256 topupAmount, uint256 purchaseThreshold, , , , , ) = core.config();
 
         uint256 cashBefore = core.getCashBalance(tokenId1);
         assertLt(cashBefore, purchaseThreshold);
@@ -622,7 +697,7 @@ contract DealersExeCoreTest is BaseTest {
     }
 
     function test_purchaseCash_revertBalanceTooHigh() public {
-        (, , uint256 topupPrice, , uint256 purchaseThreshold, , , , ) = core.config();
+        (, , uint256 topupPrice, , uint256 purchaseThreshold, , , , , ) = core.config();
 
         uint256 currentCash = core.getCashBalance(tokenId1);
         assertGe(currentCash, purchaseThreshold);

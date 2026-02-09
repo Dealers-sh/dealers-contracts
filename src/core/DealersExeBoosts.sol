@@ -24,6 +24,7 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
 
     // Time durations
     uint64 public constant DURATION_24_HOURS = 24 hours;
+    uint64 public constant DURATION_3_DAYS = 3 days;
     uint64 public constant DURATION_7_DAYS = 7 days;
     uint64 public constant DURATION_30_DAYS = 30 days;
 
@@ -192,10 +193,10 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
      * @dev Called during construction
      */
     function _initializeDefaultTiers() private {
-        // Tier 1: Grinder - 0.0025 ETH, 7 days
+        // Tier 1: Grinder - 0.0025 ETH, 3 days
         boostTiers[1] = BoostTier({
             price: 0.0025 ether,
-            duration: DURATION_7_DAYS,
+            duration: DURATION_3_DAYS,
             drugMultiplier: 125,     // 1.25x drugs
             repMultiplier: 125,      // 1.25x rep
             extraAttempts: 3,        // 5 base + 3 = 8 max
@@ -218,16 +219,16 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
             isActive: true
         });
 
-        // Tier 3: Kingpin - 0.01 ETH, 7 days
+        // Tier 3: Kingpin - 0.01 ETH, 30 days
         boostTiers[3] = BoostTier({
             price: 0.01 ether,
             duration: DURATION_30_DAYS,
-            drugMultiplier: 200,     // 2x drugs
+            drugMultiplier: 175,     // 1.75x drugs
             repMultiplier: 200,      // 2x rep
             extraAttempts: 10,       // 5 base + 10 = 15 max
             freeAreaMovement: true,  // Free area movement
             doubleHeistEntries: true, // 2x heist entries
-            cashMultiplier: 200,     // 2x cash
+            cashMultiplier: 175,     // 1.75x cash
             isActive: true
         });
 

@@ -10,11 +10,10 @@ import {LibString} from "solady/src/utils/LibString.sol";
 import {Base64} from "solady/src/utils/Base64.sol";
 import {MerkleProofLib} from "solady/src/utils/MerkleProofLib.sol";
 import "../core/IDealersExeCore.sol";
-import "../utils/IDERandomness.sol";
 
 interface IDealerRendererSVG {
-    function getSVG(uint256 tokenId, uint256 seed) external view returns (string memory);
-    function getTraitsMetadataForToken(uint256 tokenId, uint256 seed) external view returns (string memory);
+    function getSVG(uint256 tokenId) external view returns (string memory);
+    function getTraitsMetadataForToken(uint256 tokenId) external view returns (string memory);
     function getCharacterType(uint256 tokenId) external view returns (uint8);
 }
 
@@ -40,7 +39,6 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     // =============================================================
 
     uint256 public constant MAX_SUPPLY = 8888;
-    uint256 public constant RESERVE_SUPPLY = 200;
     uint256 public constant ROYALTY_PERCENTAGE = 500; // 5%
     uint256 public constant MINT_PRICE = 0.01 ether;
     uint256 public constant MAX_PER_WALLET = 10;
@@ -66,11 +64,8 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     mapping(address => uint256) private familyClaimed;
     mapping(address => uint256) private whitelistClaimed;
 
-    mapping(uint256 => uint256) public tokenSeeds;
-
     IDealerRendererSVG  public contractRendererSVG;
     IDealerRendererHTML public contractRendererHTML;
-    IDERandomness public randomness;
 
     // =============================================================
     //                            EVENTS
@@ -82,7 +77,6 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     event RendererHTMLChanged(address indexed newAddress);
     event DealersExeCoreUpdated(address indexed newCore);
     event BatchMetadataUpdate(uint256 _fromTokenId, uint256 _toTokenId);
-    event RandomnessUpdated(address indexed newAddress);
     event FamilyMerkleRootSet(bytes32 indexed root);
     event WhitelistMerkleRootSet(bytes32 indexed root);
     event RoyaltyReceiverChanged(address indexed oldReceiver, address indexed newReceiver);
@@ -290,26 +284,11 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     }
 
     function _mintDealer(address to, uint256 nftAmount) private {
-        address core = dealersExeCore; // cache
-        IDERandomness rng = randomness; // cache
+        address core = dealersExeCore;
         uint256 id = currentTokenId;
 
         for (uint256 i; i < nftAmount; ) {
             uint256 tokenId = id;
-
-            // per-token seed using centralized randomness if available
-            if (address(rng) != address(0)) {
-                bytes32 seed = keccak256(abi.encodePacked(tokenId, address(this)));
-                tokenSeeds[tokenId] = rng.getRandomness(seed);
-            } else {
-                // Fallback for initial deploy before randomness is set
-                tokenSeeds[tokenId] = uint256(
-                    keccak256(
-                        abi.encodePacked(tokenId, address(this), block.timestamp, block.prevrandao)
-                    )
-                );
-            }
-
             _safeMint(to, tokenId);
             unchecked { ++id; ++i; }
 
@@ -333,17 +312,16 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     function tokenJson(uint256 tokenId) public view returns (string memory) {
         if (!_exists(tokenId)) revert TokenDoesNotExist();
 
-        uint256 seed = tokenSeeds[tokenId];
         string memory svg;
         IDealerRendererSVG svgRenderer = contractRendererSVG;
 
         if (address(svgRenderer) != address(0)) {
-            svg = svgRenderer.getSVG(tokenId, seed);
+            svg = svgRenderer.getSVG(tokenId);
         } else {
             svg = "";
         }
 
-        bytes memory staticTraits = _getStaticTraits(tokenId, seed);
+        bytes memory staticTraits = _getStaticTraits(tokenId);
         bytes memory dynamicTraits = _getDynamicTraits(tokenId);
         bytes memory attrs = staticTraits.length > 0 && dynamicTraits.length > 0
             ? abi.encodePacked(staticTraits, ",", dynamicTraits)
@@ -375,12 +353,12 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         );
     }
 
-    function _getStaticTraits(uint256 tokenId, uint256 seed) private view returns (bytes memory) {
+    function _getStaticTraits(uint256 tokenId) private view returns (bytes memory) {
         IDealerRendererSVG svgRenderer = contractRendererSVG;
         if (address(svgRenderer) == address(0)) return "";
 
         string memory out;
-        try svgRenderer.getTraitsMetadataForToken(tokenId, seed) returns (string memory tokenMeta) {
+        try svgRenderer.getTraitsMetadataForToken(tokenId) returns (string memory tokenMeta) {
             out = tokenMeta;
         } catch {
             out = "";
@@ -476,16 +454,6 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         contractRendererHTML = IDealerRendererHTML(newAddress);
         emit RendererHTMLChanged(newAddress);
         emit BatchMetadataUpdate(1, MAX_SUPPLY);
-    }
-
-    /**
-     * @notice Set the randomness provider contract address
-     * @param newAddress Address of the randomness contract
-     */
-    function setRandomness(address newAddress) external onlyOwner {
-        if (newAddress == address(0)) revert InvalidAddress();
-        randomness = IDERandomness(newAddress);
-        emit RandomnessUpdated(newAddress);
     }
 
     /**
@@ -585,38 +553,25 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     }
 
     /**
-     * @notice Get the random seed for a token
-     * @param tokenId Token ID to query
-     * @return Seed value used for trait generation
-     */
-    function getTokenSeed(uint256 tokenId) external view returns (uint256) {
-        if (!_exists(tokenId)) revert TokenDoesNotExist();
-        return tokenSeeds[tokenId];
-    }
-
-    /**
      * @notice Get the current mint configuration
      * @return status Current mint phase status
      * @return price Mint price in wei
      * @return maxPerWallet Maximum NFTs per wallet
      * @return currentSupply Current total supply
      * @return maxSupply Maximum total supply
-     * @return reserveSupply Reserved supply for team
      */
     function getMintConfig() external view returns (
         MintStatus status,
         uint256 price,
         uint256 maxPerWallet,
         uint256 currentSupply,
-        uint256 maxSupply,
-        uint256 reserveSupply
+        uint256 maxSupply
     ) {
         status = mintStatus;
         price = MINT_PRICE;
         maxPerWallet = MAX_PER_WALLET;
         currentSupply = totalSupply();
         maxSupply = MAX_SUPPLY;
-        reserveSupply = RESERVE_SUPPLY;
     }
 
     /**

@@ -39,9 +39,9 @@ interface IDealerRendererSVG {
     //                      VIEW FUNCTIONS
     // =============================================================
 
-    function getSVG(uint256 tokenId, uint256 seed) external view returns (string memory);
+    function getSVG(uint256 tokenId) external view returns (string memory);
 
-    function getTraitsMetadataForToken(uint256 tokenId, uint256 seed) external view returns (string memory);
+    function getTraitsMetadataForToken(uint256 tokenId) external view returns (string memory);
 
     function getCharacterType(uint256 tokenId) external view returns (uint8);
 

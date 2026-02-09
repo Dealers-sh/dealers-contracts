@@ -654,8 +654,12 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         uint256 stolen = _ceilDiv(loserBalance * config.drugStealPercent, 100);
 
         if (stolen > 0) {
+            uint256 transferred = stolen / 2;
+
             core.updateDrugBalance(loserId, selectedDrugId, -int256(stolen));
-            core.updateDrugBalance(winnerId, selectedDrugId, int256(stolen));
+            if (transferred > 0) {
+                core.updateDrugBalance(winnerId, selectedDrugId, int256(transferred));
+            }
         }
 
         return stolen;
@@ -668,8 +672,12 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         stolen = _ceilDiv(loserCash * config.cashStealPercent, 100);
 
         if (stolen > 0) {
+            uint256 transferred = stolen / 2;
+
             core.spendCash(loserId, stolen);
-            core.addCash(winnerId, stolen);
+            if (transferred > 0) {
+                core.addCash(winnerId, transferred);
+            }
         }
 
         return stolen;

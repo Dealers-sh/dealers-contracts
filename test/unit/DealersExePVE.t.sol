@@ -73,7 +73,6 @@ contract DealersExePVETest is Test, IERC721Receiver {
         core.setRandomness(address(randomness));
 
         nft.setDealersExeCore(address(core));
-        nft.setRandomness(address(randomness));
         pve.setRandomness(address(randomness));
 
         core.authorizeContract(address(nft), true);
@@ -82,7 +81,6 @@ contract DealersExePVETest is Test, IERC721Receiver {
         areaRegistry.setCoreContract(address(core));
         paymentHandler.authorizeContract(address(core), true);
         randomness.authorizeResolver(address(core), true);
-        randomness.authorizeResolver(address(nft), true);
         randomness.authorizeResolver(address(pve), true);
 
         _setupReputationTiers();

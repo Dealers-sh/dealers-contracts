@@ -86,7 +86,6 @@ abstract contract BaseTest is Test, IERC721Receiver {
         core.setRandomness(address(randomness));
 
         nft.setDealersExeCore(address(core));
-        nft.setRandomness(address(randomness));
         nft.setMintStatus(DealersExeNFT.MintStatus.PUBLIC);
 
         pve.setRandomness(address(randomness));
@@ -108,7 +107,6 @@ abstract contract BaseTest is Test, IERC721Receiver {
         paymentHandler.authorizeContract(address(boosts), true);
 
         randomness.authorizeResolver(address(core), true);
-        randomness.authorizeResolver(address(nft), true);
         randomness.authorizeResolver(address(pve), true);
         randomness.authorizeResolver(address(pvp), true);
     }

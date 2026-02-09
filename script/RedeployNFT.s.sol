@@ -18,7 +18,6 @@ import "../src/nft/DealersExeNFT.sol";
  * Required env vars:
  *   ROYALTY_RECEIVER - Address for NFT royalty payments
  *   DEALERS_CORE     - Existing Core contract address
- *   RANDOMNESS       - Existing Randomness contract address
  *
  * Optional env vars:
  *   RENDERER_SVG     - Set SVG renderer after deployment
@@ -36,18 +35,15 @@ contract RedeployNFT is Script {
     function run() external {
         address royaltyReceiver = vm.envAddress("ROYALTY_RECEIVER");
         address core = vm.envAddress("DEALERS_CORE");
-        address randomness = vm.envAddress("RANDOMNESS");
         address svgRenderer = vm.envOr("RENDERER_SVG", address(0));
         address htmlRenderer = vm.envOr("RENDERER_HTML", address(0));
 
         require(royaltyReceiver != address(0), "ROYALTY_RECEIVER not set");
         require(core != address(0), "DEALERS_CORE not set");
-        require(randomness != address(0), "RANDOMNESS not set");
 
         console.log("=== RedeployNFT ===");
         console.log("ROYALTY_RECEIVER:", royaltyReceiver);
         console.log("DEALERS_CORE:", core);
-        console.log("RANDOMNESS:", randomness);
         if (svgRenderer != address(0)) console.log("RENDERER_SVG:", svgRenderer);
         if (htmlRenderer != address(0)) console.log("RENDERER_HTML:", htmlRenderer);
         console.log("");
@@ -64,8 +60,6 @@ contract RedeployNFT is Script {
         console.log("2. Configuring NFT references...");
         nftContract.setDealersExeCore(core);
         console.log("   NFT -> Core: SET");
-        nftContract.setRandomness(randomness);
-        console.log("   NFT -> Randomness: SET");
 
         // 3. Set renderers if provided
         if (svgRenderer != address(0)) {

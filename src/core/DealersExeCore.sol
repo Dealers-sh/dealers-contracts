@@ -104,6 +104,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         uint256 jailRepPenaltyCap;        // 50 - Max rep loss when jailed
         uint8 wantedPosterSuccessChance;  // 50 - % chance to clear heat
         uint8 breakoutSuccessChance;      // 33 - % chance to escape jail
+        uint8 jailDrugConfiscationPercent; // 3 - % of one random drug confiscated on jail
     }
 
     // =============================================================
@@ -154,7 +155,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     event DailyPlaysUpdated(uint256 indexed tokenId, uint8 playsRemaining);
     event ReputationTiersUpdated(uint256 tierCount);
 
-    event DealerJailed(uint256 indexed tokenId, uint8 previousArea, uint256 repLost);
+    event DealerJailed(uint256 indexed tokenId, uint8 previousArea, uint256 repLost, uint256 confiscatedDrugId, uint256 confiscatedAmount);
     event DealerBailed(uint256 indexed tokenId, uint256 bailPaid, uint8 newArea);
     event BreakoutAttempted(uint256 indexed tokenId, bool success, uint8 exitArea);
     event HeatLevelChanged(uint256 indexed tokenId, uint8 newHeatLevel);
@@ -235,7 +236,8 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
             jailRepPenaltyPercent: 10,
             jailRepPenaltyCap: 50,
             wantedPosterSuccessChance: 50,
-            breakoutSuccessChance: 33
+            breakoutSuccessChance: 33,
+            jailDrugConfiscationPercent: 3
         });
     }
 
@@ -704,7 +706,10 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
             d.reputation -= repLoss;
         }
 
-        emit DealerJailed(tokenId, priorArea, repLoss);
+        // Confiscate a percentage of one random drug type
+        (uint256 confiscatedDrugId, uint256 confiscatedAmount) = _confiscateDrug(tokenId);
+
+        emit DealerJailed(tokenId, priorArea, repLoss, confiscatedDrugId, confiscatedAmount);
     }
 
     /**
@@ -1256,6 +1261,49 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     // =============================================================
     //                     INTERNAL HELPER FUNCTIONS
     // =============================================================
+
+    /**
+     * @notice Confiscate a percentage of one random drug from a dealer
+     * @return drugId The drug type confiscated (0 if none)
+     * @return amount The amount confiscated
+     */
+    function _confiscateDrug(uint256 tokenId) private returns (uint256 drugId, uint256 amount) {
+        uint8 confiscationPercent = config.jailDrugConfiscationPercent;
+        if (confiscationPercent == 0 || address(drugRegistry) == address(0)) return (0, 0);
+
+        uint256[] memory allDrugIds = drugRegistry.getAllDrugIds();
+        uint256 len = allDrugIds.length;
+
+        // Collect drug IDs where dealer has balance > 0
+        uint256[] memory heldDrugs = new uint256[](len);
+        uint256 heldCount;
+
+        for (uint256 i = 0; i < len; ) {
+            if (drugBalances[tokenId][allDrugIds[i]] > 0) {
+                heldDrugs[heldCount] = allDrugIds[i];
+                unchecked { ++heldCount; }
+            }
+            unchecked { ++i; }
+        }
+
+        if (heldCount == 0) return (0, 0);
+
+        uint256 pick = uint256(keccak256(abi.encodePacked(block.prevrandao, tokenId))) % heldCount;
+        drugId = heldDrugs[pick];
+
+        uint256 balance = drugBalances[tokenId][drugId];
+        amount = _ceilDiv(balance * confiscationPercent, 100);
+
+        drugBalances[tokenId][drugId] = balance - amount;
+        drugRegistry.decrementSupply(drugId, amount);
+
+        emit DrugBalanceUpdated(tokenId, drugId, drugBalances[tokenId][drugId], -int256(amount));
+    }
+
+    function _ceilDiv(uint256 a, uint256 b) private pure returns (uint256) {
+        if (a == 0) return 0;
+        return (a - 1) / b + 1;
+    }
 
     /**
      * @notice Get the start of the current day (midnight UTC)

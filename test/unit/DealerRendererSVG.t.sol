@@ -292,13 +292,13 @@ contract DealerRendererSVGTest is Test {
         address ptr = _createFileStorePointer(placeholderInner);
         renderer.setPlaceholderSvg(ptr);
 
-        string memory svg = renderer.getSVG(1, 0);
+        string memory svg = renderer.getSVG(1);
         assertEq(svg, _wrapSvg(1, "<text>Unrevealed</text>"));
     }
 
     function test_getSVG_revertsTraitsNotStoredNoPlaceholder() public {
         vm.expectRevert(IDealerRendererSVG.TraitsNotStored.selector);
-        renderer.getSVG(1, 0);
+        renderer.getSVG(1);
     }
 
     function test_getSVG_readsStoredTraits() public {
@@ -309,7 +309,7 @@ contract DealerRendererSVGTest is Test {
         renderer.batchSetTraits(ids, packed);
         renderer.reveal();
 
-        string memory svg = renderer.getSVG(100, 0);
+        string memory svg = renderer.getSVG(100);
         assertTrue(bytes(svg).length > 50);
     }
 
@@ -321,7 +321,7 @@ contract DealerRendererSVGTest is Test {
         renderer.batchSetTraits(ids, packed);
         renderer.reveal();
 
-        string memory svg = renderer.getSVG(100, 0);
+        string memory svg = renderer.getSVG(100);
         string memory expectedPrefix = _svgPrefix(100);
 
         bytes memory svgBytes = bytes(svg);
@@ -338,7 +338,7 @@ contract DealerRendererSVGTest is Test {
         renderer.setOneOfOne(404, "TheLegend", ptr);
         renderer.reveal();
 
-        string memory svg = renderer.getSVG(404, 0);
+        string memory svg = renderer.getSVG(404);
         assertEq(svg, _wrapSvg(404, "<text>Legend</text>"));
     }
 
@@ -353,7 +353,7 @@ contract DealerRendererSVGTest is Test {
         packed[0] = _packTraits([uint8(1), 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2]);
         renderer.batchSetTraits(ids, packed);
 
-        string memory svg = renderer.getSVG(100, 0);
+        string memory svg = renderer.getSVG(100);
         assertEq(svg, _wrapSvg(100, "<text>Unrevealed</text>"));
     }
 
@@ -365,7 +365,7 @@ contract DealerRendererSVGTest is Test {
         address oooPtr = _createFileStorePointer(bytes("<text>Legend</text>"));
         renderer.setOneOfOne(404, "TheLegend", oooPtr);
 
-        string memory svg = renderer.getSVG(404, 0);
+        string memory svg = renderer.getSVG(404);
         assertEq(svg, _wrapSvg(404, "<text>Unrevealed</text>"));
     }
 
@@ -383,7 +383,7 @@ contract DealerRendererSVGTest is Test {
         renderer.batchSetTraits(ids, packed);
         renderer.reveal();
 
-        string memory svg = renderer.getSVG(500, 0);
+        string memory svg = renderer.getSVG(500);
         assertTrue(bytes(svg).length > 50);
     }
 
@@ -392,7 +392,7 @@ contract DealerRendererSVGTest is Test {
     // =============================================================
 
     function test_getTraitsMetadata_unrevealedWhenTraitsNotStored() public view {
-        string memory metadata = renderer.getTraitsMetadataForToken(1, 12345);
+        string memory metadata = renderer.getTraitsMetadataForToken(1);
         assertEq(metadata, '{"trait_type":"Status","value":"Unrevealed"}');
     }
 
@@ -404,7 +404,7 @@ contract DealerRendererSVGTest is Test {
         renderer.batchSetTraits(ids, packed);
         renderer.reveal();
 
-        string memory metadata = renderer.getTraitsMetadataForToken(100, 0);
+        string memory metadata = renderer.getTraitsMetadataForToken(100);
         assertTrue(bytes(metadata).length > 50);
 
         bytes memory metaBytes = bytes(metadata);
@@ -426,7 +426,7 @@ contract DealerRendererSVGTest is Test {
         packed[0] = _packTraits([uint8(1), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
         renderer.batchSetTraits(ids, packed);
 
-        string memory metadata = renderer.getTraitsMetadataForToken(100, 0);
+        string memory metadata = renderer.getTraitsMetadataForToken(100);
         assertEq(metadata, '{"trait_type":"Status","value":"Unrevealed"}');
     }
 
@@ -438,7 +438,7 @@ contract DealerRendererSVGTest is Test {
         renderer.batchSetTraits(ids, packed);
         renderer.reveal();
 
-        string memory metadata = renderer.getTraitsMetadataForToken(100, 0);
+        string memory metadata = renderer.getTraitsMetadataForToken(100);
         assertTrue(bytes(metadata).length > 50);
 
         bytes memory metaBytes = bytes(metadata);
@@ -458,7 +458,7 @@ contract DealerRendererSVGTest is Test {
         renderer.setOneOfOne(100, "TheBoss", ptr);
         renderer.reveal();
 
-        string memory metadata = renderer.getTraitsMetadataForToken(100, 0);
+        string memory metadata = renderer.getTraitsMetadataForToken(100);
 
         bytes memory metaBytes = bytes(metadata);
         bool hasOneOfOne = false;

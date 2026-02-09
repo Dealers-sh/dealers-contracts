@@ -38,7 +38,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
 
     // Configurable outcome odds (tie + win <= 100, loss is derived)
     uint8 public tieChance = 50;    // Default 50%
-    uint8 public winChance = 25;    // Default 25%
+    uint8 public winChance = 20;    // Default 20%
 
     // Pause state
     bool public paused;

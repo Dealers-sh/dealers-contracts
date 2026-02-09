@@ -376,19 +376,6 @@ contract DealersExeNFTTest is BaseTest {
         assertEq(heatLevel, 0);
     }
 
-    function test_mint_generatesTokenSeed() public {
-        vm.prank(owner);
-        nft.setMintStatus(DealersExeNFT.MintStatus.PUBLIC);
-
-        uint256 nextTokenId = nft.currentTokenId();
-
-        vm.prank(player1);
-        nft.mintPublic{value: MINT_PRICE}(player1, 1);
-
-        uint256 seed = nft.getTokenSeed(nextTokenId);
-        assertGt(seed, 0);
-    }
-
     function test_mint_emitsDealerInitialized() public {
         vm.prank(owner);
         nft.setMintStatus(DealersExeNFT.MintStatus.PUBLIC);
@@ -453,16 +440,6 @@ contract DealersExeNFTTest is BaseTest {
 
         vm.expectRevert(DealersExeNFT.TokenDoesNotExist.selector);
         nft.tokenURI(nonExistentTokenId);
-    }
-
-    function test_getTokenSeed_returnsConsistent() public {
-        uint256 tokenId = _mintAndInitialize(player1);
-
-        uint256 seed1 = nft.getTokenSeed(tokenId);
-        uint256 seed2 = nft.getTokenSeed(tokenId);
-
-        assertEq(seed1, seed2);
-        assertGt(seed1, 0);
     }
 
     // =============================================================

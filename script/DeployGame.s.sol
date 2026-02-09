@@ -100,9 +100,7 @@ interface IDealersExeCore {
 
 interface IDealersExeNFT {
     function setDealersExeCore(address _core) external;
-    function setRandomness(address _randomness) external;
     function dealersExeCore() external view returns (address);
-    function randomness() external view returns (address);
 }
 
 interface IDrugRegistry {
@@ -598,14 +596,6 @@ contract DeployGame is Script {
             console.log("  NFT -> Core: SET");
         } else {
             console.log("  NFT -> Core: already set");
-        }
-
-        // NFT -> Randomness
-        if (nftContract.randomness() != randomness) {
-            nftContract.setRandomness(randomness);
-            console.log("  NFT -> Randomness: SET");
-        } else {
-            console.log("  NFT -> Randomness: already set");
         }
 
         // PVP -> DrugRegistry

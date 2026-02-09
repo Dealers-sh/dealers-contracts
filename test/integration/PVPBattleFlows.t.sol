@@ -26,81 +26,47 @@ contract PVPBattleFlowsTest is BaseTest {
         vm.warp(1 hours + 1);
     }
 
+    function _mockRandomness(uint256 value) internal {
+        vm.mockCall(
+            address(randomness),
+            abi.encodeWithSignature("getRandomness(bytes32)"),
+            abi.encode(value)
+        );
+    }
+
+    function _buildRng(uint8 jailRoll, uint8 winRoll, uint8 rarityRoll) internal pure returns (uint256) {
+        return uint256(jailRoll)
+            | (uint256(winRoll) << 8)
+            | (uint256(rarityRoll) << 16);
+    }
+
     function test_pvpFlow_attackerWins() public {
         vm.prank(owner);
         core.setDealerStats(attackerToken, 25, 0);
 
+        vm.mockCall(
+            address(core),
+            abi.encodeWithSelector(core.getJailChance.selector, attackerToken),
+            abi.encode(uint8(0))
+        );
+
         uint256 defenderWeedBefore = core.getDrugBalance(defenderToken, DRUG_WEED);
-        uint256 defenderXtcBefore = core.getDrugBalance(defenderToken, DRUG_XTC);
-        uint256 defenderCocaineBefore = core.getDrugBalance(defenderToken, DRUG_COCAINE);
         uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
-        uint256 attackerXtcBefore = core.getDrugBalance(attackerToken, DRUG_XTC);
-        uint256 attackerCocaineBefore = core.getDrugBalance(attackerToken, DRUG_COCAINE);
 
-        bool attackerWon = false;
-        uint256 prevrandaoValue = 0;
+        _mockRandomness(_buildRng(50, 0, 10));
 
-        vm.startPrank(player1);
+        vm.prank(player1);
+        pvp.attack(attackerToken, defenderToken);
 
-        while (!attackerWon && prevrandaoValue < 2000) {
-            vm.prevrandao(bytes32(prevrandaoValue));
+        uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
+        uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
 
-            uint256 snapshotId = vm.snapshotState();
+        uint256 stolen = defenderWeedBefore - defenderWeedAfter;
+        uint256 expected = _ceilDiv(defenderWeedBefore * 2, 100);
+        assertEq(stolen, expected, "Should steal 2% of weed (rounded up)");
 
-            try pvp.attack(attackerToken, defenderToken) {
-                if (!core.isInJail(attackerToken)) {
-                    uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
-                    uint256 attackerXtcAfter = core.getDrugBalance(attackerToken, DRUG_XTC);
-                    uint256 attackerCocaineAfter = core.getDrugBalance(attackerToken, DRUG_COCAINE);
-
-                    bool gainedAny = (attackerWeedAfter > attackerWeedBefore) ||
-                                     (attackerXtcAfter > attackerXtcBefore) ||
-                                     (attackerCocaineAfter > attackerCocaineBefore);
-
-                    if (gainedAny) {
-                        attackerWon = true;
-
-                        uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
-                        uint256 defenderXtcAfter = core.getDrugBalance(defenderToken, DRUG_XTC);
-                        uint256 defenderCocaineAfter = core.getDrugBalance(defenderToken, DRUG_COCAINE);
-
-                        uint256 typesStolen = 0;
-                        if (defenderWeedAfter < defenderWeedBefore) typesStolen++;
-                        if (defenderXtcAfter < defenderXtcBefore) typesStolen++;
-                        if (defenderCocaineAfter < defenderCocaineBefore) typesStolen++;
-
-                        assertEq(typesStolen, 1, "Exactly one drug type should be stolen");
-
-                        if (defenderWeedAfter < defenderWeedBefore) {
-                            uint256 stolen = defenderWeedBefore - defenderWeedAfter;
-                            uint256 expected = _ceilDiv(defenderWeedBefore * 2, 100);
-                            assertEq(stolen, expected, "Should steal 2% of weed (rounded up)");
-                            assertEq(attackerWeedAfter, attackerWeedBefore + stolen, "Attacker gains stolen weed");
-                        } else if (defenderXtcAfter < defenderXtcBefore) {
-                            uint256 stolen = defenderXtcBefore - defenderXtcAfter;
-                            uint256 expected = _ceilDiv(defenderXtcBefore * 2, 100);
-                            assertEq(stolen, expected, "Should steal 2% of XTC (rounded up)");
-                            assertEq(attackerXtcAfter, attackerXtcBefore + stolen, "Attacker gains stolen XTC");
-                        } else {
-                            uint256 stolen = defenderCocaineBefore - defenderCocaineAfter;
-                            uint256 expected = _ceilDiv(defenderCocaineBefore * 2, 100);
-                            assertEq(stolen, expected, "Should steal 2% of cocaine (rounded up)");
-                            assertEq(attackerCocaineAfter, attackerCocaineBefore + stolen, "Attacker gains stolen cocaine");
-                        }
-                        break;
-                    }
-                }
-            } catch {}
-
-            if (!attackerWon) {
-                vm.revertToState(snapshotId);
-            }
-            prevrandaoValue++;
-        }
-
-        vm.stopPrank();
-
-        assertTrue(attackerWon, "Should find attacker win within 2000 attempts");
+        uint256 transferred = stolen / 2;
+        assertEq(attackerWeedAfter, attackerWeedBefore + transferred, "Attacker gains half stolen weed");
     }
 
     function test_pvpFlow_defenderWins() public {
@@ -109,136 +75,55 @@ contract PVPBattleFlowsTest is BaseTest {
         vm.prank(owner);
         core.updateDrugBalance(attackerToken, DRUG_WEED, 80);
 
+        vm.mockCall(
+            address(core),
+            abi.encodeWithSelector(core.getJailChance.selector, attackerToken),
+            abi.encode(uint8(0))
+        );
+
         uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
-        uint256 attackerXtcBefore = core.getDrugBalance(attackerToken, DRUG_XTC);
-        uint256 attackerCocaineBefore = core.getDrugBalance(attackerToken, DRUG_COCAINE);
 
-        bool defenderWon = false;
-        uint256 prevrandaoValue = 0;
+        _mockRandomness(_buildRng(50, 99, 10));
 
-        vm.startPrank(player1);
+        vm.prank(player1);
+        pvp.attack(attackerToken, defenderToken);
 
-        while (!defenderWon && prevrandaoValue < 2000) {
-            vm.prevrandao(bytes32(prevrandaoValue));
+        uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
 
-            uint256 snapshotId = vm.snapshotState();
+        assertLt(attackerWeedAfter, attackerWeedBefore, "Attacker should lose drugs");
 
-            try pvp.attack(attackerToken, defenderToken) {
-                if (!core.isInJail(attackerToken)) {
-                    uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
-                    uint256 attackerXtcAfter = core.getDrugBalance(attackerToken, DRUG_XTC);
-                    uint256 attackerCocaineAfter = core.getDrugBalance(attackerToken, DRUG_COCAINE);
-
-                    bool lostAny = (attackerWeedAfter < attackerWeedBefore) ||
-                                   (attackerXtcAfter < attackerXtcBefore) ||
-                                   (attackerCocaineAfter < attackerCocaineBefore);
-
-                    if (lostAny) {
-                        defenderWon = true;
-
-                        uint256 typesLost = 0;
-                        if (attackerWeedAfter < attackerWeedBefore) typesLost++;
-                        if (attackerXtcAfter < attackerXtcBefore) typesLost++;
-                        if (attackerCocaineAfter < attackerCocaineBefore) typesLost++;
-
-                        assertEq(typesLost, 1, "Exactly one drug type should be stolen from loser");
-
-                        if (attackerWeedAfter < attackerWeedBefore) {
-                            uint256 stolen = attackerWeedBefore - attackerWeedAfter;
-                            uint256 expected = _ceilDiv(attackerWeedBefore * 2, 100);
-                            assertEq(stolen, expected, "Should lose 2% of weed (rounded up)");
-                        } else if (attackerXtcAfter < attackerXtcBefore) {
-                            uint256 stolen = attackerXtcBefore - attackerXtcAfter;
-                            uint256 expected = _ceilDiv(attackerXtcBefore * 2, 100);
-                            assertEq(stolen, expected, "Should lose 2% of XTC (rounded up)");
-                        } else {
-                            uint256 stolen = attackerCocaineBefore - attackerCocaineAfter;
-                            uint256 expected = _ceilDiv(attackerCocaineBefore * 2, 100);
-                            assertEq(stolen, expected, "Should lose 2% of cocaine (rounded up)");
-                        }
-                        break;
-                    }
-                }
-            } catch {}
-
-            if (!defenderWon) {
-                vm.revertToState(snapshotId);
-            }
-            prevrandaoValue++;
-        }
-
-        vm.stopPrank();
-
-        assertTrue(defenderWon, "Should find defender win within 2000 attempts");
+        uint256 stolen = attackerWeedBefore - attackerWeedAfter;
+        uint256 expected = _ceilDiv(attackerWeedBefore * 2, 100);
+        assertEq(stolen, expected, "Should lose 2% of weed (rounded up)");
     }
 
     function test_pvpFlow_attackerArrestedMidFight() public {
-        vm.prank(player1);
-        core.bribeCop{value: 0.002 ether}(attackerToken);
-
         for (uint8 i = 0; i < 5; i++) {
             vm.prank(owner);
             core.incrementHeatLevel(attackerToken);
         }
 
-        (, , , uint8 heatLevel, , ) = core.getDealerData(attackerToken);
-        assertEq(heatLevel, 5, "Attacker heat should be 5");
+        vm.mockCall(
+            address(core),
+            abi.encodeWithSelector(core.getJailChance.selector, attackerToken),
+            abi.encode(uint8(100))
+        );
+        _mockRandomness(_buildRng(0, 0, 10));
 
         uint256 defenderWeedBefore = core.getDrugBalance(defenderToken, DRUG_WEED);
-        uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
 
-        bool arrested = false;
-        uint256 prevrandaoValue = 0;
+        vm.prank(player1);
+        pvp.attack(attackerToken, defenderToken);
 
-        vm.startPrank(player1);
+        assertTrue(core.isInJail(attackerToken), "Attacker should be in jail");
+        assertEq(
+            core.getDrugBalance(defenderToken, DRUG_WEED),
+            defenderWeedBefore,
+            "Defender drugs unchanged when attacker arrested"
+        );
 
-        while (!arrested && prevrandaoValue < 2000) {
-            vm.prevrandao(bytes32(prevrandaoValue));
-
-            uint256 snapshotId = vm.snapshotState();
-
-            (, , uint8 attempts, , , ) = core.getDealerData(attackerToken);
-            if (attempts == 0) {
-                core.purchaseAttemptReset{value: 0.001 ether}(attackerToken);
-            }
-
-            try pvp.attack(attackerToken, defenderToken) {
-                if (core.isInJail(attackerToken)) {
-                    arrested = true;
-
-                    uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
-                    uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
-
-                    assertEq(
-                        defenderWeedAfter,
-                        defenderWeedBefore,
-                        "Defender drugs unchanged when attacker arrested"
-                    );
-                    assertEq(
-                        attackerWeedAfter,
-                        attackerWeedBefore,
-                        "Attacker drugs unchanged when arrested"
-                    );
-
-                    assertTrue(core.isInJail(attackerToken), "Attacker should be in jail");
-
-                    (uint8 area, , , , , ) = core.getDealerData(attackerToken);
-                    assertEq(area, JAIL, "Attacker area should be JAIL");
-                    break;
-                }
-            } catch {}
-
-            if (!arrested) {
-                vm.revertToState(snapshotId);
-            }
-            prevrandaoValue++;
-        }
-
-        vm.stopPrank();
-
-        if (!arrested) {
-            emit log("Note: Arrest not triggered within iteration limit - test inconclusive");
-        }
+        (uint8 area, , , , , ) = core.getDealerData(attackerToken);
+        assertEq(area, JAIL, "Attacker area should be JAIL");
     }
 
     function test_pvpFlow_mustBeSameArea() public {
@@ -318,37 +203,19 @@ contract PVPBattleFlowsTest is BaseTest {
 
     function test_pvpFlow_reputationChanges() public {
         (, uint256 attackerRepBefore, , , , ) = core.getDealerData(attackerToken);
-        (, uint256 defenderRepBefore, , , , ) = core.getDealerData(defenderToken);
 
-        uint256 prevrandaoValue = 50000;
-        bool attacked = false;
+        vm.mockCall(
+            address(core),
+            abi.encodeWithSelector(core.getJailChance.selector, attackerToken),
+            abi.encode(uint8(0))
+        );
+        _mockRandomness(_buildRng(50, 0, 10));
 
-        vm.startPrank(player1);
-        while (!attacked && prevrandaoValue < 51000) {
-            vm.prevrandao(bytes32(prevrandaoValue));
+        vm.prank(player1);
+        pvp.attack(attackerToken, defenderToken);
 
-            uint256 snapshotId = vm.snapshotState();
-
-            try pvp.attack(attackerToken, defenderToken) {
-                if (!core.isInJail(attackerToken)) {
-                    attacked = true;
-                    break;
-                }
-            } catch {}
-
-            vm.revertToState(snapshotId);
-            prevrandaoValue++;
-        }
-        vm.stopPrank();
-
-        if (attacked) {
-            (, uint256 attackerRepAfter, , , , ) = core.getDealerData(attackerToken);
-            (, uint256 defenderRepAfter, , , , ) = core.getDealerData(defenderToken);
-
-            bool reputationChanged = (attackerRepAfter != attackerRepBefore) ||
-                                      (defenderRepAfter != defenderRepBefore);
-            assertTrue(reputationChanged, "Reputation should change after battle");
-        }
+        (, uint256 attackerRepAfter, , , , ) = core.getDealerData(attackerToken);
+        assertTrue(attackerRepAfter != attackerRepBefore, "Reputation should change after battle");
     }
 
     function _ceilDiv(uint256 a, uint256 b) internal pure returns (uint256) {

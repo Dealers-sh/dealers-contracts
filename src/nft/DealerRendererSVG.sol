@@ -181,7 +181,7 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     //                           RENDERING
     // =============================================================
 
-    function getSVG(uint256 tokenId, uint256 /* seed */) external view returns (string memory) {
+    function getSVG(uint256 tokenId) external view returns (string memory) {
         bytes memory inner;
 
         if (!revealed) {
@@ -210,7 +210,7 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         ));
     }
 
-    function getTraitsMetadataForToken(uint256 tokenId, uint256 /* seed */) public view returns (string memory) {
+    function getTraitsMetadataForToken(uint256 tokenId) public view returns (string memory) {
         if (!revealed) {
             return '{"trait_type":"Status","value":"Unrevealed"}';
         }

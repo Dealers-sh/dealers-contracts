@@ -28,6 +28,7 @@ contract DealersExeBoostsTest is BaseTest {
     uint256 constant HUSTLER_PRICE = 0.005 ether;
     uint256 constant KINGPIN_PRICE = 0.01 ether;
 
+    uint64 constant DURATION_3_DAYS = 3 days;
     uint64 constant DURATION_7_DAYS = 7 days;
 
     uint256 public dealer1;
@@ -49,7 +50,7 @@ contract DealersExeBoostsTest is BaseTest {
         DealersExeBoosts.BoostTier memory tier = boosts.getBoostTier(GRINDER_TIER);
 
         assertEq(tier.price, GRINDER_PRICE);
-        assertEq(tier.duration, DURATION_7_DAYS);
+        assertEq(tier.duration, DURATION_3_DAYS);
         assertEq(tier.drugMultiplier, 125);  // 1.25x
         assertEq(tier.repMultiplier, 125);   // 1.25x
         assertEq(tier.extraAttempts, 3);
@@ -78,10 +79,10 @@ contract DealersExeBoostsTest is BaseTest {
 
         assertEq(tier.price, KINGPIN_PRICE);
         assertEq(tier.duration, 30 days);    // Kingpin is 30 days
-        assertEq(tier.drugMultiplier, 200);  // 2x
+        assertEq(tier.drugMultiplier, 175);  // 1.75x
         assertEq(tier.repMultiplier, 200);   // 2x
         assertEq(tier.extraAttempts, 10);
-        assertEq(tier.cashMultiplier, 200);  // 2x
+        assertEq(tier.cashMultiplier, 175);  // 1.75x
         assertTrue(tier.freeAreaMovement);
         assertTrue(tier.doubleHeistEntries);
         assertTrue(tier.isActive);
@@ -104,7 +105,7 @@ contract DealersExeBoostsTest is BaseTest {
         assertEq(boost.cashMultiplier, 125);  // 1.25x
         assertFalse(boost.freeAreaMovement);
         assertFalse(boost.doubleHeistEntries);
-        assertEq(boost.expiresAt, uint64(block.timestamp + DURATION_7_DAYS));
+        assertEq(boost.expiresAt, uint64(block.timestamp + DURATION_3_DAYS));
     }
 
     function test_purchaseBoost_revertsWhenActiveBoost() public {
@@ -125,7 +126,7 @@ contract DealersExeBoostsTest is BaseTest {
         boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
         uint64 firstExpiry = core.getBoost(dealer1).expiresAt;
 
-        vm.warp(block.timestamp + DURATION_7_DAYS + 1);
+        vm.warp(block.timestamp + DURATION_3_DAYS + 1);
         assertFalse(core.hasActiveBoost(dealer1));
 
         boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
@@ -224,7 +225,7 @@ contract DealersExeBoostsTest is BaseTest {
 
         assertTrue(core.hasActiveBoost(dealer1));
         DealersExeCore.BoostData memory boost = core.getBoost(dealer1);
-        assertEq(boost.expiresAt, uint64(block.timestamp + DURATION_7_DAYS));
+        assertEq(boost.expiresAt, uint64(block.timestamp + DURATION_3_DAYS));
         assertEq(balanceBefore - player1.balance, GRINDER_PRICE);
     }
 
@@ -281,7 +282,7 @@ contract DealersExeBoostsTest is BaseTest {
         DealersExeBoosts.BoostTier memory tier = boosts.getBoostTier(GRINDER_TIER);
 
         assertEq(tier.price, GRINDER_PRICE);
-        assertEq(tier.duration, DURATION_7_DAYS);
+        assertEq(tier.duration, DURATION_3_DAYS);
     }
 
     function test_getActiveTiers_filtersInactive() public {
@@ -305,9 +306,9 @@ contract DealersExeBoostsTest is BaseTest {
 
         (bool hasBoostAfter, uint64 expiryAfter) = boosts.checkBoostStatus(dealer1);
         assertTrue(hasBoostAfter);
-        assertEq(expiryAfter, uint64(block.timestamp + DURATION_7_DAYS));
+        assertEq(expiryAfter, uint64(block.timestamp + DURATION_3_DAYS));
 
-        vm.warp(block.timestamp + DURATION_7_DAYS + 1);
+        vm.warp(block.timestamp + DURATION_3_DAYS + 1);
 
         (bool hasBoostExpired,) = boosts.checkBoostStatus(dealer1);
         assertFalse(hasBoostExpired);
