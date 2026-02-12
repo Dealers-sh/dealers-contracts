@@ -112,46 +112,62 @@ abstract contract BaseTest is Test, IERC721Receiver {
     }
 
     function _setupReputationTiers() internal {
-        DealersExeCore.ReputationTier[] memory tiers = new DealersExeCore.ReputationTier[](5);
+        DealersExeCore.ReputationTier[] memory tiers = new DealersExeCore.ReputationTier[](7);
 
         tiers[0] = DealersExeCore.ReputationTier({
             minReputation: 0,
-            winBonus: 5,
-            tieBonus: 2,
+            winBonus: 15,
+            tieBonus: 5,
             lossPenalty: -3,
-            tierName: "Street Rat"
+            tierName: "Outsider"
         });
 
         tiers[1] = DealersExeCore.ReputationTier({
             minReputation: 50,
-            winBonus: 8,
-            tieBonus: 3,
-            lossPenalty: -4,
-            tierName: "Corner Boy"
+            winBonus: 12,
+            tieBonus: 4,
+            lossPenalty: -3,
+            tierName: "Associate"
         });
 
         tiers[2] = DealersExeCore.ReputationTier({
             minReputation: 100,
-            winBonus: 12,
-            tieBonus: 5,
-            lossPenalty: -5,
-            tierName: "Hustler"
+            winBonus: 9,
+            tieBonus: 3,
+            lossPenalty: -4,
+            tierName: "Soldier"
         });
 
         tiers[3] = DealersExeCore.ReputationTier({
-            minReputation: 250,
-            winBonus: 15,
-            tieBonus: 7,
-            lossPenalty: -6,
-            tierName: "Shot Caller"
+            minReputation: 200,
+            winBonus: 7,
+            tieBonus: 3,
+            lossPenalty: -5,
+            tierName: "Capo"
         });
 
         tiers[4] = DealersExeCore.ReputationTier({
-            minReputation: 500,
-            winBonus: 20,
-            tieBonus: 10,
-            lossPenalty: -8,
-            tierName: "Kingpin"
+            minReputation: 400,
+            winBonus: 6,
+            tieBonus: 2,
+            lossPenalty: -5,
+            tierName: "Consigliere"
+        });
+
+        tiers[5] = DealersExeCore.ReputationTier({
+            minReputation: 800,
+            winBonus: 5,
+            tieBonus: 2,
+            lossPenalty: -6,
+            tierName: "Underboss"
+        });
+
+        tiers[6] = DealersExeCore.ReputationTier({
+            minReputation: 1000,
+            winBonus: 4,
+            tieBonus: 2,
+            lossPenalty: -6,
+            tierName: "Don"
         });
 
         core.setReputationTiers(tiers);

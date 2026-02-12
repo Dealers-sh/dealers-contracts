@@ -5,6 +5,13 @@ import "forge-std/Script.sol";
 import "../src/nft/DealerRendererSVG.sol";
 import "../src/nft/DealerRendererHTML.sol";
 
+interface IDealersExeNFT {
+    function setContractRendererSVG(address newAddress) external;
+    function setContractRendererHTML(address newAddress) external;
+    function contractRendererSVG() external view returns (address);
+    function contractRendererHTML() external view returns (address);
+}
+
 /**
  * @title DeployRenderers - EVM Bytecode Deployment Script for Renderer Contracts
  * @notice Deploys DealerRendererSVG and DealerRendererHTML via EVM interpreter
@@ -24,18 +31,15 @@ import "../src/nft/DealerRendererHTML.sol";
  * but provides full EVM compatibility.
  *
  * ============================================================================
- *                           CONTRACT DETAILS
+ *                          ENVIRONMENT VARIABLES
  * ============================================================================
  *
- * DealerRendererSVG:
- *   - Generates dynamic SVG art for dealers based on token seed
- *   - Uses SSTORE2 for on-chain trait storage
- *   - Constructor sets msg.sender as owner
+ * Required:
+ *   DEALERS_NFT     - NFT contract address to set renderers on
  *
- * DealerRendererHTML:
- *   - Wraps SVG in interactive HTML for animation_url
- *   - Uses FileStore at 0xFe1411d6864592549AdE050215482e4385dFa0FB
- *   - Constructor takes FileStore address as param and sets msg.sender as owner
+ * Optional (to skip deployment of already-deployed renderers):
+ *   RENDERER_SVG    - Skip SVG renderer deployment, use this address
+ *   RENDERER_HTML   - Skip HTML renderer deployment, use this address
  *
  * ============================================================================
  *                          USAGE INSTRUCTIONS
@@ -43,64 +47,73 @@ import "../src/nft/DealerRendererHTML.sol";
  *
  * IMPORTANT: Do NOT use --zksync flag when running this script!
  *
- * Deploy to Abstract Testnet:
- *   forge script script/DeployRenderers.s.sol:DeployRenderers \
+ *   source .env && forge script script/DeployRenderers.s.sol:DeployRenderers \
  *     --rpc-url https://api.testnet.abs.xyz \
  *     --account dealersKeystore \
  *     --broadcast
  *
- * Deploy to Abstract Mainnet:
- *   forge script script/DeployRenderers.s.sol:DeployRenderers \
- *     --rpc-url https://api.mainnet.abs.xyz \
- *     --account dealersKeystore \
- *     --broadcast
- *
- * After deployment, save the addresses and configure them in DealersExeNFT:
- *   - nft.setRendererSVG(rendererSVGAddress)
- *   - nft.setRendererHTML(rendererHTMLAddress)
- *
  * @author Dealers.Exe Team
  */
 contract DeployRenderers is Script {
+    address constant FILE_STORE = 0xFe1411d6864592549AdE050215482e4385dFa0FB;
+
     function run() external {
+        address nft = vm.envAddress("DEALERS_NFT");
+        require(nft != address(0), "DEALERS_NFT not set");
+
+        address rendererSVG = vm.envOr("RENDERER_SVG", address(0));
+        address rendererHTML = vm.envOr("RENDERER_HTML", address(0));
+
         vm.startBroadcast();
 
         console.log("==============================================");
         console.log("   Deploying Renderer Contracts (EVM Mode)");
         console.log("==============================================");
         console.log("");
-        console.log("Deployer:", msg.sender);
-        console.log("");
 
-        console.log("Step 1: Deploying DealerRendererSVG...");
-        DealerRendererSVG rendererSVG = new DealerRendererSVG();
-        console.log("  DealerRendererSVG deployed at:", address(rendererSVG));
-        console.log("  Owner:", rendererSVG.owner());
-        console.log("");
+        if (rendererSVG != address(0)) {
+            console.log("Skipping DealerRendererSVG (already deployed):", rendererSVG);
+        } else {
+            DealerRendererSVG svg = new DealerRendererSVG();
+            rendererSVG = address(svg);
+            console.log("DealerRendererSVG deployed at:", rendererSVG);
+        }
 
-        console.log("Step 2: Deploying DealerRendererHTML...");
-        address fileStoreAddress = 0xFe1411d6864592549AdE050215482e4385dFa0FB;
-        DealerRendererHTML rendererHTML = new DealerRendererHTML(fileStoreAddress);
-        console.log("  DealerRendererHTML deployed at:", address(rendererHTML));
-        console.log("  Owner:", rendererHTML.owner());
-        console.log("  FileStore:", address(rendererHTML.fileStore()));
-        console.log("");
+        if (rendererHTML != address(0)) {
+            console.log("Skipping DealerRendererHTML (already deployed):", rendererHTML);
+        } else {
+            DealerRendererHTML html = new DealerRendererHTML(FILE_STORE);
+            rendererHTML = address(html);
+            console.log("DealerRendererHTML deployed at:", rendererHTML);
+        }
 
+        console.log("");
+        console.log("Setting renderers on NFT contract:", nft);
+
+        IDealersExeNFT nftContract = IDealersExeNFT(nft);
+
+        if (nftContract.contractRendererSVG() != rendererSVG) {
+            nftContract.setContractRendererSVG(rendererSVG);
+            console.log("  SVG renderer: SET");
+        } else {
+            console.log("  SVG renderer: already set");
+        }
+
+        if (nftContract.contractRendererHTML() != rendererHTML) {
+            nftContract.setContractRendererHTML(rendererHTML);
+            console.log("  HTML renderer: SET");
+        } else {
+            console.log("  HTML renderer: already set");
+        }
+
+        vm.stopBroadcast();
+
+        console.log("");
         console.log("==============================================");
         console.log("   Renderer Deployment Complete!");
         console.log("==============================================");
         console.log("");
-        console.log("Deployed Addresses:");
-        console.log("  DealerRendererSVG:", address(rendererSVG));
-        console.log("  DealerRendererHTML:", address(rendererHTML));
-        console.log("");
-        console.log("Next Steps:");
-        console.log("  1. Configure renderers in DealersExeNFT:");
-        console.log("     nft.setRendererSVG(<SVG_ADDRESS>)");
-        console.log("     nft.setRendererHTML(<HTML_ADDRESS>)");
-        console.log("  2. Upload traits to DealerRendererSVG");
-        console.log("  3. Upload gzipped JS to FileStore");
-
-        vm.stopBroadcast();
+        console.log("  RENDERER_SVG=", rendererSVG);
+        console.log("  RENDERER_HTML=", rendererHTML);
     }
 }

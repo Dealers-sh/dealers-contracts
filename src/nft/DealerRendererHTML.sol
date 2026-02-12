@@ -27,13 +27,15 @@ contract DealerRendererHTML is IDealerRendererHTML, Ownable {
     // =============================================================
 
     event FileStoreUpdated(address indexed oldStore, address indexed newStore);
+    event GunzipFilenameUpdated(string oldFilename, string newFilename);
     event GzipFilenameUpdated(string oldFilename, string newFilename);
 
     // =============================================================
     //                            STORAGE
     // =============================================================
 
-    string public dealerGzipFilename = "src6.min.js.gz";
+    string public gunzipFilename = "gunzipScripts-0.0.2.js";
+    string public dealerGzipFilename = "src1.min.js.gz";
     IFileStore public fileStore;
 
     // =============================================================
@@ -62,7 +64,18 @@ contract DealerRendererHTML is IDealerRendererHTML, Ownable {
     }
 
     /**
-     * @notice Set the gzipped JavaScript filename for the dealer UI
+     * @notice Set the gunzip decompression library filename in FileStore
+     * @param _gunzipFilename The filename of the gunzip JS library
+     */
+    function setGunzipFilename(string memory _gunzipFilename) external onlyOwner {
+        if (bytes(_gunzipFilename).length == 0) revert EmptyFilename();
+        string memory oldFilename = gunzipFilename;
+        gunzipFilename = _gunzipFilename;
+        emit GunzipFilenameUpdated(oldFilename, _gunzipFilename);
+    }
+
+    /**
+     * @notice Set the gzipped dealer UI script filename in FileStore
      * @param _dealerGzipFilename The filename of the gzipped JS in FileStore
      */
     function setDealerGzipFilename(string memory _dealerGzipFilename) external onlyOwner {
@@ -83,7 +96,7 @@ contract DealerRendererHTML is IDealerRendererHTML, Ownable {
     function getGzip() public view returns (string memory) {
         return string.concat(
             "<script src=\"data:text/javascript;base64,",
-            fileStore.getFile("gunzipScripts-0.0.1.js").read(),
+            fileStore.getFile(gunzipFilename).read(),
             "\"></script>"
         );
     }

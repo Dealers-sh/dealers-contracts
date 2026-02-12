@@ -83,6 +83,14 @@ import "forge-std/Script.sol";
 //                            INTERFACE DEFINITIONS
 // =============================================================================
 
+struct ReputationTier {
+    uint256 minReputation;
+    int16 winBonus;
+    int16 tieBonus;
+    int16 lossPenalty;
+    string tierName;
+}
+
 interface IDealersExeCore {
     function authorizeContract(address contractAddress, bool authorized) external;
     function setNFTContract(address _nftContract) external;
@@ -90,12 +98,14 @@ interface IDealersExeCore {
     function setDrugRegistry(address _drugRegistry) external;
     function setAreaRegistry(address _areaRegistry) external;
     function setRandomness(address _randomness) external;
+    function setReputationTiers(ReputationTier[] calldata _tiers) external;
     function drugRegistry() external view returns (address);
     function areaRegistry() external view returns (address);
     function nftContract() external view returns (address);
     function paymentHandler() external view returns (address);
     function randomness() external view returns (address);
     function authorizedContracts(address) external view returns (bool);
+    function getTierCount() external view returns (uint256);
 }
 
 interface IDealersExeNFT {
@@ -184,6 +194,7 @@ contract DeployGame is Script {
         _authorizeGameModulesInCore();
         _setupRegistryAuthorizations();
         _setupModuleReferences();
+        _setupReputationTiers();
 
         vm.stopBroadcast();
 
@@ -627,6 +638,33 @@ contract DeployGame is Script {
         console.log("");
     }
 
+    function _setupReputationTiers() internal {
+        IDealersExeCore coreContract = IDealersExeCore(core);
+
+        if (coreContract.getTierCount() > 0) {
+            console.log("Reputation tiers: already configured, skipping");
+            console.log("");
+            return;
+        }
+
+        console.log("Setting up reputation tiers (7-tier diminishing returns)...");
+
+        ReputationTier[] memory tiers = new ReputationTier[](7);
+
+        tiers[0] = ReputationTier({minReputation: 0, winBonus: 15, tieBonus: 5, lossPenalty: -3, tierName: "Outsider"});
+        tiers[1] = ReputationTier({minReputation: 50, winBonus: 12, tieBonus: 4, lossPenalty: -3, tierName: "Associate"});
+        tiers[2] = ReputationTier({minReputation: 100, winBonus: 9, tieBonus: 3, lossPenalty: -4, tierName: "Soldier"});
+        tiers[3] = ReputationTier({minReputation: 200, winBonus: 7, tieBonus: 3, lossPenalty: -5, tierName: "Capo"});
+        tiers[4] = ReputationTier({minReputation: 400, winBonus: 6, tieBonus: 2, lossPenalty: -5, tierName: "Consigliere"});
+        tiers[5] = ReputationTier({minReputation: 800, winBonus: 5, tieBonus: 2, lossPenalty: -6, tierName: "Underboss"});
+        tiers[6] = ReputationTier({minReputation: 1000, winBonus: 4, tieBonus: 2, lossPenalty: -6, tierName: "Don"});
+
+        coreContract.setReputationTiers(tiers);
+
+        console.log("  7 tiers configured: Outsider -> Associate -> Soldier -> Capo -> Consigliere -> Underboss -> Don");
+        console.log("");
+    }
+
     // =========================================================================
     //                            SUMMARY OUTPUT
     // =========================================================================
@@ -673,10 +711,7 @@ contract DeployGame is Script {
         console.log("   cast send $DEALERS_NFT \"setContractRendererSVG(address)\" <SVG_ADDRESS>");
         console.log("   cast send $DEALERS_NFT \"setContractRendererHTML(address)\" <HTML_ADDRESS>");
         console.log("");
-        console.log("3. Set reputation tiers in Core:");
-        console.log("   cast send $DEALERS_CORE \"setReputationTiers(...)\"");
-        console.log("");
-        console.log("4. Enable minting:");
+        console.log("3. Enable minting:");
         console.log("   cast send $DEALERS_NFT \"setMintStatus(uint8)\" 3  # PUBLIC");
         console.log("");
         console.log("==============================================");

@@ -49,6 +49,8 @@ verify_contract() {
             --etherscan-api-key "$ETHERSCAN_API_KEY" \
             --chain "$CHAIN_ID" \
             --compiler-version "$COMPILER_VERSION" \
+            --evm-version cancun \
+            --num-of-optimizations 200 \
             --zksync \
             && echo -e "${GREEN}✓ $name verified${NC}" \
             || echo -e "${RED}✗ $name verification failed${NC}"
@@ -61,6 +63,8 @@ verify_contract() {
             --etherscan-api-key "$ETHERSCAN_API_KEY" \
             --chain "$CHAIN_ID" \
             --compiler-version "$COMPILER_VERSION" \
+            --evm-version cancun \
+            --num-of-optimizations 200 \
             --zksync \
             && echo -e "${GREEN}✓ $name verified${NC}" \
             || echo -e "${RED}✗ $name verification failed${NC}"

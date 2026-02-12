@@ -112,31 +112,37 @@ contract DealersExeCoreTest is BaseTest {
         int16 tieBonus = core.getReputationChange(tokenId1, 1);
         int16 lossPenalty = core.getReputationChange(tokenId1, 2);
 
-        assertEq(winBonus, 5);
-        assertEq(tieBonus, 2);
+        assertEq(winBonus, 15);
+        assertEq(tieBonus, 5);
         assertEq(lossPenalty, -3);
 
         core.updateReputation(tokenId1, 175);
 
         int16 winBonusHighTier = core.getReputationChange(tokenId1, 0);
-        assertEq(winBonusHighTier, 12);
+        assertEq(winBonusHighTier, 7);
     }
 
     function test_getCurrentTier_progression() public {
         DealersExeCore.ReputationTier memory tier0 = core.getCurrentTier(0);
-        assertEq(tier0.tierName, "Street Rat");
+        assertEq(tier0.tierName, "Outsider");
 
         DealersExeCore.ReputationTier memory tier50 = core.getCurrentTier(50);
-        assertEq(tier50.tierName, "Corner Boy");
+        assertEq(tier50.tierName, "Associate");
 
-        DealersExeCore.ReputationTier memory tier150 = core.getCurrentTier(150);
-        assertEq(tier150.tierName, "Hustler");
+        DealersExeCore.ReputationTier memory tier100 = core.getCurrentTier(100);
+        assertEq(tier100.tierName, "Soldier");
+
+        DealersExeCore.ReputationTier memory tier200 = core.getCurrentTier(200);
+        assertEq(tier200.tierName, "Capo");
 
         DealersExeCore.ReputationTier memory tier400 = core.getCurrentTier(400);
-        assertEq(tier400.tierName, "Shot Caller");
+        assertEq(tier400.tierName, "Consigliere");
 
         DealersExeCore.ReputationTier memory tier800 = core.getCurrentTier(800);
-        assertEq(tier800.tierName, "Kingpin");
+        assertEq(tier800.tierName, "Underboss");
+
+        DealersExeCore.ReputationTier memory tier1000 = core.getCurrentTier(1000);
+        assertEq(tier1000.tierName, "Don");
     }
 
     function test_getTotalReputation_includesStashBonus() public {

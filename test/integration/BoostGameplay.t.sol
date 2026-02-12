@@ -114,7 +114,7 @@ contract BoostGameplayTest is BaseTest {
                 if (repAfter > repBefore && cashAfter == cashBefore) {
                     foundWin = true;
 
-                    int16 baseWinBonus = 5;
+                    int16 baseWinBonus = 15;
                     int256 expectedBoostedRep = (int256(baseWinBonus) * 150) / 100;
                     uint256 expectedRepAfter = repBefore + uint256(expectedBoostedRep);
 

@@ -369,8 +369,9 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
             cashChange = 0;
 
         } else if (outcome == 1) {
-            // TIE: Lose $CASH + Get drugs + Small rep
-            repChange = int256(baseRepChange);
+            // TIE: Lose $CASH + Get drugs + Small rep (boosted)
+            uint8 repMultiplier = dealersExeCore.getRepMultiplier(tokenId);
+            repChange = (int256(baseRepChange) * int256(uint256(repMultiplier))) / 100;
 
             dealersExeCore.spendCash(tokenId, cashCost);
             cashChange = -int256(cashCost);
@@ -431,8 +432,9 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
             drugChange = 0;
 
         } else if (outcome == 1) {
-            // TIE: Lose drugs + Get $CASH + Small rep
-            repChange = int256(baseRepChange);
+            // TIE: Lose drugs + Get $CASH + Small rep (boosted)
+            uint8 repMultiplier = dealersExeCore.getRepMultiplier(tokenId);
+            repChange = (int256(baseRepChange) * int256(uint256(repMultiplier))) / 100;
 
             uint8 cashMultiplier = dealersExeCore.getCashMultiplier(tokenId);
             uint256 boostedCash = (cashReward * uint256(cashMultiplier)) / 100;

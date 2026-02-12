@@ -204,7 +204,7 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         }
 
         return string(abi.encodePacked(
-            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" id="', tokenId.toString(), '">',
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 58 58" fill="none" id="', tokenId.toString(), '">',
             inner,
             "</svg>"
         ));
