@@ -272,18 +272,16 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
         tierActive(tierId)
         dealerExists(dealerId)
     {
-        // Verify ownership
-        if (dealersExeNFT.ownerOf(dealerId) != msg.sender) revert NotDealerOwner();
+        bool isAdmin = msg.sender == owner();
 
-        // Check if dealer already has an active boost
         if (dealersExeCore.hasActiveBoost(dealerId)) revert BoostAlreadyActive();
 
         BoostTier memory tier = boostTiers[tierId];
 
-        // Check payment
-        if (msg.value < tier.price) revert InsufficientPayment();
+        if (!isAdmin) {
+            if (msg.value < tier.price) revert InsufficientPayment();
+        }
 
-        // Apply boost via Core contract
         dealersExeCore.applyBoost(
             dealerId,
             tier.duration,
@@ -295,17 +293,15 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
             tier.cashMultiplier
         );
 
-        // Get the new expiry for the event
         IDealersExeCore.BoostData memory boost = dealersExeCore.getBoost(dealerId);
 
         emit BoostPurchased(dealerId, tierId, msg.sender, boost.expiresAt);
 
-        // Process payment (5% dev, 5% vault)
-        paymentHandler.processMarketplaceFee{value: tier.price}(msg.sender, tier.price);
-
-        // Refund excess
-        if (msg.value > tier.price) {
-            _safeTransferETH(msg.sender, msg.value - tier.price);
+        if (!isAdmin) {
+            paymentHandler.processMarketplaceFee{value: tier.price}(msg.sender, tier.price);
+            if (msg.value > tier.price) {
+                _safeTransferETH(msg.sender, msg.value - tier.price);
+            }
         }
     }
 

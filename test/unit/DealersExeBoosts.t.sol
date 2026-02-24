@@ -154,10 +154,10 @@ contract DealersExeBoostsTest is BaseTest {
         assertEq(balanceBefore - balanceAfter, GRINDER_PRICE);
     }
 
-    function test_purchaseBoost_revertNotOwner() public {
+    function test_purchaseBoost_anyoneCanGift() public {
         vm.prank(player2);
-        vm.expectRevert(DealersExeBoosts.NotDealerOwner.selector);
         boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
+        assertTrue(core.hasActiveBoost(dealer1));
     }
 
     function test_purchaseBoost_revertInvalidTier() public {

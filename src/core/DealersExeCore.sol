@@ -972,22 +972,24 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         dealerExists(tokenId)
         whenNotPaused
     {
+        bool isAdmin = msg.sender == owner();
         uint256 fee = config.attemptResetFee;
-        if (msg.value < fee) revert InsufficientPayment();
 
-        if (address(nftContract) == address(0)) revert NFTContractNotSet();
-        if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
+        if (!isAdmin) {
+            if (msg.value < fee) revert InsufficientPayment();
+        }
 
         DealerData storage d = dealers[tokenId];
         d.dailyAttemptsRemaining = getMaxAttempts(tokenId);
         d.lastPlayTimestamp = uint32(block.timestamp);
 
-        if (address(paymentHandler) != address(0)) {
-            paymentHandler.processMarketplaceFee{value: fee}(msg.sender, fee);
-        }
-
-        if (msg.value > fee) {
-            _safeTransferETH(msg.sender, msg.value - fee);
+        if (!isAdmin) {
+            if (address(paymentHandler) != address(0)) {
+                paymentHandler.processMarketplaceFee{value: fee}(msg.sender, fee);
+            }
+            if (msg.value > fee) {
+                _safeTransferETH(msg.sender, msg.value - fee);
+            }
         }
 
         emit AttemptsReset(tokenId, getMaxAttempts(tokenId));
@@ -1178,26 +1180,28 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         dealerExists(tokenId)
         whenNotPaused
     {
-        if (address(nftContract) == address(0)) revert NFTContractNotSet();
-        if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
-
+        bool isAdmin = msg.sender == owner();
         uint256 price = config.cashTopupPrice;
         uint256 amount = config.cashTopupAmount;
 
         if (dealerCash[tokenId] >= config.cashPurchaseThreshold) revert CashBalanceTooHigh();
-        if (msg.value < price) revert InsufficientPayment();
+
+        if (!isAdmin) {
+            if (msg.value < price) revert InsufficientPayment();
+        }
 
         dealerCash[tokenId] += amount;
 
         emit CashPurchased(tokenId, amount, price);
         emit CashUpdated(tokenId, dealerCash[tokenId], int256(amount));
 
-        if (address(paymentHandler) != address(0)) {
-            paymentHandler.processMarketplaceFee{value: price}(msg.sender, price);
-        }
-
-        if (msg.value > price) {
-            _safeTransferETH(msg.sender, msg.value - price);
+        if (!isAdmin) {
+            if (address(paymentHandler) != address(0)) {
+                paymentHandler.processMarketplaceFee{value: price}(msg.sender, price);
+            }
+            if (msg.value > price) {
+                _safeTransferETH(msg.sender, msg.value - price);
+            }
         }
     }
 
