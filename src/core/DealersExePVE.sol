@@ -31,6 +31,15 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     //                            STORAGE
     // =============================================================
 
+    struct PveStats {
+        uint32 wins;
+        uint32 losses;
+        uint32 ties;
+        uint32 dealChoices;
+        uint32 threatenChoices;
+        uint32 bailChoices;
+    }
+
     IDealersExeCore public dealersExeCore;
     IERC721Minimal public dealersExeNFT;
     IAreaRegistry public areaRegistry;
@@ -40,8 +49,13 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     uint8 public tieChance = 50;    // Default 50%
     uint8 public winChance = 20;    // Default 20%
 
+    // Stake-scaled reputation: stakeValue / divisor = scaling factor (50 = $50 for full base rep)
+    uint256 public repStakeDivisor = 50;
+
     // Pause state
     bool public paused;
+
+    mapping(uint256 => PveStats) public dealerPveStats;
 
     // =============================================================
     //                            EVENTS
@@ -74,6 +88,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     event Paused(address account);
     event Unpaused(address account);
     event OutcomeOddsUpdated(uint8 tieChance, uint8 winChance);
+    event RepStakeDivisorUpdated(uint256 oldDivisor, uint256 newDivisor);
 
     // =============================================================
     //                            ERRORS
@@ -93,6 +108,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     error RandomnessError();
     error InvalidAddress();
     error InvalidOdds();
+    error InvalidDivisor();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -279,6 +295,16 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         uint8 roll = uint8(gameRng % 100);
         (uint8 houseChoice, uint8 outcome) = _calculateBiasedHouseChoice(roll, choice);
 
+        unchecked {
+            PveStats storage stats = dealerPveStats[tokenId];
+            if (outcome == 0) stats.wins++;
+            else if (outcome == 1) stats.ties++;
+            else stats.losses++;
+            if (choice == 0) stats.dealChoices++;
+            else if (choice == 1) stats.threatenChoices++;
+            else stats.bailChoices++;
+        }
+
         int256 repChange;
         int256 cashChange;
 
@@ -354,13 +380,10 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     ) private returns (int256 repChange, int256 cashChange, int256 drugChange) {
         uint256 cashCost = amount * buyPrice;
 
-        int16 baseRepChange = dealersExeCore.getReputationChange(tokenId, outcome);
+        repChange = _calculateScaledRep(tokenId, outcome, cashCost);
 
         if (outcome == 0) {
             // WIN: Keep $CASH + Get drugs + Big rep
-            uint8 repMultiplier = dealersExeCore.getRepMultiplier(tokenId);
-            repChange = (int256(baseRepChange) * int256(uint256(repMultiplier))) / 100;
-
             uint8 drugMultiplier = dealersExeCore.getDrugMultiplier(tokenId);
             uint256 boostedAmount = (amount * uint256(drugMultiplier)) / 100;
 
@@ -369,10 +392,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
             cashChange = 0;
 
         } else if (outcome == 1) {
-            // TIE: Lose $CASH + Get drugs + Small rep (boosted)
-            uint8 repMultiplier = dealersExeCore.getRepMultiplier(tokenId);
-            repChange = (int256(baseRepChange) * int256(uint256(repMultiplier))) / 100;
-
+            // TIE: Lose $CASH + Get drugs + Small rep
             dealersExeCore.spendCash(tokenId, cashCost);
             cashChange = -int256(cashCost);
 
@@ -384,8 +404,6 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
 
         } else {
             // LOSE: Lose $CASH + No drugs + Lose rep
-            repChange = int256(baseRepChange);
-
             dealersExeCore.spendCash(tokenId, cashCost);
             cashChange = -int256(cashCost);
             drugChange = 0;
@@ -394,20 +412,6 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         dealersExeCore.updateReputation(tokenId, repChange);
     }
 
-    /**
-     * @notice Processes SELL hustle outcome
-     * @dev WIN: Keep drugs + Get $CASH + Big rep
-     *      TIE: Lose drugs + Get $CASH + Small rep
-     *      LOSE: Lose drugs + No $CASH + Lose rep
-     * @param tokenId The dealer token ID
-     * @param outcome The game outcome (0=WIN, 1=TIE, 2=LOSS)
-     * @param drugId The drug being sold
-     * @param amount The amount of drugs to sell
-     * @param sellPrice The sell price per unit
-     * @return repChange The reputation change applied
-     * @return cashChange The cash change applied
-     * @return drugChange The drug balance change applied
-     */
     function _processSellOutcome(
         uint256 tokenId,
         uint8 outcome,
@@ -417,13 +421,10 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     ) private returns (int256 repChange, int256 cashChange, int256 drugChange) {
         uint256 cashReward = amount * sellPrice;
 
-        int16 baseRepChange = dealersExeCore.getReputationChange(tokenId, outcome);
+        repChange = _calculateScaledRep(tokenId, outcome, cashReward);
 
         if (outcome == 0) {
             // WIN: Keep drugs + Get $CASH + Big rep
-            uint8 repMultiplier = dealersExeCore.getRepMultiplier(tokenId);
-            repChange = (int256(baseRepChange) * int256(uint256(repMultiplier))) / 100;
-
             uint8 cashMultiplier = dealersExeCore.getCashMultiplier(tokenId);
             uint256 boostedCash = (cashReward * uint256(cashMultiplier)) / 100;
 
@@ -432,10 +433,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
             drugChange = 0;
 
         } else if (outcome == 1) {
-            // TIE: Lose drugs + Get $CASH + Small rep (boosted)
-            uint8 repMultiplier = dealersExeCore.getRepMultiplier(tokenId);
-            repChange = (int256(baseRepChange) * int256(uint256(repMultiplier))) / 100;
-
+            // TIE: Lose drugs + Get $CASH + Small rep
             uint8 cashMultiplier = dealersExeCore.getCashMultiplier(tokenId);
             uint256 boostedCash = (cashReward * uint256(cashMultiplier)) / 100;
 
@@ -447,14 +445,39 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
 
         } else {
             // LOSE: Lose drugs + No $CASH + Lose rep
-            repChange = int256(baseRepChange);
-
             dealersExeCore.updateDrugBalance(tokenId, drugId, -int256(amount));
             drugChange = -int256(amount);
             cashChange = 0;
         }
 
         dealersExeCore.updateReputation(tokenId, repChange);
+    }
+
+    /**
+     * @notice Scales rep by stake value, applies boost multiplier, and caps at tier repCap
+     * @dev Formula: min(baseRep * stakeValue / divisor * boostMult / 100, repCap)
+     *      Losses are also scaled (capped at -repCap)
+     */
+    function _calculateScaledRep(
+        uint256 tokenId,
+        uint8 outcome,
+        uint256 stakeValue
+    ) private view returns (int256) {
+        int16 baseRep = dealersExeCore.getReputationChange(tokenId, outcome);
+        int16 repCap = dealersExeCore.getRepCap(tokenId);
+
+        int256 scaled = (int256(baseRep) * int256(stakeValue)) / int256(repStakeDivisor);
+
+        // Apply boost multiplier for wins and ties
+        if (outcome <= 1) {
+            uint8 repMultiplier = dealersExeCore.getRepMultiplier(tokenId);
+            scaled = (scaled * int256(uint256(repMultiplier))) / 100;
+        }
+
+        // Cap gains and losses
+        if (scaled > int256(repCap)) return int256(repCap);
+        if (scaled < -int256(repCap)) return -int256(repCap);
+        return scaled;
     }
 
     /**
@@ -487,6 +510,10 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     /**
      * @notice Check if a dealer can play a game
      */
+    function getDealerPveStats(uint256 tokenId) external view returns (PveStats memory) {
+        return dealerPveStats[tokenId];
+    }
+
     function canPlay(uint256 tokenId) external view returns (bool isPlayable, uint8 reason) {
         (, , uint8 attemptsRemaining, , , bool isInitialized) = dealersExeCore.getDealerData(tokenId);
         if (!isInitialized) return (false, 1);
@@ -573,6 +600,13 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         tieChance = _tieChance;
         winChance = _winChance;
         emit OutcomeOddsUpdated(_tieChance, _winChance);
+    }
+
+    function setRepStakeDivisor(uint256 _divisor) external onlyOwner {
+        if (_divisor == 0) revert InvalidDivisor();
+        uint256 old = repStakeDivisor;
+        repStakeDivisor = _divisor;
+        emit RepStakeDivisorUpdated(old, _divisor);
     }
 
     /**

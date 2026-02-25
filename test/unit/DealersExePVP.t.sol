@@ -85,7 +85,7 @@ contract DealersExePVPTest is BaseTest {
     ) internal {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
-        core.applyBoost(tokenId, duration, drugMultiplier, repMultiplier, extraAttempts, freeAreaMovement, doubleHeistEntries, cashMultiplier);
+        core.applyBoost(tokenId, duration, drugMultiplier, repMultiplier, extraAttempts, freeAreaMovement, doubleHeistEntries, cashMultiplier, 1);
         vm.prank(owner);
         core.authorizeContract(address(this), false);
     }
@@ -683,5 +683,33 @@ contract DealersExePVPTest is BaseTest {
         (bool canFight, uint8 reason) = pvp.canAttack(attackerToken, defenderToken);
         assertFalse(canFight);
         assertEq(reason, 12);
+    }
+
+    function test_pvpStats_attackerWinUpdatesStats() public {
+        _setupDealersForPVP();
+        _setupForWin();
+        _executeAttack();
+
+        DealersExePVP.PvpStats memory attackerStats = pvp.getDealerPvpStats(attackerToken);
+        DealersExePVP.PvpStats memory defenderStats = pvp.getDealerPvpStats(defenderToken);
+
+        assertEq(attackerStats.attackWins, 1);
+        assertEq(attackerStats.attackLosses, 0);
+        assertEq(defenderStats.defendLosses, 1);
+        assertEq(defenderStats.defendWins, 0);
+    }
+
+    function test_pvpStats_defenderWinUpdatesStats() public {
+        _setupDealersForPVP();
+        _setupForLoss();
+        _executeAttack();
+
+        DealersExePVP.PvpStats memory attackerStats = pvp.getDealerPvpStats(attackerToken);
+        DealersExePVP.PvpStats memory defenderStats = pvp.getDealerPvpStats(defenderToken);
+
+        assertEq(attackerStats.attackLosses, 1);
+        assertEq(attackerStats.attackWins, 0);
+        assertEq(defenderStats.defendWins, 1);
+        assertEq(defenderStats.defendLosses, 0);
     }
 }

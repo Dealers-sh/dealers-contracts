@@ -290,7 +290,8 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
             tier.extraAttempts,
             tier.freeAreaMovement,
             tier.doubleHeistEntries,
-            tier.cashMultiplier
+            tier.cashMultiplier,
+            uint8(tierId)
         );
 
         IDealersExeCore.BoostData memory boost = dealersExeCore.getBoost(dealerId);
@@ -362,7 +363,8 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
                 tier.extraAttempts,
                 tier.freeAreaMovement,
                 tier.doubleHeistEntries,
-                tier.cashMultiplier
+                tier.cashMultiplier,
+                uint8(tierId)
             );
 
             unchecked {

@@ -114,12 +114,12 @@ contract DealersExeCoreTest is BaseTest {
 
         assertEq(winBonus, 15);
         assertEq(tieBonus, 5);
-        assertEq(lossPenalty, -3);
+        assertEq(lossPenalty, -2);
 
-        core.updateReputation(tokenId1, 175);
+        core.updateReputation(tokenId1, 675);
 
         int16 winBonusHighTier = core.getReputationChange(tokenId1, 0);
-        assertEq(winBonusHighTier, 7);
+        assertEq(winBonusHighTier, 8);
     }
 
     function test_getCurrentTier_progression() public {
@@ -129,20 +129,29 @@ contract DealersExeCoreTest is BaseTest {
         DealersExeCore.ReputationTier memory tier50 = core.getCurrentTier(50);
         assertEq(tier50.tierName, "Associate");
 
-        DealersExeCore.ReputationTier memory tier100 = core.getCurrentTier(100);
-        assertEq(tier100.tierName, "Soldier");
+        DealersExeCore.ReputationTier memory tier150 = core.getCurrentTier(150);
+        assertEq(tier150.tierName, "Dealer");
 
-        DealersExeCore.ReputationTier memory tier200 = core.getCurrentTier(200);
-        assertEq(tier200.tierName, "Capo");
+        DealersExeCore.ReputationTier memory tier300 = core.getCurrentTier(300);
+        assertEq(tier300.tierName, "Soldier");
 
-        DealersExeCore.ReputationTier memory tier400 = core.getCurrentTier(400);
-        assertEq(tier400.tierName, "Consigliere");
+        DealersExeCore.ReputationTier memory tier700 = core.getCurrentTier(700);
+        assertEq(tier700.tierName, "Capo");
 
-        DealersExeCore.ReputationTier memory tier800 = core.getCurrentTier(800);
-        assertEq(tier800.tierName, "Underboss");
+        DealersExeCore.ReputationTier memory tier1250 = core.getCurrentTier(1250);
+        assertEq(tier1250.tierName, "Consigliere");
 
-        DealersExeCore.ReputationTier memory tier1000 = core.getCurrentTier(1000);
-        assertEq(tier1000.tierName, "Don");
+        DealersExeCore.ReputationTier memory tier1900 = core.getCurrentTier(1900);
+        assertEq(tier1900.tierName, "Underboss");
+
+        DealersExeCore.ReputationTier memory tier2600 = core.getCurrentTier(2600);
+        assertEq(tier2600.tierName, "Don");
+
+        DealersExeCore.ReputationTier memory tier3500 = core.getCurrentTier(3500);
+        assertEq(tier3500.tierName, "Godfather");
+
+        DealersExeCore.ReputationTier memory tier5000 = core.getCurrentTier(5000);
+        assertEq(tier5000.tierName, "Legend");
     }
 
     function test_getTotalReputation_includesStashBonus() public {
@@ -458,7 +467,7 @@ contract DealersExeCoreTest is BaseTest {
 
             (, , uint8 attempts, , , ) = core.getDealerData(tokenId1);
             if (attempts == 0) {
-                core.applyBoost(tokenId1, 1 days, 100, 100, 5, false, false, 100);
+                core.applyBoost(tokenId1, 1 days, 100, 100, 5, false, false, 100, 1);
                 vm.prank(owner);
                 core.authorizeContract(address(this), true);
                 dealers_resetAttempts(tokenId1);
@@ -565,7 +574,7 @@ contract DealersExeCoreTest is BaseTest {
         uint8 maxWithoutBoost = core.getMaxAttempts(tokenId1);
         assertEq(maxWithoutBoost, core.BASE_MAX_ATTEMPTS());
 
-        core.applyBoost(tokenId1, 1 days, 200, 150, 5, false, false, 150);
+        core.applyBoost(tokenId1, 1 days, 200, 150, 5, false, false, 150, 2);
 
         uint8 maxWithBoost = core.getMaxAttempts(tokenId1);
         assertEq(maxWithBoost, core.BASE_MAX_ATTEMPTS() + 5);
@@ -579,7 +588,7 @@ contract DealersExeCoreTest is BaseTest {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
-        core.applyBoost(tokenId1, 1 days, 200, 150, 3, true, true, 175);
+        core.applyBoost(tokenId1, 1 days, 200, 150, 3, true, true, 175, 3);
 
         DealersExeCore.BoostData memory boost = core.getBoost(tokenId1);
 
@@ -596,12 +605,12 @@ contract DealersExeCoreTest is BaseTest {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
-        core.applyBoost(tokenId1, 1 days, 200, 150, 3, false, false, 150);
+        core.applyBoost(tokenId1, 1 days, 200, 150, 3, false, false, 150, 2);
 
         DealersExeCore.BoostData memory boostFirst = core.getBoost(tokenId1);
         uint64 firstExpiry = boostFirst.expiresAt;
 
-        core.applyBoost(tokenId1, 1 days, 200, 150, 3, false, false, 150);
+        core.applyBoost(tokenId1, 1 days, 200, 150, 3, false, false, 150, 2);
 
         DealersExeCore.BoostData memory boostSecond = core.getBoost(tokenId1);
         uint64 secondExpiry = boostSecond.expiresAt;
@@ -615,7 +624,7 @@ contract DealersExeCoreTest is BaseTest {
 
         assertFalse(core.hasActiveBoost(tokenId1));
 
-        core.applyBoost(tokenId1, 1 days, 200, 150, 3, false, false, 150);
+        core.applyBoost(tokenId1, 1 days, 200, 150, 3, false, false, 150, 2);
         assertTrue(core.hasActiveBoost(tokenId1));
 
         vm.warp(block.timestamp + 2 days);
@@ -629,7 +638,7 @@ contract DealersExeCoreTest is BaseTest {
         uint8 multiplierNoBoost = core.getDrugMultiplier(tokenId1);
         assertEq(multiplierNoBoost, 100);
 
-        core.applyBoost(tokenId1, 1 days, 200, 150, 3, false, false, 150);
+        core.applyBoost(tokenId1, 1 days, 200, 150, 3, false, false, 150, 2);
 
         uint8 multiplierWithBoost = core.getDrugMultiplier(tokenId1);
         assertEq(multiplierWithBoost, 200);
@@ -642,7 +651,7 @@ contract DealersExeCoreTest is BaseTest {
         uint8 multiplierNoBoost = core.getRepMultiplier(tokenId1);
         assertEq(multiplierNoBoost, 100);
 
-        core.applyBoost(tokenId1, 1 days, 200, 175, 3, false, false, 150);
+        core.applyBoost(tokenId1, 1 days, 200, 175, 3, false, false, 150, 2);
 
         uint8 multiplierWithBoost = core.getRepMultiplier(tokenId1);
         assertEq(multiplierWithBoost, 175);
@@ -812,6 +821,7 @@ contract DealersExeCoreTest is BaseTest {
             winBonus: 10,
             tieBonus: 5,
             lossPenalty: -2,
+            repCap: 20,
             tierName: "Newbie"
         });
 
@@ -820,6 +830,7 @@ contract DealersExeCoreTest is BaseTest {
             winBonus: 20,
             tieBonus: 10,
             lossPenalty: -5,
+            repCap: 30,
             tierName: "Pro"
         });
 
@@ -831,10 +842,12 @@ contract DealersExeCoreTest is BaseTest {
         DealersExeCore.ReputationTier memory tier0 = core.getCurrentTier(0);
         assertEq(tier0.tierName, "Newbie");
         assertEq(tier0.winBonus, 10);
+        assertEq(tier0.repCap, 20);
 
         DealersExeCore.ReputationTier memory tier100 = core.getCurrentTier(100);
         assertEq(tier100.tierName, "Pro");
         assertEq(tier100.winBonus, 20);
+        assertEq(tier100.repCap, 30);
     }
 
     // =============================================================
@@ -988,7 +1001,7 @@ contract DealersExeCoreTest is BaseTest {
         // Apply boost with freeAreaMovement
         vm.prank(owner);
         core.authorizeContract(address(this), true);
-        core.applyBoost(tokenId1, 30 days, 200, 200, 10, true, false, 200);
+        core.applyBoost(tokenId1, 30 days, 200, 200, 10, true, false, 200, 3);
 
         // Create a new area with a fee
         vm.prank(owner);

@@ -77,7 +77,9 @@ contract DealerRendererSVGTest is Test {
 
     function _svgPrefix(uint256 tokenId) internal pure returns (string memory) {
         return string(abi.encodePacked(
-            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" id="',
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 58 58" fill="none" id="',
+            vm.toString(tokenId),
+            '" data-token-id="',
             vm.toString(tokenId),
             '">'
         ));

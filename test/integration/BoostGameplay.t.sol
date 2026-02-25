@@ -105,7 +105,7 @@ contract BoostGameplayTest is BaseTest {
                 0,
                 DealersExePVE.HustleType.BUY,
                 DRUG_WEED,
-                10
+                50
             ) {
                 (, uint256 repAfter, , , , ) = core.getDealerData(tokenId);
                 uint256 cashAfter = core.getCashBalance(tokenId);
@@ -114,6 +114,7 @@ contract BoostGameplayTest is BaseTest {
                 if (repAfter > repBefore && cashAfter == cashBefore) {
                     foundWin = true;
 
+                    // stakeValue=50, divisor=50 → 1x. base=15, 1.5x boost → 22
                     int16 baseWinBonus = 15;
                     int256 expectedBoostedRep = (int256(baseWinBonus) * 150) / 100;
                     uint256 expectedRepAfter = repBefore + uint256(expectedBoostedRep);
@@ -121,7 +122,7 @@ contract BoostGameplayTest is BaseTest {
                     assertEq(
                         repAfter,
                         expectedRepAfter,
-                        "WIN with boost: Rep should be base * 1.5x multiplier"
+                        "WIN with boost: Rep should be base * 1.5x multiplier (at full stake)"
                     );
                     break;
                 }
@@ -341,10 +342,10 @@ contract BoostGameplayTest is BaseTest {
         assertTrue(kingpin.doubleHeistEntries, "Kingpin double heist");
     }
 
-    function test_boost_purchaseRequiresOwnership() public {
+    function test_boost_anyoneCanPurchaseForDealer() public {
         vm.prank(player2);
-        vm.expectRevert(DealersExeBoosts.NotDealerOwner.selector);
         boosts.purchaseBoost{value: GRINDER_PRICE}(tokenId, GRINDER_ID);
+        assertTrue(core.hasActiveBoost(tokenId), "Boost should be active after purchase by non-owner");
     }
 
     function test_boost_purchaseRequiresSufficientPayment() public {

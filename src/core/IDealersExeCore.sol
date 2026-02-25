@@ -50,6 +50,7 @@ interface IDealersExeCore {
         int16 winBonus;
         int16 tieBonus;
         int16 lossPenalty;
+        int16 repCap;
         string tierName;
     }
 
@@ -78,6 +79,9 @@ interface IDealersExeCore {
 
     /// @notice Get the reputation change for a given outcome
     function getReputationChange(uint256 tokenId, uint8 outcome) external view returns (int16);
+
+    /// @notice Get the rep cap for a dealer's current tier
+    function getRepCap(uint256 tokenId) external view returns (int16);
 
     /// @notice Get the title string for a reputation value
     function getReputationTitle(uint256 reputation) external view returns (string memory);
@@ -176,7 +180,8 @@ interface IDealersExeCore {
         uint8 extraAttempts,
         bool freeAreaMovement,
         bool doubleHeistEntries,
-        uint8 cashMultiplier
+        uint8 cashMultiplier,
+        uint8 tierId
     ) external;
 
     /// @notice Add $CASH to a dealer's balance

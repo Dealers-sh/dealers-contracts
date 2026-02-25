@@ -78,6 +78,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         bool freeAreaMovement;
         bool doubleHeistEntries;
         uint8 cashMultiplier;
+        uint8 tierId;
     }
 
     /**
@@ -88,6 +89,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         int16 winBonus;
         int16 tieBonus;
         int16 lossPenalty;
+        int16 repCap;
         string tierName;
     }
 
@@ -229,14 +231,14 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
         config = CoreConfig({
             attemptResetFee: 0.001 ether,
-            bribeCopFee: 0.002 ether,
+            bribeCopFee: 0.001 ether,
             cashTopupPrice: 0.001 ether,
             cashTopupAmount: 100,
             cashPurchaseThreshold: 10,
             jailRepPenaltyPercent: 10,
             jailRepPenaltyCap: 50,
             wantedPosterSuccessChance: 50,
-            breakoutSuccessChance: 33,
+            breakoutSuccessChance: 50,
             jailDrugConfiscationPercent: 3
         });
     }
@@ -379,6 +381,10 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         if (outcome == 0) return tier.winBonus;
         if (outcome == 1) return tier.tieBonus;
         return tier.lossPenalty;
+    }
+
+    function getRepCap(uint256 tokenId) external view dealerExists(tokenId) returns (int16) {
+        return getCurrentTier(dealers[tokenId].reputation).repCap;
     }
 
     /**
@@ -1010,7 +1016,8 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         uint8 extraAttempts,
         bool freeAreaMovement,
         bool doubleHeistEntries,
-        uint8 cashMultiplier
+        uint8 cashMultiplier,
+        uint8 tierId
     )
         external
         onlyAuthorized
@@ -1037,8 +1044,11 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
             extraAttempts: extraAttempts,
             freeAreaMovement: freeAreaMovement,
             doubleHeistEntries: doubleHeistEntries,
-            cashMultiplier: cashMultiplier
+            cashMultiplier: cashMultiplier,
+            tierId: tierId
         });
+
+        dealers[tokenId].dailyAttemptsRemaining = getMaxAttempts(tokenId);
 
         emit BoostApplied(tokenId, newExpiry);
     }

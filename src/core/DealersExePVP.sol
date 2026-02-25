@@ -24,6 +24,13 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     //                            STRUCTS
     // =============================================================
 
+    struct PvpStats {
+        uint32 attackWins;
+        uint32 attackLosses;
+        uint32 defendWins;
+        uint32 defendLosses;
+    }
+
     struct PVPConfig {
         uint256 minReputation;
         uint8 baseWinChance;
@@ -63,6 +70,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
 
     mapping(uint256 => uint256) public lastAttackDay;
     mapping(uint256 => uint256) public attacksReceivedToday;
+    mapping(uint256 => PvpStats) public dealerPvpStats;
 
     // =============================================================
     //                            EVENTS
@@ -213,12 +221,10 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     //                        VIEW FUNCTIONS
     // =============================================================
 
-    /**
-     * @notice Calculate win chance for an attack
-     * @param attackerId The attacker's token ID
-     * @param defenderId The defender's token ID
-     * @return Win chance percentage (25-75)
-     */
+    function getDealerPvpStats(uint256 tokenId) external view returns (PvpStats memory) {
+        return dealerPvpStats[tokenId];
+    }
+
     function calculateWinChance(uint256 attackerId, uint256 defenderId) public view returns (uint256) {
         (uint8 attackerThreat, ) = core.getDealerStats(attackerId);
         (, uint8 defenderArmor) = core.getDealerStats(defenderId);
@@ -526,6 +532,16 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
 
         uint256 winChance = calculateWinChance(attackerId, defenderId);
         bool attackerWon = ((battleRandomness >> 8) % 100) < winChance;
+
+        unchecked {
+            if (attackerWon) {
+                dealerPvpStats[attackerId].attackWins++;
+                dealerPvpStats[defenderId].defendLosses++;
+            } else {
+                dealerPvpStats[attackerId].attackLosses++;
+                dealerPvpStats[defenderId].defendWins++;
+            }
+        }
 
         (uint256 drugsStolen, uint256 cashStolen, int16 attackerRepChange, int16 defenderRepChange) =
             _processBattleOutcome(attackerId, defenderId, attackerWon, area, battleRandomness);

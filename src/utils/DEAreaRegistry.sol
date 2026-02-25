@@ -502,7 +502,7 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
     function _createJail() private {
         _areas[JAIL_AREA] = IAreaRegistry.AreaInfo({
             name: "Jail",
-            movementFee: 0.002 ether,
+            movementFee: 0.001 ether,
             minReputation: 0,
             isActive: true,
             isSafeHouse: false,

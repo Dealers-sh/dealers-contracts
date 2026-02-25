@@ -112,65 +112,21 @@ abstract contract BaseTest is Test, IERC721Receiver {
     }
 
     function _setupReputationTiers() internal {
-        DealersExeCore.ReputationTier[] memory tiers = new DealersExeCore.ReputationTier[](7);
+        DealersExeCore.ReputationTier[] memory tiers = new DealersExeCore.ReputationTier[](10);
 
-        tiers[0] = DealersExeCore.ReputationTier({
-            minReputation: 0,
-            winBonus: 15,
-            tieBonus: 5,
-            lossPenalty: -3,
-            tierName: "Outsider"
-        });
-
-        tiers[1] = DealersExeCore.ReputationTier({
-            minReputation: 50,
-            winBonus: 12,
-            tieBonus: 4,
-            lossPenalty: -3,
-            tierName: "Associate"
-        });
-
-        tiers[2] = DealersExeCore.ReputationTier({
-            minReputation: 100,
-            winBonus: 9,
-            tieBonus: 3,
-            lossPenalty: -4,
-            tierName: "Soldier"
-        });
-
-        tiers[3] = DealersExeCore.ReputationTier({
-            minReputation: 200,
-            winBonus: 7,
-            tieBonus: 3,
-            lossPenalty: -5,
-            tierName: "Capo"
-        });
-
-        tiers[4] = DealersExeCore.ReputationTier({
-            minReputation: 400,
-            winBonus: 6,
-            tieBonus: 2,
-            lossPenalty: -5,
-            tierName: "Consigliere"
-        });
-
-        tiers[5] = DealersExeCore.ReputationTier({
-            minReputation: 800,
-            winBonus: 5,
-            tieBonus: 2,
-            lossPenalty: -6,
-            tierName: "Underboss"
-        });
-
-        tiers[6] = DealersExeCore.ReputationTier({
-            minReputation: 1000,
-            winBonus: 4,
-            tieBonus: 2,
-            lossPenalty: -6,
-            tierName: "Don"
-        });
+        tiers[0] = DealersExeCore.ReputationTier({minReputation: 0, winBonus: 15, tieBonus: 5, lossPenalty: -2, repCap: 25, tierName: "Outsider"});
+        tiers[1] = DealersExeCore.ReputationTier({minReputation: 50, winBonus: 12, tieBonus: 4, lossPenalty: -3, repCap: 22, tierName: "Associate"});
+        tiers[2] = DealersExeCore.ReputationTier({minReputation: 150, winBonus: 10, tieBonus: 4, lossPenalty: -3, repCap: 18, tierName: "Dealer"});
+        tiers[3] = DealersExeCore.ReputationTier({minReputation: 300, winBonus: 9, tieBonus: 3, lossPenalty: -4, repCap: 17, tierName: "Soldier"});
+        tiers[4] = DealersExeCore.ReputationTier({minReputation: 700, winBonus: 8, tieBonus: 3, lossPenalty: -4, repCap: 16, tierName: "Capo"});
+        tiers[5] = DealersExeCore.ReputationTier({minReputation: 1250, winBonus: 7, tieBonus: 3, lossPenalty: -5, repCap: 14, tierName: "Consigliere"});
+        tiers[6] = DealersExeCore.ReputationTier({minReputation: 1900, winBonus: 6, tieBonus: 2, lossPenalty: -5, repCap: 12, tierName: "Underboss"});
+        tiers[7] = DealersExeCore.ReputationTier({minReputation: 2600, winBonus: 5, tieBonus: 2, lossPenalty: -6, repCap: 12, tierName: "Don"});
+        tiers[8] = DealersExeCore.ReputationTier({minReputation: 3500, winBonus: 4, tieBonus: 2, lossPenalty: -6, repCap: 10, tierName: "Godfather"});
+        tiers[9] = DealersExeCore.ReputationTier({minReputation: 5000, winBonus: 3, tieBonus: 1, lossPenalty: -7, repCap: 8, tierName: "Legend"});
 
         core.setReputationTiers(tiers);
+        core.setMaxReputation(6000);
     }
 
     function _fundPlayers() internal {

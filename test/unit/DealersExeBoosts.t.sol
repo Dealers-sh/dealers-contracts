@@ -438,4 +438,18 @@ contract DealersExeBoostsTest is BaseTest {
         vm.expectRevert();
         boosts.unpause();
     }
+
+    function test_purchaseBoost_resetsAttempts() public {
+        for (uint256 i = 0; i < 5; i++) {
+            core.useAttempt(dealer1);
+        }
+        (, , uint8 attemptsBefore, , ,) = core.getDealerData(dealer1);
+        assertEq(attemptsBefore, 0);
+
+        vm.prank(player1);
+        boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
+
+        (, , uint8 attemptsAfter, , ,) = core.getDealerData(dealer1);
+        assertEq(attemptsAfter, 8); // 5 base + 3 extra
+    }
 }

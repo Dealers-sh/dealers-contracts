@@ -88,6 +88,7 @@ struct ReputationTier {
     int16 winBonus;
     int16 tieBonus;
     int16 lossPenalty;
+    int16 repCap;
     string tierName;
 }
 
@@ -106,6 +107,7 @@ interface IDealersExeCore {
     function randomness() external view returns (address);
     function authorizedContracts(address) external view returns (bool);
     function getTierCount() external view returns (uint256);
+    function setMaxReputation(uint256 newMax) external;
 }
 
 interface IDealersExeNFT {
@@ -647,21 +649,26 @@ contract DeployGame is Script {
             return;
         }
 
-        console.log("Setting up reputation tiers (7-tier diminishing returns)...");
+        console.log("Setting up reputation tiers (10-tier stake-scaled system)...");
 
-        ReputationTier[] memory tiers = new ReputationTier[](7);
+        ReputationTier[] memory tiers = new ReputationTier[](10);
 
-        tiers[0] = ReputationTier({minReputation: 0, winBonus: 15, tieBonus: 5, lossPenalty: -3, tierName: "Outsider"});
-        tiers[1] = ReputationTier({minReputation: 50, winBonus: 12, tieBonus: 4, lossPenalty: -3, tierName: "Associate"});
-        tiers[2] = ReputationTier({minReputation: 100, winBonus: 9, tieBonus: 3, lossPenalty: -4, tierName: "Soldier"});
-        tiers[3] = ReputationTier({minReputation: 200, winBonus: 7, tieBonus: 3, lossPenalty: -5, tierName: "Capo"});
-        tiers[4] = ReputationTier({minReputation: 400, winBonus: 6, tieBonus: 2, lossPenalty: -5, tierName: "Consigliere"});
-        tiers[5] = ReputationTier({minReputation: 800, winBonus: 5, tieBonus: 2, lossPenalty: -6, tierName: "Underboss"});
-        tiers[6] = ReputationTier({minReputation: 1000, winBonus: 4, tieBonus: 2, lossPenalty: -6, tierName: "Don"});
+        tiers[0] = ReputationTier({minReputation: 0, winBonus: 15, tieBonus: 5, lossPenalty: -2, repCap: 25, tierName: "Outsider"});
+        tiers[1] = ReputationTier({minReputation: 50, winBonus: 12, tieBonus: 4, lossPenalty: -3, repCap: 22, tierName: "Associate"});
+        tiers[2] = ReputationTier({minReputation: 150, winBonus: 10, tieBonus: 4, lossPenalty: -3, repCap: 18, tierName: "Dealer"});
+        tiers[3] = ReputationTier({minReputation: 300, winBonus: 9, tieBonus: 3, lossPenalty: -4, repCap: 17, tierName: "Soldier"});
+        tiers[4] = ReputationTier({minReputation: 700, winBonus: 8, tieBonus: 3, lossPenalty: -4, repCap: 16, tierName: "Capo"});
+        tiers[5] = ReputationTier({minReputation: 1250, winBonus: 7, tieBonus: 3, lossPenalty: -5, repCap: 14, tierName: "Consigliere"});
+        tiers[6] = ReputationTier({minReputation: 1900, winBonus: 6, tieBonus: 2, lossPenalty: -5, repCap: 12, tierName: "Underboss"});
+        tiers[7] = ReputationTier({minReputation: 2600, winBonus: 5, tieBonus: 2, lossPenalty: -6, repCap: 12, tierName: "Don"});
+        tiers[8] = ReputationTier({minReputation: 3500, winBonus: 4, tieBonus: 2, lossPenalty: -6, repCap: 10, tierName: "Godfather"});
+        tiers[9] = ReputationTier({minReputation: 5000, winBonus: 3, tieBonus: 1, lossPenalty: -7, repCap: 8, tierName: "Legend"});
 
         coreContract.setReputationTiers(tiers);
+        coreContract.setMaxReputation(6000);
 
-        console.log("  7 tiers configured: Outsider -> Associate -> Soldier -> Capo -> Consigliere -> Underboss -> Don");
+        console.log("  10 tiers configured: Outsider -> Associate -> Dealer -> Soldier -> Capo -> Consigliere -> Underboss -> Don -> Godfather -> Legend");
+        console.log("  MAX_REPUTATION set to 6000");
         console.log("");
     }
 

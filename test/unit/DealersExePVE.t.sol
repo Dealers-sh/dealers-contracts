@@ -97,6 +97,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
             winBonus: 10,
             tieBonus: 5,
             lossPenalty: -5,
+            repCap: 20,
             tierName: "Street Dealer"
         });
 
@@ -105,6 +106,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
             winBonus: 15,
             tieBonus: 7,
             lossPenalty: -7,
+            repCap: 25,
             tierName: "Corner Boss"
         });
 
@@ -113,6 +115,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
             winBonus: 20,
             tieBonus: 10,
             lossPenalty: -10,
+            repCap: 30,
             tierName: "Kingpin"
         });
 
@@ -154,7 +157,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
         uint8 cashMultiplier
     ) internal {
         core.authorizeContract(address(this), true);
-        core.applyBoost(tokenId, duration, drugMultiplier, repMultiplier, extraAttempts, freeAreaMovement, doubleHeistEntries, cashMultiplier);
+        core.applyBoost(tokenId, duration, drugMultiplier, repMultiplier, extraAttempts, freeAreaMovement, doubleHeistEntries, cashMultiplier, 1);
         core.authorizeContract(address(this), false);
     }
 
@@ -463,9 +466,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
             if (attempts == 0) {
-                core.authorizeContract(address(this), true);
-                core.updateDailyPlays(DEALER_ID_1, 5);
-                core.authorizeContract(address(this), false);
+                vm.warp(block.timestamp + 1 days);
             }
 
             uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
@@ -627,9 +628,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
             if (attempts == 0) {
-                core.authorizeContract(address(this), true);
-                core.updateDailyPlays(DEALER_ID_1, 5);
-                core.authorizeContract(address(this), false);
+                vm.warp(block.timestamp + 1 days);
             }
 
             _addDrugsToDealer(DEALER_ID_1, DRUG_WEED, amount);
@@ -877,7 +876,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             if (core.isInJail(DEALER_ID_1)) {
                 uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-                assertEq(drugsAfter, drugsBefore - amount, "Arrested SELL loses staked drugs");
+                assertLe(drugsAfter, drugsBefore - amount, "Arrested SELL loses at least staked drugs (+ possible confiscation)");
                 arrested = true;
                 break;
             }
@@ -940,7 +939,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
         _applyBoost(DEALER_ID_1, 1 days, 100, 200, 0, false, false, 100);
 
         uint8 playerChoice = 0;
-        uint256 amount = 10;
+        uint256 amount = 50;
 
         bool foundWin = false;
         for (uint256 i = 0; i < 200; i++) {
@@ -971,10 +970,12 @@ contract DealersExePVETest is Test, IERC721Receiver {
             uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
             (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
 
+            // WIN: keep cash + get drugs
             bool isWin = (cashAfter == cashBefore) && (drugsAfter > drugsBefore);
             if (isWin) {
                 uint256 repGain = repAfter - repBefore;
-                assertGt(repGain, 10, "2x rep multiplier should give more than base 10 rep");
+                // stakeValue=50, divisor=50 → 1x scale. base=10, 2x boost → 20 rep
+                assertEq(repGain, 20, "2x rep multiplier with full stake should give 2x base rep");
                 foundWin = true;
                 break;
             }
@@ -1271,5 +1272,39 @@ contract DealersExePVETest is Test, IERC721Receiver {
     function test_setRandomness_revertZeroAddress() public {
         vm.expectRevert(DealersExePVE.InvalidAddress.selector);
         pve.setRandomness(address(0));
+    }
+
+    function test_pveStats_accumulateAcrossGames() public {
+        _setupDealerForPlay(DEALER_ID_1);
+
+        uint32 totalPlayed = 0;
+        for (uint256 i = 0; i < 20; i++) {
+            if (core.isInJail(DEALER_ID_1)) {
+                core.authorizeContract(address(this), true);
+                core.moveToArea(DEALER_ID_1, AREA_MANHATTAN);
+                core.authorizeContract(address(this), false);
+            }
+
+            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
+            if (attempts == 0) {
+                vm.warp(block.timestamp + 1 days);
+            }
+
+            uint8 choice = uint8(i % 3);
+            vm.prevrandao(bytes32(i));
+            vm.prank(player1);
+            pve.playGame(DEALER_ID_1, choice, DealersExePVE.HustleType.BUY, DRUG_WEED, 1);
+
+            if (!core.isInJail(DEALER_ID_1)) {
+                totalPlayed++;
+            }
+        }
+
+        DealersExePVE.PveStats memory stats = pve.getDealerPveStats(DEALER_ID_1);
+        uint32 totalOutcomes = stats.wins + stats.losses + stats.ties;
+        uint32 totalChoices = stats.dealChoices + stats.threatenChoices + stats.bailChoices;
+
+        assertEq(totalOutcomes, totalChoices, "outcomes should match choices");
+        assertGt(totalOutcomes, 0, "should have played at least one game");
     }
 }
