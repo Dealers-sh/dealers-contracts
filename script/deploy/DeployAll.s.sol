@@ -10,8 +10,8 @@ import "../base/DeployBase.s.sol";
  *
  * Required env vars: DEV_WALLET, BANK_VAULT, ROYALTY_RECEIVER
  * Optional env vars: DRUG_REGISTRY, AREA_REGISTRY, DEALERS_CORE, PAYMENT_HANDLER,
- *                    RANDOMNESS, DEALERS_NFT, DEALERS_BOOSTS, DEALERS_PVE, DEALERS_PVP
- *                    (set these to skip deployment of already-deployed contracts)
+ *                    RANDOMNESS, DEALERS_NFT, DEALERS_BOOSTS, DEALERS_PVE, DEALERS_PVP,
+ *                    DEALERS_CLAIMS (set these to skip deployment of already-deployed contracts)
  *
  * Usage:
  *   source .env && forge script script/DeployAll.s.sol:DeployAll \
@@ -142,6 +142,21 @@ contract DeployAll is DeployBase {
             console.log("DealersExePVP: skipped (exists)");
         }
 
+        if (claims == address(0)) {
+            _requireAddress(core, "DEALERS_CORE");
+            _requireAddress(nft, "DEALERS_NFT");
+            _requireAddress(pve, "DEALERS_PVE");
+            _requireAddress(pvp, "DEALERS_PVP");
+            _requireAddress(devWallet, "DEV_WALLET");
+            claims = _zkCreate(abi.encodePacked(
+                vm.getCode("DealersExeClaims.sol:DealersExeClaims"),
+                abi.encode(core, nft, pve, pvp, devWallet)
+            ));
+            console.log("DealersExeClaims deployed:", claims);
+        } else {
+            console.log("DealersExeClaims: skipped (exists)");
+        }
+
         console.log("");
     }
 
@@ -166,6 +181,7 @@ contract DeployAll is DeployBase {
         _authorizeIfNeeded(c, pvp);
         _authorizeIfNeeded(c, boosts);
         _authorizeIfNeeded(c, nft);
+        if (claims != address(0)) _authorizeIfNeeded(c, claims);
 
         // DrugRegistry auth
         IDrugRegistry drugReg = IDrugRegistry(drugRegistry);
@@ -198,6 +214,14 @@ contract DeployAll is DeployBase {
         _setIfDifferent(pvpC.drugRegistry(), drugRegistry, pvpC.setDrugRegistry);
         _setIfDifferent(pvpC.randomness(), randomness, pvpC.setRandomness);
 
+        if (claims != address(0)) {
+            IClaimsContract claimsC = IClaimsContract(claims);
+            _setIfDifferent(claimsC.dealersExeCore(), core, claimsC.setDealersExeCore);
+            _setIfDifferent(claimsC.dealersExeNFT(), nft, claimsC.setDealersExeNFT);
+            _setIfDifferent(address(claimsC.pveContract()), pve, claimsC.setPVE);
+            _setIfDifferent(address(claimsC.pvpContract()), pvp, claimsC.setPVP);
+        }
+
         console.log("  Done.");
         console.log("");
     }
@@ -224,9 +248,9 @@ contract DeployAll is DeployBase {
         console.log("Setting up 10-tier reputation system...");
 
         ReputationTier[] memory tiers = new ReputationTier[](10);
-        tiers[0] = ReputationTier({minReputation: 0, winBonus: 15, tieBonus: 5, lossPenalty: -2, repCap: 25, tierName: "Outsider"});
-        tiers[1] = ReputationTier({minReputation: 50, winBonus: 12, tieBonus: 4, lossPenalty: -3, repCap: 22, tierName: "Associate"});
-        tiers[2] = ReputationTier({minReputation: 150, winBonus: 10, tieBonus: 4, lossPenalty: -3, repCap: 18, tierName: "Dealer"});
+        tiers[0] = ReputationTier({minReputation: 0, winBonus: 50, tieBonus: 25, lossPenalty: -2, repCap: 25, tierName: "Outsider"});
+        tiers[1] = ReputationTier({minReputation: 50, winBonus: 40, tieBonus: 20, lossPenalty: -3, repCap: 22, tierName: "Associate"});
+        tiers[2] = ReputationTier({minReputation: 150, winBonus: 15, tieBonus: 8, lossPenalty: -3, repCap: 18, tierName: "Dealer"});
         tiers[3] = ReputationTier({minReputation: 300, winBonus: 9, tieBonus: 3, lossPenalty: -4, repCap: 17, tierName: "Soldier"});
         tiers[4] = ReputationTier({minReputation: 700, winBonus: 8, tieBonus: 3, lossPenalty: -4, repCap: 16, tierName: "Capo"});
         tiers[5] = ReputationTier({minReputation: 1250, winBonus: 7, tieBonus: 3, lossPenalty: -5, repCap: 14, tierName: "Consigliere"});
@@ -259,6 +283,7 @@ contract DeployAll is DeployBase {
         console.log("DEALERS_BOOSTS=", boosts);
         console.log("DEALERS_PVE=", pve);
         console.log("DEALERS_PVP=", pvp);
+        console.log("DEALERS_CLAIMS=", claims);
         console.log("");
         console.log("Remaining:");
         console.log("  1. Deploy renderers (EVM mode, no --zksync)");

@@ -16,11 +16,13 @@ import "../base/DeployBase.s.sol";
  *     AreaRegistry ← core
  *     PVP ← drugRegistry, randomness
  *     PVE ← randomness
+ *     Claims ← core, nft (optional)
  *
  *   AUTHORIZATIONS:
- *     Core.authorizeContract:           PVE, PVP, Boosts, NFT
+ *     Core.authorizeContract:           PVE, PVP, Boosts, NFT, Claims (optional)
  *     DrugRegistry.authorizeContract:   Core
  *     PaymentHandler.authorizeContract: Core, Boosts
+ *     Randomness.authorizeResolver:     Core, PVE, PVP
  *
  * Usage:
  *   source .env && forge script script/SetupWiring.s.sol:SetupWiring \
@@ -109,6 +111,7 @@ contract SetupWiring is DeployBase {
         _authorizeIfNeeded(c, pvp, "PVP");
         _authorizeIfNeeded(c, boosts, "Boosts");
         _authorizeIfNeeded(c, nft, "NFT");
+        if (claims != address(0)) _authorizeIfNeeded(c, claims, "Claims");
         console.log("");
     }
 
@@ -157,6 +160,12 @@ contract SetupWiring is DeployBase {
         } else {
             console.log("  AreaRegistry -> Core: ok");
         }
+
+        IRandomness rng = IRandomness(randomness);
+        _authorizeResolverIfNeeded(rng, core, "Randomness -> Core");
+        _authorizeResolverIfNeeded(rng, pve, "Randomness -> PVE");
+        _authorizeResolverIfNeeded(rng, pvp, "Randomness -> PVP");
+
         console.log("");
     }
 
@@ -184,7 +193,24 @@ contract SetupWiring is DeployBase {
         _setIfNeeded(pvpContract.drugRegistry(), drugRegistry, "PVP -> DrugRegistry", pvpContract.setDrugRegistry);
         _setIfNeeded(pvpContract.randomness(), randomness, "PVP -> Randomness", pvpContract.setRandomness);
 
+        if (claims != address(0)) {
+            IClaimsContract claimsContract = IClaimsContract(claims);
+            _setIfNeeded(claimsContract.dealersExeCore(), core, "Claims -> Core", claimsContract.setDealersExeCore);
+            _setIfNeeded(claimsContract.dealersExeNFT(), nft, "Claims -> NFT", claimsContract.setDealersExeNFT);
+            _setIfNeeded(address(claimsContract.pveContract()), pve, "Claims -> PVE", claimsContract.setPVE);
+            _setIfNeeded(address(claimsContract.pvpContract()), pvp, "Claims -> PVP", claimsContract.setPVP);
+        }
+
         console.log("");
+    }
+
+    function _authorizeResolverIfNeeded(IRandomness rng, address resolver, string memory label) internal {
+        if (!rng.isAuthorizedResolver(resolver)) {
+            rng.authorizeResolver(resolver, true);
+            console.log(string.concat("  ", label, ": AUTHORIZED"));
+        } else {
+            console.log(string.concat("  ", label, ": ok"));
+        }
     }
 
     function _setIfNeeded(address current, address target, string memory label, function(address) external setter) internal {

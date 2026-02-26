@@ -26,9 +26,9 @@ contract SetupTiers is DeployBase {
 
         ReputationTier[] memory tiers = new ReputationTier[](10);
 
-        tiers[0] = ReputationTier({minReputation: 0, winBonus: 15, tieBonus: 5, lossPenalty: -2, repCap: 25, tierName: "Outsider"});
-        tiers[1] = ReputationTier({minReputation: 50, winBonus: 12, tieBonus: 4, lossPenalty: -3, repCap: 22, tierName: "Associate"});
-        tiers[2] = ReputationTier({minReputation: 150, winBonus: 10, tieBonus: 4, lossPenalty: -3, repCap: 18, tierName: "Dealer"});
+        tiers[0] = ReputationTier({minReputation: 0, winBonus: 50, tieBonus: 25, lossPenalty: -2, repCap: 25, tierName: "Outsider"});
+        tiers[1] = ReputationTier({minReputation: 50, winBonus: 40, tieBonus: 20, lossPenalty: -3, repCap: 22, tierName: "Associate"});
+        tiers[2] = ReputationTier({minReputation: 150, winBonus: 15, tieBonus: 8, lossPenalty: -3, repCap: 18, tierName: "Dealer"});
         tiers[3] = ReputationTier({minReputation: 300, winBonus: 9, tieBonus: 3, lossPenalty: -4, repCap: 17, tierName: "Soldier"});
         tiers[4] = ReputationTier({minReputation: 700, winBonus: 8, tieBonus: 3, lossPenalty: -4, repCap: 16, tierName: "Capo"});
         tiers[5] = ReputationTier({minReputation: 1250, winBonus: 7, tieBonus: 3, lossPenalty: -5, repCap: 14, tierName: "Consigliere"});

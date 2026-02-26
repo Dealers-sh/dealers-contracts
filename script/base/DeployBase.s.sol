@@ -74,6 +74,11 @@ interface IPVEContract {
     function randomness() external view returns (address);
 }
 
+interface IRandomness {
+    function authorizeResolver(address resolver, bool authorized) external;
+    function isAuthorizedResolver(address resolver) external view returns (bool);
+}
+
 interface IBoostsContract {
     function setDealersExeCore(address _core) external;
     function setDealersExeNFT(address _nft) external;
@@ -81,6 +86,17 @@ interface IBoostsContract {
     function dealersExeCore() external view returns (address);
     function dealersExeNFT() external view returns (address);
     function paymentHandler() external view returns (address);
+}
+
+interface IClaimsContract {
+    function setDealersExeCore(address _core) external;
+    function setDealersExeNFT(address _nft) external;
+    function setPVE(address _pve) external;
+    function setPVP(address _pvp) external;
+    function dealersExeCore() external view returns (address);
+    function dealersExeNFT() external view returns (address);
+    function pveContract() external view returns (address);
+    function pvpContract() external view returns (address);
 }
 
 // =============================================================================
@@ -98,6 +114,7 @@ abstract contract DeployBase is Script {
     address public boosts;
     address public pve;
     address public pvp;
+    address public claims;
 
     // Wallet addresses
     address public devWallet;
@@ -114,6 +131,7 @@ abstract contract DeployBase is Script {
         boosts = vm.envOr("DEALERS_BOOSTS", address(0));
         pve = vm.envOr("DEALERS_PVE", address(0));
         pvp = vm.envOr("DEALERS_PVP", address(0));
+        claims = vm.envOr("DEALERS_CLAIMS", address(0));
         devWallet = vm.envOr("DEV_WALLET", address(0));
         bankVault = vm.envOr("BANK_VAULT", address(0));
         royaltyReceiver = vm.envOr("ROYALTY_RECEIVER", address(0));
