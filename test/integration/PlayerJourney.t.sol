@@ -18,7 +18,7 @@ contract PlayerJourneyTest is BaseTest {
 
         assertEq(isInitialized, true, "Dealer should be initialized");
         assertEq(reputation, 25, "Starting reputation should be 25");
-        assertEq(core.getCashBalance(tokenId), 100, "Starting cash should be 100");
+        assertEq(core.getCashBalance(tokenId), 250, "Starting cash should be 250");
         assertEq(core.getDrugBalance(tokenId, DRUG_WEED), 100, "Starting weed should be 100");
         assertEq(core.getDrugBalance(tokenId, DRUG_XTC), 5, "Starting XTC should be 5");
         assertEq(core.getDrugBalance(tokenId, DRUG_COCAINE), 1, "Starting Cocaine should be 1");
@@ -201,7 +201,7 @@ contract PlayerJourneyTest is BaseTest {
         for (uint256 i = 0; i < tokens.length; i++) {
             (, , , , , bool isInitialized) = core.getDealerData(tokens[i]);
             assertTrue(isInitialized, "Each NFT should be initialized");
-            assertEq(core.getCashBalance(tokens[i]), 100, "Each should have 100 cash");
+            assertEq(core.getCashBalance(tokens[i]), 250, "Each should have 250 cash");
         }
     }
 

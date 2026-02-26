@@ -128,12 +128,12 @@ contract PVPBattleFlowsTest is BaseTest {
 
     function test_pvpFlow_mustBeSameArea() public {
         vm.prank(owner);
-        areaRegistry.createArea("Brooklyn", 0.001 ether, 0, false, false);
-        areaRegistry.configureAreaDrug(2, DRUG_WEED, 1, 1);
+        uint8 brooklynId = areaRegistry.createArea("Brooklyn", 0.001 ether, 0, false, false);
+        areaRegistry.configureAreaDrug(brooklynId, DRUG_WEED, 1, 1);
 
         uint256 brooklynToken = _mintNFT(player1);
         vm.prank(owner);
-        core.moveToArea(brooklynToken, 2);
+        core.moveToArea(brooklynToken, brooklynId);
         vm.prank(owner);
         core.updateReputation(brooklynToken, 200);
 

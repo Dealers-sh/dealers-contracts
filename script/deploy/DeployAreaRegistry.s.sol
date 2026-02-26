@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import "../base/DeployBase.s.sol";
+
+/**
+ * @title DeployAreaRegistry
+ * @dev Constructor deps: DRUG_REGISTRY
+ *      Post-deploy: set Core in AreaRegistry
+ *
+ * Usage:
+ *   source .env && forge script script/deploy/DeployAreaRegistry.s.sol:DeployAreaRegistry \
+ *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
+ *     --skip "DealerRenderer" --skip "DeployRenderers"
+ */
+contract DeployAreaRegistry is DeployBase {
+    function run() external {
+        _loadAddresses();
+        _requireAddress(drugRegistry, "DRUG_REGISTRY");
+
+        vm.startBroadcast();
+        areaRegistry = _zkCreate(abi.encodePacked(
+            vm.getCode("DEAreaRegistry.sol:DEAreaRegistry"),
+            abi.encode(drugRegistry)
+        ));
+        vm.stopBroadcast();
+
+        console.log("DEAreaRegistry deployed:", areaRegistry);
+        console.log("  DrugRegistry:", drugRegistry);
+        console.log("");
+        console.log("Next: update AREA_REGISTRY in .env, then run SetupWiring.s.sol");
+    }
+}

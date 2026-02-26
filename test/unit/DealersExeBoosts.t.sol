@@ -78,7 +78,7 @@ contract DealersExeBoostsTest is BaseTest {
         DealersExeBoosts.BoostTier memory tier = boosts.getBoostTier(KINGPIN_TIER);
 
         assertEq(tier.price, KINGPIN_PRICE);
-        assertEq(tier.duration, 30 days);    // Kingpin is 30 days
+        assertEq(tier.duration, 14 days);    // Kingpin is 14 days
         assertEq(tier.drugMultiplier, 175);  // 1.75x
         assertEq(tier.repMultiplier, 200);   // 2x
         assertEq(tier.extraAttempts, 10);
@@ -290,10 +290,11 @@ contract DealersExeBoostsTest is BaseTest {
 
         (DealersExeBoosts.BoostTier[] memory tiers, uint256[] memory tierIds) = boosts.getActiveTiers();
 
-        assertEq(tiers.length, 2);
-        assertEq(tierIds.length, 2);
+        assertEq(tiers.length, 3);
+        assertEq(tierIds.length, 3);
         assertEq(tierIds[0], HUSTLER_TIER);
         assertEq(tierIds[1], KINGPIN_TIER);
+        assertEq(tierIds[2], 4);
     }
 
     function test_checkBoostStatus_returnsExpiry() public {

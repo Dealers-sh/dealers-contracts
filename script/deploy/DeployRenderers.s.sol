@@ -2,8 +2,8 @@
 pragma solidity ^0.8.28;
 
 import "forge-std/Script.sol";
-import "../src/nft/DealerRendererSVG.sol";
-import "../src/nft/DealerRendererHTML.sol";
+import "../../src/nft/DealerRendererSVG.sol";
+import "../../src/nft/DealerRendererHTML.sol";
 
 interface IDealersExeNFT {
     function setContractRendererSVG(address newAddress) external;
@@ -87,25 +87,6 @@ contract DeployRenderers is Script {
             console.log("DealerRendererHTML deployed at:", rendererHTML);
         }
 
-        console.log("");
-        console.log("Setting renderers on NFT contract:", nft);
-
-        IDealersExeNFT nftContract = IDealersExeNFT(nft);
-
-        if (nftContract.contractRendererSVG() != rendererSVG) {
-            nftContract.setContractRendererSVG(rendererSVG);
-            console.log("  SVG renderer: SET");
-        } else {
-            console.log("  SVG renderer: already set");
-        }
-
-        if (nftContract.contractRendererHTML() != rendererHTML) {
-            nftContract.setContractRendererHTML(rendererHTML);
-            console.log("  HTML renderer: SET");
-        } else {
-            console.log("  HTML renderer: already set");
-        }
-
         vm.stopBroadcast();
 
         console.log("");
@@ -115,5 +96,9 @@ contract DeployRenderers is Script {
         console.log("");
         console.log("  RENDERER_SVG=", rendererSVG);
         console.log("  RENDERER_HTML=", rendererHTML);
+        console.log("");
+        console.log("Set renderers on NFT (requires --zksync since NFT is zkSync bytecode):");
+        console.log("  cast send", nft, '"setContractRendererSVG(address)"', rendererSVG);
+        console.log("  cast send", nft, '"setContractRendererHTML(address)"', rendererHTML);
     }
 }

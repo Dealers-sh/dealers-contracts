@@ -248,9 +248,6 @@ interface IDealersExeCore {
     /// @notice Starting reputation for new dealers
     function STARTING_REPUTATION() external view returns (uint256);
 
-    /// @notice Starting $CASH for new dealers
-    function STARTER_CASH() external view returns (uint256);
-
     /// @notice Price to top up $CASH
     function CASH_TOPUP_PRICE() external view returns (uint256);
 

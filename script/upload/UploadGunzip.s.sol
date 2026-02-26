@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "forge-std/Script.sol";
-import "../src/nft/IFileStore.sol";
+import "../../src/nft/IFileStore.sol";
 
 interface IDealerRendererHTML {
     function setGunzipFilename(string memory _gunzipFilename) external;

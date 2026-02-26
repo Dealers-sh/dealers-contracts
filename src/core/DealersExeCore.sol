@@ -37,8 +37,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     // Combat stat constants
     uint8 public constant MAX_STAT_MODIFIER = 25;     // Cap for threat/armor
 
-    // $CASH system constants (non-configurable)
-    uint256 public constant STARTER_CASH = 100;
+    // $CASH system constants
     uint256 public constant STASH_DIVISOR = 100;
 
     // Starter drug amounts
@@ -107,6 +106,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         uint8 wantedPosterSuccessChance;  // 50 - % chance to clear heat
         uint8 breakoutSuccessChance;      // 33 - % chance to escape jail
         uint8 jailDrugConfiscationPercent; // 3 - % of one random drug confiscated on jail
+        uint256 starterCash;              // 250 - Starting $CASH for new dealers
     }
 
     // =============================================================
@@ -239,7 +239,8 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
             jailRepPenaltyCap: 50,
             wantedPosterSuccessChance: 50,
             breakoutSuccessChance: 50,
-            jailDrugConfiscationPercent: 3
+            jailDrugConfiscationPercent: 3,
+            starterCash: 250
         });
     }
 
@@ -293,7 +294,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         });
 
         // Starter $CASH
-        dealerCash[tokenId] = STARTER_CASH;
+        dealerCash[tokenId] = config.starterCash;
 
         // Starter drugs: 100 Weed (ID=1), 5 XTC (ID=2), 1 Cocaine (ID=3)
         drugBalances[tokenId][1] = STARTER_WEED;
@@ -307,7 +308,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         areaRegistry.updateDealerLocation(tokenId, 0, STARTING_AREA);
 
         emit DealerInitialized(tokenId, STARTING_AREA);
-        emit CashUpdated(tokenId, STARTER_CASH, int256(STARTER_CASH));
+        emit CashUpdated(tokenId, config.starterCash, int256(config.starterCash));
         emit DrugBalanceUpdated(tokenId, 1, STARTER_WEED, int256(STARTER_WEED));
         emit DrugBalanceUpdated(tokenId, 2, STARTER_XTC, int256(STARTER_XTC));
         emit DrugBalanceUpdated(tokenId, 3, STARTER_COCAINE, int256(STARTER_COCAINE));

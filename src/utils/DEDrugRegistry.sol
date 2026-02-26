@@ -265,6 +265,8 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
         _createDrug("Weed", DrugRarity.COMMON, 1);
         _createDrug("XTC", DrugRarity.UNCOMMON, 10);
         _createDrug("Cocaine", DrugRarity.RARE, 100);
+        _createDrug("Shrooms", DrugRarity.UNCOMMON, 12);
+        _createDrug("Heroin", DrugRarity.RARE, 150);
     }
 
     /**

@@ -91,6 +91,7 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
         _createSafeHouse();
         _createJail();
         _createManhattan();
+        _createAmsterdam();
     }
 
     // =============================================================
@@ -529,6 +530,25 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
         _configureAreaDrug(1, 3, 120, 100);
 
         emit AreaCreated(1, "Manhattan", false, false);
+    }
+
+    function _createAmsterdam() private {
+        _totalAreas = 2;
+
+        _areas[2] = IAreaRegistry.AreaInfo({
+            name: "Amsterdam",
+            movementFee: 0.001 ether,
+            minReputation: 150,
+            isActive: true,
+            isSafeHouse: false,
+            isJail: false
+        });
+
+        _configureAreaDrug(2, 1, 3, 2);
+        _configureAreaDrug(2, 4, 15, 12);
+        _configureAreaDrug(2, 5, 180, 150);
+
+        emit AreaCreated(2, "Amsterdam", false, false);
     }
 
     function _configureAreaDrug(

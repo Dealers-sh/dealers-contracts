@@ -333,13 +333,23 @@ contract BoostGameplayTest is BaseTest {
 
         DealersExeBoosts.BoostTier memory kingpin = boosts.getBoostTier(KINGPIN_ID);
         assertEq(kingpin.price, KINGPIN_PRICE, "Kingpin price");
-        assertEq(kingpin.duration, 30 days, "Kingpin duration");
+        assertEq(kingpin.duration, 14 days, "Kingpin duration");
         assertEq(kingpin.drugMultiplier, 175, "Kingpin drug mult");
         assertEq(kingpin.repMultiplier, 200, "Kingpin rep mult");
         assertEq(kingpin.cashMultiplier, 175, "Kingpin cash mult");
         assertEq(kingpin.extraAttempts, 10, "Kingpin extra attempts");
         assertTrue(kingpin.freeAreaMovement, "Kingpin free movement");
         assertTrue(kingpin.doubleHeistEntries, "Kingpin double heist");
+
+        DealersExeBoosts.BoostTier memory godfather = boosts.getBoostTier(4);
+        assertEq(godfather.price, 0.023 ether, "Godfather price");
+        assertEq(godfather.duration, 30 days, "Godfather duration");
+        assertEq(godfather.drugMultiplier, 200, "Godfather drug mult");
+        assertEq(godfather.repMultiplier, 200, "Godfather rep mult");
+        assertEq(godfather.cashMultiplier, 200, "Godfather cash mult");
+        assertEq(godfather.extraAttempts, 10, "Godfather extra attempts");
+        assertTrue(godfather.freeAreaMovement, "Godfather free movement");
+        assertTrue(godfather.doubleHeistEntries, "Godfather double heist");
     }
 
     function test_boost_anyoneCanPurchaseForDealer() public {

@@ -36,9 +36,12 @@ contract DealersExePVETest is Test, IERC721Receiver {
     uint256 constant DRUG_WEED = 1;
     uint256 constant DRUG_XTC = 2;
     uint256 constant DRUG_COCAINE = 3;
+    uint256 constant DRUG_SHROOMS = 4;
+    uint256 constant DRUG_HEROIN = 5;
 
     uint8 constant AREA_SAFE_HOUSE = 0;
     uint8 constant AREA_MANHATTAN = 1;
+    uint8 constant AREA_AMSTERDAM = 2;
     uint8 constant AREA_JAIL = 255;
 
     uint256 constant BUY_PRICE_WEED = 1;
@@ -1306,5 +1309,88 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
         assertEq(totalOutcomes, totalChoices, "outcomes should match choices");
         assertGt(totalOutcomes, 0, "should have played at least one game");
+    }
+
+    function test_amsterdam_sellWeedArbitrage() public {
+        _setupDealerForPlay(DEALER_ID_1);
+
+        core.authorizeContract(address(this), true);
+        core.updateReputation(DEALER_ID_1, 150);
+        core.authorizeContract(address(this), false);
+
+        vm.prank(player1);
+        core.travel{value: 0.001 ether}(DEALER_ID_1, AREA_AMSTERDAM);
+
+        (uint8 area,,,,,) = core.getDealerData(DEALER_ID_1);
+        assertEq(area, AREA_AMSTERDAM);
+
+        bool foundWin = false;
+        for (uint256 i = 0; i < 200; i++) {
+            if (core.isInJail(DEALER_ID_1)) {
+                // Bail out and travel back to Amsterdam
+                vm.prank(player1);
+                core.payBail{value: 0.001 ether}(DEALER_ID_1);
+                vm.prank(player1);
+                core.travel{value: 0.001 ether}(DEALER_ID_1, AREA_AMSTERDAM);
+            }
+
+            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
+            if (attempts == 0) vm.warp(block.timestamp + 1 days);
+
+            _addDrugsToDealer(DEALER_ID_1, DRUG_WEED, 50);
+            uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
+            uint256 weedBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+
+            vm.prevrandao(bytes32(i));
+            vm.prank(player1);
+            pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.SELL, DRUG_WEED, 10);
+
+            if (core.isInJail(DEALER_ID_1)) continue;
+
+            uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
+            uint256 weedAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+
+            // WIN on SELL: keep drugs + get cash at sellPrice=2
+            if (cashAfter > cashBefore && weedAfter == weedBefore) {
+                assertGe(cashAfter - cashBefore, 10 * 2, "Amsterdam weed sell should pay at sellPrice=2");
+                foundWin = true;
+                break;
+            }
+        }
+        assertTrue(foundWin, "Should find a SELL WIN in Amsterdam");
+    }
+
+    function test_amsterdam_buyShroomsAndHeroin() public {
+        _setupDealerForPlay(DEALER_ID_1);
+
+        core.authorizeContract(address(this), true);
+        core.updateReputation(DEALER_ID_1, 150);
+        core.authorizeContract(address(this), false);
+
+        vm.prank(player1);
+        core.travel{value: 0.001 ether}(DEALER_ID_1, AREA_AMSTERDAM);
+
+        // Verify drug availability in Amsterdam
+        assertTrue(areaRegistry.isDrugAvailableInArea(AREA_AMSTERDAM, DRUG_WEED));
+        assertTrue(areaRegistry.isDrugAvailableInArea(AREA_AMSTERDAM, DRUG_SHROOMS));
+        assertTrue(areaRegistry.isDrugAvailableInArea(AREA_AMSTERDAM, DRUG_HEROIN));
+
+        // Verify pricing
+        (uint256 shroomsBuy, uint256 shroomsSell) = areaRegistry.getDrugPricing(AREA_AMSTERDAM, DRUG_SHROOMS);
+        assertEq(shroomsBuy, 15);
+        assertEq(shroomsSell, 12);
+
+        (uint256 heroinBuy, uint256 heroinSell) = areaRegistry.getDrugPricing(AREA_AMSTERDAM, DRUG_HEROIN);
+        assertEq(heroinBuy, 180);
+        assertEq(heroinSell, 150);
+    }
+
+    function test_amsterdam_requiresMinReputation() public {
+        _setupDealerForPlay(DEALER_ID_1);
+
+        // Try traveling with 0 rep — should revert
+        vm.prank(player1);
+        vm.expectRevert();
+        core.travel{value: 0.001 ether}(DEALER_ID_1, AREA_AMSTERDAM);
     }
 }

@@ -2,8 +2,8 @@
 pragma solidity ^0.8.28;
 
 import "forge-std/Script.sol";
-import "../src/nft/IDealerRendererSVG.sol";
-import "../src/nft/IFileStore.sol";
+import "../../src/nft/IDealerRendererSVG.sol";
+import "../../src/nft/IFileStore.sol";
 
 /**
  * @title UploadTraits - Upload SVG traits from traits.json to FileStore

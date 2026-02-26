@@ -32,7 +32,7 @@ contract DealersExeCoreTest is BaseTest {
         assertEq(dailyAttemptsRemaining, core.BASE_MAX_ATTEMPTS());
         assertEq(heatLevel, 0);
         assertTrue(isInitialized);
-        assertEq(core.getCashBalance(tokenId1), core.STARTER_CASH());
+        assertEq(core.getCashBalance(tokenId1), 250);
         assertEq(core.getDrugBalance(tokenId1, 1), core.STARTER_WEED());
         assertEq(core.getDrugBalance(tokenId1, 2), core.STARTER_XTC());
         assertEq(core.getDrugBalance(tokenId1, 3), core.STARTER_COCAINE());
@@ -268,7 +268,7 @@ contract DealersExeCoreTest is BaseTest {
         core.sendToJail(tokenId1);
         (, uint256 repAfter, , , , ) = core.getDealerData(tokenId1);
 
-        (, , , , , uint8 jailRepPenaltyPercent, , , , ) = core.config();
+        (, , , , , uint8 jailRepPenaltyPercent, , , , , ) = core.config();
         uint256 expectedPenalty = (repBefore * jailRepPenaltyPercent) / 100;
         assertEq(repAfter, repBefore - expectedPenalty);
     }
@@ -287,7 +287,7 @@ contract DealersExeCoreTest is BaseTest {
         core.sendToJail(tokenId1);
         (, uint256 repAfter, , , , ) = core.getDealerData(tokenId1);
 
-        (, , , , , , uint256 jailRepPenaltyCap, , , ) = core.config();
+        (, , , , , , uint256 jailRepPenaltyCap, , , , ) = core.config();
         assertEq(repAfter, repBefore - jailRepPenaltyCap);
     }
 
@@ -441,7 +441,7 @@ contract DealersExeCoreTest is BaseTest {
         uint8 heatBefore = core.getHeatLevel(tokenId1);
         assertEq(heatBefore, 3);
 
-        (, uint256 bribeFee, , , , , , , , ) = core.config();
+        (, uint256 bribeFee, , , , , , , , , ) = core.config();
         vm.prank(player1);
         core.bribeCop{value: bribeFee}(tokenId1);
 
@@ -520,7 +520,7 @@ contract DealersExeCoreTest is BaseTest {
     }
 
     function dealers_resetAttempts(uint256 tokenId) internal {
-        (uint256 resetFee, , , , , , , , , ) = core.config();
+        (uint256 resetFee, , , , , , , , , , ) = core.config();
         vm.prank(player1);
         core.purchaseAttemptReset{value: resetFee}(tokenId);
     }
@@ -559,7 +559,7 @@ contract DealersExeCoreTest is BaseTest {
         core.useAttempt(tokenId1);
         core.useAttempt(tokenId1);
 
-        (uint256 resetFee, , , , , , , , , ) = core.config();
+        (uint256 resetFee, , , , , , , , , , ) = core.config();
         vm.prank(player1);
         core.purchaseAttemptReset{value: resetFee}(tokenId1);
 
@@ -697,9 +697,9 @@ contract DealersExeCoreTest is BaseTest {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
-        core.spendCash(tokenId1, core.STARTER_CASH() - 5);
+        core.spendCash(tokenId1, 250 - 5);
 
-        (, , uint256 topupPrice, uint256 topupAmount, uint256 purchaseThreshold, , , , , ) = core.config();
+        (, , uint256 topupPrice, uint256 topupAmount, uint256 purchaseThreshold, , , , , , ) = core.config();
 
         uint256 cashBefore = core.getCashBalance(tokenId1);
         assertLt(cashBefore, purchaseThreshold);
@@ -712,7 +712,7 @@ contract DealersExeCoreTest is BaseTest {
     }
 
     function test_purchaseCash_revertBalanceTooHigh() public {
-        (, , uint256 topupPrice, , uint256 purchaseThreshold, , , , , ) = core.config();
+        (, , uint256 topupPrice, , uint256 purchaseThreshold, , , , , , ) = core.config();
 
         uint256 currentCash = core.getCashBalance(tokenId1);
         assertGe(currentCash, purchaseThreshold);
@@ -1090,5 +1090,43 @@ contract DealersExeCoreTest is BaseTest {
             (uint8 areaAfter, , , , , ) = core.getDealerData(tokenId1);
             assertEq(areaAfter, 1, "Should return to Manhattan after breakout");
         }
+    }
+
+    function test_amsterdam_areaConfig() public view {
+        IAreaRegistry.AreaInfo memory info = areaRegistry.getAreaInfo(2);
+        assertEq(info.name, "Amsterdam");
+        assertEq(info.movementFee, 0.001 ether);
+        assertEq(info.minReputation, 150);
+        assertFalse(info.isSafeHouse);
+        assertFalse(info.isJail);
+        assertTrue(info.isActive);
+    }
+
+    function test_amsterdam_drugConfig() public view {
+        (uint256 weedBuy, uint256 weedSell) = areaRegistry.getDrugPricing(2, 1);
+        assertEq(weedBuy, 3);
+        assertEq(weedSell, 2);
+
+        (uint256 shroomsBuy, uint256 shroomsSell) = areaRegistry.getDrugPricing(2, 4);
+        assertEq(shroomsBuy, 15);
+        assertEq(shroomsSell, 12);
+
+        (uint256 heroinBuy, uint256 heroinSell) = areaRegistry.getDrugPricing(2, 5);
+        assertEq(heroinBuy, 180);
+        assertEq(heroinSell, 150);
+    }
+
+    function test_drugRegistry_shroomsAndHeroin() public view {
+        assertEq(drugRegistry.getTotalDrugs(), 5);
+        assertTrue(drugRegistry.isDrugActive(4));
+        assertTrue(drugRegistry.isDrugActive(5));
+
+        IDrugRegistry.DrugInfo memory shrooms = drugRegistry.getDrugInfo(4);
+        assertEq(shrooms.name, "Shrooms");
+        assertEq(shrooms.baseCashValue, 12);
+
+        IDrugRegistry.DrugInfo memory heroin = drugRegistry.getDrugInfo(5);
+        assertEq(heroin.name, "Heroin");
+        assertEq(heroin.baseCashValue, 150);
     }
 }

@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import "../base/DeployBase.s.sol";
+
+/**
+ * @title DeployPVE
+ * @dev Constructor deps: DEALERS_CORE, DEALERS_NFT, AREA_REGISTRY
+ *      Post-deploy:
+ *        - Core.authorizeContract(pve, true)
+ *        - PVE.setRandomness(randomness)
+ *
+ * Usage:
+ *   source .env && forge script script/deploy/DeployPVE.s.sol:DeployPVE \
+ *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
+ *     --skip "DealerRenderer" --skip "DeployRenderers"
+ */
+contract DeployPVE is DeployBase {
+    function run() external {
+        _loadAddresses();
+        _requireAddress(core, "DEALERS_CORE");
+        _requireAddress(nft, "DEALERS_NFT");
+        _requireAddress(areaRegistry, "AREA_REGISTRY");
+
+        vm.startBroadcast();
+        pve = _zkCreate(abi.encodePacked(
+            vm.getCode("DealersExePVE.sol:DealersExePVE"),
+            abi.encode(core, nft, areaRegistry)
+        ));
+        vm.stopBroadcast();
+
+        console.log("DealersExePVE deployed:", pve);
+        console.log("");
+        console.log("Next: update DEALERS_PVE in .env, then run SetupWiring.s.sol");
+    }
+}

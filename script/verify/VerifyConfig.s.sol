@@ -20,6 +20,7 @@ interface ICore {
     function areaRegistry() external view returns (address);
     function nftContract() external view returns (address);
     function paymentHandler() external view returns (address);
+    function randomness() external view returns (address);
     function authorizedContracts(address) external view returns (bool);
     function owner() external view returns (address);
 }
@@ -57,6 +58,7 @@ interface IPVP {
     function nftContract() external view returns (address);
     function areaRegistry() external view returns (address);
     function drugRegistry() external view returns (address);
+    function randomness() external view returns (address);
     function owner() external view returns (address);
 }
 
@@ -64,6 +66,7 @@ interface IPVE {
     function dealersExeCore() external view returns (address);
     function dealersExeNFT() external view returns (address);
     function areaRegistry() external view returns (address);
+    function randomness() external view returns (address);
     function owner() external view returns (address);
 }
 
@@ -83,6 +86,7 @@ contract VerifyConfig is Script {
     address public boosts;
     address public pve;
     address public pvp;
+    address public randomness;
     address public rendererSVG;
     address public rendererHTML;
 
@@ -119,6 +123,7 @@ contract VerifyConfig is Script {
         boosts = vm.envOr("DEALERS_BOOSTS", address(0));
         pve = vm.envOr("DEALERS_PVE", address(0));
         pvp = vm.envOr("DEALERS_PVP", address(0));
+        randomness = vm.envOr("RANDOMNESS", address(0));
         rendererSVG = vm.envOr("RENDERER_SVG", address(0));
         rendererHTML = vm.envOr("RENDERER_HTML", address(0));
     }
@@ -140,6 +145,7 @@ contract VerifyConfig is Script {
         _checkRef("    areaRegistry", c.areaRegistry(), areaRegistry);
         _checkRef("    nftContract", c.nftContract(), nft);
         _checkRef("    paymentHandler", c.paymentHandler(), paymentHandler);
+        _checkRef("    randomness", c.randomness(), randomness);
 
         console.log("  Authorizations:");
         _checkAuth("    PVE", c.authorizedContracts(pve), pve);
@@ -256,6 +262,7 @@ contract VerifyConfig is Script {
         _checkRef("    dealersExeCore", p.dealersExeCore(), core);
         _checkRef("    dealersExeNFT", p.dealersExeNFT(), nft);
         _checkRef("    areaRegistry", p.areaRegistry(), areaRegistry);
+        _checkRef("    randomness", p.randomness(), randomness);
 
         console.log("  Owner:", p.owner());
         console.log("");
@@ -278,6 +285,7 @@ contract VerifyConfig is Script {
         _checkRef("    nftContract", p.nftContract(), nft);
         _checkRef("    areaRegistry", p.areaRegistry(), areaRegistry);
         _checkRef("    drugRegistry", p.drugRegistry(), drugRegistry);
+        _checkRef("    randomness", p.randomness(), randomness);
 
         console.log("  Owner:", p.owner());
         console.log("");
