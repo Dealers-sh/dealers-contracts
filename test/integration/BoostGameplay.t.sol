@@ -47,7 +47,7 @@ contract BoostGameplayTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                DealersExePVE.HustleType.BUY,
+                IDealersExePVE.HustleType.BUY,
                 DRUG_WEED,
                 buyAmount
             ) {
@@ -103,7 +103,7 @@ contract BoostGameplayTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                DealersExePVE.HustleType.BUY,
+                IDealersExePVE.HustleType.BUY,
                 DRUG_WEED,
                 50
             ) {
@@ -174,7 +174,7 @@ contract BoostGameplayTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                DealersExePVE.HustleType.SELL,
+                IDealersExePVE.HustleType.SELL,
                 DRUG_WEED,
                 sellAmount
             ) {

@@ -31,7 +31,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                DealersExePVE.HustleType.BUY,
+                IDealersExePVE.HustleType.BUY,
                 DRUG_WEED,
                 buyAmount
             ) {
@@ -83,7 +83,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                DealersExePVE.HustleType.BUY,
+                IDealersExePVE.HustleType.BUY,
                 DRUG_WEED,
                 buyAmount
             ) {
@@ -132,7 +132,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                DealersExePVE.HustleType.BUY,
+                IDealersExePVE.HustleType.BUY,
                 DRUG_WEED,
                 buyAmount
             ) {
@@ -184,7 +184,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                DealersExePVE.HustleType.SELL,
+                IDealersExePVE.HustleType.SELL,
                 DRUG_WEED,
                 sellAmount
             ) {
@@ -237,7 +237,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                DealersExePVE.HustleType.SELL,
+                IDealersExePVE.HustleType.SELL,
                 DRUG_WEED,
                 sellAmount
             ) {
@@ -287,7 +287,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                DealersExePVE.HustleType.SELL,
+                IDealersExePVE.HustleType.SELL,
                 DRUG_WEED,
                 sellAmount
             ) {
@@ -350,7 +350,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                DealersExePVE.HustleType.BUY,
+                IDealersExePVE.HustleType.BUY,
                 DRUG_WEED,
                 buyAmount
             ) {
@@ -392,7 +392,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                DealersExePVE.HustleType.BUY,
+                IDealersExePVE.HustleType.BUY,
                 DRUG_WEED,
                 5
             ) {
@@ -415,7 +415,7 @@ contract PVEGameFlowsTest is BaseTest {
             pve.playGame(
                 tokenId,
                 0,
-                DealersExePVE.HustleType.BUY,
+                IDealersExePVE.HustleType.BUY,
                 DRUG_WEED,
                 5
             );
@@ -432,7 +432,7 @@ contract PVEGameFlowsTest is BaseTest {
         pve.playGame(
             tokenId,
             0,
-            DealersExePVE.HustleType.BUY,
+            IDealersExePVE.HustleType.BUY,
             DRUG_WEED,
             cashBalance + 100
         );
@@ -446,7 +446,7 @@ contract PVEGameFlowsTest is BaseTest {
         pve.playGame(
             tokenId,
             0,
-            DealersExePVE.HustleType.SELL,
+            IDealersExePVE.HustleType.SELL,
             DRUG_WEED,
             weedBalance + 100
         );
@@ -467,7 +467,7 @@ contract PVEGameFlowsTest is BaseTest {
         pve.playGame(
             safeHouseToken,
             0,
-            DealersExePVE.HustleType.BUY,
+            IDealersExePVE.HustleType.BUY,
             DRUG_WEED,
             10
         );
@@ -484,7 +484,7 @@ contract PVEGameFlowsTest is BaseTest {
         pve.playGame(
             tokenId,
             0,
-            DealersExePVE.HustleType.BUY,
+            IDealersExePVE.HustleType.BUY,
             DRUG_WEED,
             10
         );

@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "../../src/core/DealersExeCore.sol";
 import "../../src/nft/DealersExeNFT.sol";
 import "../../src/core/DealersExePVE.sol";
+import "../../src/core/IDealersExePVE.sol";
 import "../../src/utils/DEDrugRegistry.sol";
 import "../../src/utils/DEAreaRegistry.sol";
 import "../../src/utils/DEPaymentHandler.sol";
@@ -300,7 +301,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
         (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
 
         vm.prank(player1);
-        pve.playGame(DEALER_ID_1, playerChoice, DealersExePVE.HustleType.BUY, DRUG_WEED, amount);
+        pve.playGame(DEALER_ID_1, playerChoice, IDealersExePVE.HustleType.BUY, DRUG_WEED, amount);
 
         uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
         uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
@@ -339,7 +340,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
         uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
 
         vm.prank(player1);
-        pve.playGame(DEALER_ID_1, playerChoice, DealersExePVE.HustleType.BUY, DRUG_WEED, amount);
+        pve.playGame(DEALER_ID_1, playerChoice, IDealersExePVE.HustleType.BUY, DRUG_WEED, amount);
 
         uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
         uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
@@ -384,7 +385,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, DealersExePVE.HustleType.BUY, DRUG_WEED, amount);
+            pve.playGame(DEALER_ID_1, playerChoice, IDealersExePVE.HustleType.BUY, DRUG_WEED, amount);
 
             (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
             uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
@@ -429,7 +430,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, DealersExePVE.HustleType.BUY, DRUG_WEED, amount);
+            pve.playGame(DEALER_ID_1, playerChoice, IDealersExePVE.HustleType.BUY, DRUG_WEED, amount);
 
             if (core.isInJail(DEALER_ID_1)) continue;
 
@@ -478,7 +479,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, DealersExePVE.HustleType.BUY, DRUG_WEED, amount);
+            pve.playGame(DEALER_ID_1, playerChoice, IDealersExePVE.HustleType.BUY, DRUG_WEED, amount);
 
             if (core.isInJail(DEALER_ID_1)) continue;
 
@@ -527,7 +528,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, DealersExePVE.HustleType.BUY, DRUG_WEED, amount);
+            pve.playGame(DEALER_ID_1, playerChoice, IDealersExePVE.HustleType.BUY, DRUG_WEED, amount);
 
             if (core.isInJail(DEALER_ID_1)) continue;
 
@@ -566,7 +567,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, DealersExePVE.HustleType.BUY, DRUG_WEED, amount);
+            pve.playGame(DEALER_ID_1, playerChoice, IDealersExePVE.HustleType.BUY, DRUG_WEED, amount);
 
             if (core.isInJail(DEALER_ID_1)) {
                 vm.revertToState(snapshotId);
@@ -599,7 +600,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVE.InsufficientCash.selector);
-        pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.BUY, DRUG_XTC, 1000);
+        pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.BUY, DRUG_XTC, 1000);
     }
 
     function test_playGame_buyZeroAmount_reverts() public {
@@ -607,7 +608,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVE.InvalidAmount.selector);
-        pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.BUY, DRUG_WEED, 0);
+        pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.BUY, DRUG_WEED, 0);
     }
 
     // =============================================================
@@ -641,7 +642,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, DealersExePVE.HustleType.SELL, DRUG_WEED, amount);
+            pve.playGame(DEALER_ID_1, playerChoice, IDealersExePVE.HustleType.SELL, DRUG_WEED, amount);
 
             if (core.isInJail(DEALER_ID_1)) continue;
 
@@ -690,7 +691,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, DealersExePVE.HustleType.SELL, DRUG_WEED, amount);
+            pve.playGame(DEALER_ID_1, playerChoice, IDealersExePVE.HustleType.SELL, DRUG_WEED, amount);
 
             if (core.isInJail(DEALER_ID_1)) continue;
 
@@ -728,7 +729,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, DealersExePVE.HustleType.SELL, DRUG_WEED, amount);
+            pve.playGame(DEALER_ID_1, playerChoice, IDealersExePVE.HustleType.SELL, DRUG_WEED, amount);
 
             if (core.isInJail(DEALER_ID_1)) {
                 vm.revertToState(snapshotId);
@@ -762,7 +763,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVE.InsufficientDrugs.selector);
-        pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.SELL, DRUG_WEED, 1000);
+        pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.SELL, DRUG_WEED, 1000);
     }
 
     function test_playGame_sellZeroAmount_reverts() public {
@@ -770,7 +771,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVE.InvalidAmount.selector);
-        pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.SELL, DRUG_WEED, 0);
+        pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.SELL, DRUG_WEED, 0);
     }
 
     // =============================================================
@@ -798,7 +799,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.BUY, DRUG_WEED, 10);
+            pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.BUY, DRUG_WEED, 10);
 
             if (core.isInJail(DEALER_ID_1)) {
                 arrested = true;
@@ -836,7 +837,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.BUY, DRUG_WEED, amount);
+            pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.BUY, DRUG_WEED, amount);
 
             if (core.isInJail(DEALER_ID_1)) {
                 uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
@@ -875,7 +876,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.SELL, DRUG_WEED, amount);
+            pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.SELL, DRUG_WEED, amount);
 
             if (core.isInJail(DEALER_ID_1)) {
                 uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
@@ -921,7 +922,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, DealersExePVE.HustleType.BUY, DRUG_WEED, amount);
+            pve.playGame(DEALER_ID_1, playerChoice, IDealersExePVE.HustleType.BUY, DRUG_WEED, amount);
 
             uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
             uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
@@ -965,7 +966,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, DealersExePVE.HustleType.BUY, DRUG_WEED, amount);
+            pve.playGame(DEALER_ID_1, playerChoice, IDealersExePVE.HustleType.BUY, DRUG_WEED, amount);
 
             if (core.isInJail(DEALER_ID_1)) continue;
 
@@ -1016,7 +1017,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, DealersExePVE.HustleType.SELL, DRUG_WEED, amount);
+            pve.playGame(DEALER_ID_1, playerChoice, IDealersExePVE.HustleType.SELL, DRUG_WEED, amount);
 
             uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
             uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
@@ -1057,7 +1058,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, DealersExePVE.HustleType.BUY, DRUG_WEED, amount);
+            pve.playGame(DEALER_ID_1, playerChoice, IDealersExePVE.HustleType.BUY, DRUG_WEED, amount);
 
             uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
             uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
@@ -1081,7 +1082,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVE.DealerInJail.selector);
-        pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.BUY, DRUG_WEED, 10);
+        pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.BUY, DRUG_WEED, 10);
     }
 
     function test_playGame_revertInSafeHouse() public {
@@ -1091,7 +1092,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVE.DealerInSafeHouse.selector);
-        pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.BUY, DRUG_WEED, 10);
+        pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.BUY, DRUG_WEED, 10);
     }
 
     function test_playGame_revertDrugNotInArea() public {
@@ -1100,7 +1101,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVE.DrugNotAvailableInArea.selector);
-        pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.BUY, 999, 10);
+        pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.BUY, 999, 10);
     }
 
     function test_playGame_revertDealerNotInitialized() public {
@@ -1111,7 +1112,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVE.DealerNotInitialized.selector);
-        pve.playGame(uninitTokenId, 0, DealersExePVE.HustleType.BUY, DRUG_WEED, 10);
+        pve.playGame(uninitTokenId, 0, IDealersExePVE.HustleType.BUY, DRUG_WEED, 10);
     }
 
     // =============================================================
@@ -1127,7 +1128,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
         vm.prevrandao(bytes32(prevrandao));
 
         vm.prank(player1);
-        pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.BUY, DRUG_WEED, 10);
+        pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.BUY, DRUG_WEED, 10);
 
         (,, uint8 attemptsAfter,,,) = core.getDealerData(DEALER_ID_1);
 
@@ -1141,7 +1142,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert();
-        pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.BUY, DRUG_WEED, 10);
+        pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.BUY, DRUG_WEED, 10);
     }
 
     function test_playGame_incrementsHeat() public {
@@ -1153,7 +1154,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
         vm.prevrandao(bytes32(prevrandao));
 
         vm.prank(player1);
-        pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.BUY, DRUG_WEED, 10);
+        pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.BUY, DRUG_WEED, 10);
 
         (,,, uint8 heatAfter,,) = core.getDealerData(DEALER_ID_1);
 
@@ -1230,7 +1231,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVE.ContractPaused.selector);
-        pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.BUY, DRUG_WEED, 10);
+        pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.BUY, DRUG_WEED, 10);
     }
 
     function test_pause_unpause_allowsPlay() public {
@@ -1240,7 +1241,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
         pve.unpause();
 
         vm.prank(player1);
-        pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.BUY, DRUG_WEED, 10);
+        pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.BUY, DRUG_WEED, 10);
     }
 
     function test_pause_onlyOwner() public {
@@ -1296,14 +1297,14 @@ contract DealersExePVETest is Test, IERC721Receiver {
             uint8 choice = uint8(i % 3);
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, choice, DealersExePVE.HustleType.BUY, DRUG_WEED, 1);
+            pve.playGame(DEALER_ID_1, choice, IDealersExePVE.HustleType.BUY, DRUG_WEED, 1);
 
             if (!core.isInJail(DEALER_ID_1)) {
                 totalPlayed++;
             }
         }
 
-        DealersExePVE.PveStats memory stats = pve.getDealerPveStats(DEALER_ID_1);
+        IDealersExePVE.PveStats memory stats = pve.getDealerPveStats(DEALER_ID_1);
         uint32 totalOutcomes = stats.wins + stats.losses + stats.ties;
         uint32 totalChoices = stats.dealChoices + stats.threatenChoices + stats.bailChoices;
 
@@ -1343,7 +1344,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
             vm.prevrandao(bytes32(i));
             vm.prank(player1);
-            pve.playGame(DEALER_ID_1, 0, DealersExePVE.HustleType.SELL, DRUG_WEED, 10);
+            pve.playGame(DEALER_ID_1, 0, IDealersExePVE.HustleType.SELL, DRUG_WEED, 10);
 
             if (core.isInJail(DEALER_ID_1)) continue;
 

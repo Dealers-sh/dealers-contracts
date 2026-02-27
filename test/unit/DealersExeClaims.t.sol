@@ -6,6 +6,8 @@ import "../../src/core/DealersExeCore.sol";
 import "../../src/core/DealersExeClaims.sol";
 import "../../src/core/DealersExePVE.sol";
 import "../../src/core/DealersExePVP.sol";
+import "../../src/core/IDealersExePVE.sol";
+import "../../src/core/IDealersExePVP.sol";
 import "../../src/nft/DealersExeNFT.sol";
 import "../../src/utils/DEDrugRegistry.sol";
 import "../../src/utils/DEAreaRegistry.sol";
@@ -14,10 +16,10 @@ import "../../src/utils/DERandomness.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 contract MockPVE {
-    mapping(uint256 => DealersExePVE.PveStats) private _stats;
+    mapping(uint256 => IDealersExePVE.PveStats) private _stats;
 
     function setStats(uint256 tokenId, uint32 wins, uint32 losses, uint32 ties) external {
-        _stats[tokenId] = DealersExePVE.PveStats(wins, losses, ties, 0, 0, 0);
+        _stats[tokenId] = IDealersExePVE.PveStats(wins, losses, ties, 0, 0, 0);
     }
 
     function dealerPveStats(uint256 tokenId)
@@ -25,16 +27,16 @@ contract MockPVE {
         view
         returns (uint32, uint32, uint32, uint32, uint32, uint32)
     {
-        DealersExePVE.PveStats storage s = _stats[tokenId];
+        IDealersExePVE.PveStats storage s = _stats[tokenId];
         return (s.wins, s.losses, s.ties, s.dealChoices, s.threatenChoices, s.bailChoices);
     }
 }
 
 contract MockPVP {
-    mapping(uint256 => DealersExePVP.PvpStats) private _stats;
+    mapping(uint256 => IDealersExePVP.PvpStats) private _stats;
 
     function setStats(uint256 tokenId, uint32 attackWins, uint32 attackLosses, uint32 defendWins, uint32 defendLosses) external {
-        _stats[tokenId] = DealersExePVP.PvpStats(attackWins, attackLosses, defendWins, defendLosses);
+        _stats[tokenId] = IDealersExePVP.PvpStats(attackWins, attackLosses, defendWins, defendLosses);
     }
 
     function dealerPvpStats(uint256 tokenId)
@@ -42,7 +44,7 @@ contract MockPVP {
         view
         returns (uint32, uint32, uint32, uint32)
     {
-        DealersExePVP.PvpStats storage s = _stats[tokenId];
+        IDealersExePVP.PvpStats storage s = _stats[tokenId];
         return (s.attackWins, s.attackLosses, s.defendWins, s.defendLosses);
     }
 }

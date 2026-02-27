@@ -8,6 +8,8 @@ import "../../src/core/DealersExeCore.sol";
 import "../../src/nft/DealersExeNFT.sol";
 import "../../src/core/DealersExePVE.sol";
 import "../../src/core/DealersExePVP.sol";
+import "../../src/core/IDealersExePVE.sol";
+import "../../src/core/IDealersExePVP.sol";
 import "../../src/core/DealersExeBoosts.sol";
 import "../../src/utils/DEPaymentHandler.sol";
 import "../../src/utils/DEDrugRegistry.sol";

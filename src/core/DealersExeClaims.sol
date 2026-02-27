@@ -4,8 +4,8 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import "./IDealersExeCore.sol";
-import "./DealersExePVE.sol";
-import "./DealersExePVP.sol";
+import {IDealersExePVE} from "./IDealersExePVE.sol";
+import {IDealersExePVP} from "./IDealersExePVP.sol";
 import "../utils/IERC721Minimal.sol";
 
 /**
@@ -60,8 +60,8 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
 
     IDealersExeCore public dealersExeCore;
     IERC721Minimal public dealersExeNFT;
-    DealersExePVE public pveContract;
-    DealersExePVP public pvpContract;
+    IDealersExePVE public pveContract;
+    IDealersExePVP public pvpContract;
 
     mapping(uint256 => Achievement) public achievements;
     uint256 public achievementCount;
@@ -108,8 +108,8 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
         _initializeOwner(msg.sender);
         dealersExeCore = IDealersExeCore(_dealersExeCore);
         dealersExeNFT = IERC721Minimal(_dealersExeNFT);
-        pveContract = DealersExePVE(_pve);
-        pvpContract = DealersExePVP(_pvp);
+        pveContract = IDealersExePVE(_pve);
+        pvpContract = IDealersExePVP(_pvp);
     }
 
     // =============================================================
@@ -290,11 +290,11 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
 
     function setPVE(address _pve) external onlyOwner {
         if (_pve == address(0)) revert InvalidAddress();
-        pveContract = DealersExePVE(_pve);
+        pveContract = IDealersExePVE(_pve);
     }
 
     function setPVP(address _pvp) external onlyOwner {
         if (_pvp == address(0)) revert InvalidAddress();
-        pvpContract = DealersExePVP(_pvp);
+        pvpContract = IDealersExePVP(_pvp);
     }
 }

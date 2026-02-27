@@ -646,7 +646,7 @@ contract DealersExePVPTest is BaseTest {
         _mockJailChance(attackerToken, 0);
 
         vm.prank(owner);
-        pvp.setPVPConfig(DealersExePVP.PVPConfig({
+        pvp.setPVPConfig(IDealersExePVP.PVPConfig({
             minReputation: 0,
             baseWinChance: 50,
             minWinChance: 25,
@@ -690,8 +690,8 @@ contract DealersExePVPTest is BaseTest {
         _setupForWin();
         _executeAttack();
 
-        DealersExePVP.PvpStats memory attackerStats = pvp.getDealerPvpStats(attackerToken);
-        DealersExePVP.PvpStats memory defenderStats = pvp.getDealerPvpStats(defenderToken);
+        IDealersExePVP.PvpStats memory attackerStats = pvp.getDealerPvpStats(attackerToken);
+        IDealersExePVP.PvpStats memory defenderStats = pvp.getDealerPvpStats(defenderToken);
 
         assertEq(attackerStats.attackWins, 1);
         assertEq(attackerStats.attackLosses, 0);
@@ -704,8 +704,8 @@ contract DealersExePVPTest is BaseTest {
         _setupForLoss();
         _executeAttack();
 
-        DealersExePVP.PvpStats memory attackerStats = pvp.getDealerPvpStats(attackerToken);
-        DealersExePVP.PvpStats memory defenderStats = pvp.getDealerPvpStats(defenderToken);
+        IDealersExePVP.PvpStats memory attackerStats = pvp.getDealerPvpStats(attackerToken);
+        IDealersExePVP.PvpStats memory defenderStats = pvp.getDealerPvpStats(defenderToken);
 
         assertEq(attackerStats.attackLosses, 1);
         assertEq(attackerStats.attackWins, 0);

@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IDealersExePVP} from "./IDealersExePVP.sol";
 import {IDealersExeCore} from "./IDealersExeCore.sol";
 import {IAreaRegistry} from "../utils/IAreaRegistry.sol";
 import {IDrugRegistry} from "../utils/IDrugRegistry.sol";
@@ -19,42 +20,7 @@ import {IDERandomness} from "../utils/IDERandomness.sol";
  *      Uses AreaRegistry for drug availability per area
  * @author Dealers.Exe Team
  */
-contract DealersExePVP is ReentrancyGuard, Ownable {
-    // =============================================================
-    //                            STRUCTS
-    // =============================================================
-
-    struct PvpStats {
-        uint32 attackWins;
-        uint32 attackLosses;
-        uint32 defendWins;
-        uint32 defendLosses;
-    }
-
-    struct PVPConfig {
-        uint256 minReputation;
-        uint8 baseWinChance;
-        uint8 minWinChance;
-        uint8 maxWinChance;
-        uint8 maxAttacksPerDay;
-        uint8 drugStealPercent;
-        uint8 cashStealPercent;
-        uint8 rarityWeightCommon;
-        uint8 rarityWeightUncommon;
-        uint8 rarityWeightRare;
-    }
-
-    struct PVPTarget {
-        uint256 tokenId;
-        uint256 reputation;
-        uint8 threat;
-        uint8 armor;
-        uint8 attemptsRemaining;
-        uint256 winChance;
-        uint256 lossChance;
-        bool canAttackNow;
-    }
-
+contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     // =============================================================
     //                            STORAGE
     // =============================================================
@@ -80,6 +46,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         uint256 indexed attacker,
         uint256 indexed defender,
         bool attackerWon,
+        uint256 drugIdStolen,
         uint256 drugsStolen,
         uint256 cashStolen,
         int16 attackerRepChange,
@@ -543,13 +510,14 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
             }
         }
 
-        (uint256 drugsStolen, uint256 cashStolen, int16 attackerRepChange, int16 defenderRepChange) =
+        (uint256 drugIdStolen, uint256 drugsStolen, uint256 cashStolen, int16 attackerRepChange, int16 defenderRepChange) =
             _processBattleOutcome(attackerId, defenderId, attackerWon, area, battleRandomness);
 
         emit PVPBattleResult(
             attackerId,
             defenderId,
             attackerWon,
+            drugIdStolen,
             drugsStolen,
             cashStolen,
             attackerRepChange,
@@ -576,7 +544,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         bool attackerWon,
         uint8 area,
         uint256 battleRandomness
-    ) private returns (uint256 drugsStolen, uint256 cashStolen, int16 attackerRepChange, int16 defenderRepChange) {
+    ) private returns (uint256 drugIdStolen, uint256 drugsStolen, uint256 cashStolen, int16 attackerRepChange, int16 defenderRepChange) {
         uint256 winnerId;
         uint256 loserId;
 
@@ -588,7 +556,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
             loserId = attackerId;
         }
 
-        drugsStolen = _stealDrugs(winnerId, loserId, area, battleRandomness);
+        (drugIdStolen, drugsStolen) = _stealDrugs(winnerId, loserId, area, battleRandomness);
         cashStolen = _stealCash(winnerId, loserId);
 
         int16 winnerBaseRep = core.getReputationChange(winnerId, 0);
@@ -608,7 +576,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
             defenderRepChange = winnerRepChange;
         }
 
-        return (drugsStolen, cashStolen, attackerRepChange, defenderRepChange);
+        return (drugIdStolen, drugsStolen, cashStolen, attackerRepChange, defenderRepChange);
     }
 
     function _stealDrugs(
@@ -616,7 +584,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         uint256 loserId,
         uint8 area,
         uint256 rng
-    ) private returns (uint256 totalStolen) {
+    ) private returns (uint256 selectedDrugId, uint256 totalStolen) {
         uint256[] memory areaDrugIds = areaRegistry.getAreaDrugIds(area);
 
         uint256[] memory commonDrugs = new uint256[](areaDrugIds.length);
@@ -656,10 +624,10 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         }
 
         if (commonCount == 0 && uncommonCount == 0 && rareCount == 0) {
-            return 0;
+            return (0, 0);
         }
 
-        uint256 selectedDrugId = _selectDrugByRarity(
+        selectedDrugId = _selectDrugByRarity(
             rng,
             commonDrugs, commonCount,
             uncommonDrugs, uncommonCount,
@@ -678,7 +646,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
             }
         }
 
-        return stolen;
+        return (selectedDrugId, stolen);
     }
 
     function _stealCash(uint256 winnerId, uint256 loserId) private returns (uint256 stolen) {

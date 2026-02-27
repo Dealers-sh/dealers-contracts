@@ -6,6 +6,8 @@ import {DealersExeCore} from "../../src/core/DealersExeCore.sol";
 import {DealersExeNFT} from "../../src/nft/DealersExeNFT.sol";
 import {DealersExePVE} from "../../src/core/DealersExePVE.sol";
 import {DealersExePVP} from "../../src/core/DealersExePVP.sol";
+import {IDealersExePVE} from "../../src/core/IDealersExePVE.sol";
+import {IDealersExePVP} from "../../src/core/IDealersExePVP.sol";
 import {DealersExeBoosts} from "../../src/core/DealersExeBoosts.sol";
 import {DEDrugRegistry} from "../../src/utils/DEDrugRegistry.sol";
 import {DEAreaRegistry} from "../../src/utils/DEAreaRegistry.sol";

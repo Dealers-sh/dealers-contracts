@@ -54,7 +54,7 @@ contract PlayerJourneyTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                DealersExePVE.HustleType.BUY,
+                IDealersExePVE.HustleType.BUY,
                 DRUG_WEED,
                 10
             ) {
@@ -102,7 +102,7 @@ contract PlayerJourneyTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                DealersExePVE.HustleType.BUY,
+                IDealersExePVE.HustleType.BUY,
                 DRUG_WEED,
                 5
             ) {} catch {}
@@ -129,7 +129,7 @@ contract PlayerJourneyTest is BaseTest {
         try pve.playGame(
             tokenId,
             0,
-            DealersExePVE.HustleType.BUY,
+            IDealersExePVE.HustleType.BUY,
             DRUG_WEED,
             5
         ) {} catch {}

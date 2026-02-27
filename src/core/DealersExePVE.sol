@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
+import {IDealersExePVE} from "./IDealersExePVE.sol";
 import "./IDealersExeCore.sol";
 import "../utils/IAreaRegistry.sol";
 import "../utils/IERC721Minimal.sol";
@@ -18,27 +19,10 @@ import "../utils/IDERandomness.sol";
  *      Uses AreaRegistry for drug pricing per area
  * @author Dealers.Exe Team
  */
-contract DealersExePVE is ReentrancyGuard, Ownable {
-    // =============================================================
-    //                            ENUMS
-    // =============================================================
-
-    enum GameChoice { DEAL, THREATEN, BAIL }   // 0,1,2
-    enum GameOutcome { WIN, TIE, LOSS }        // 0,1,2
-    enum HustleType { BUY, SELL }              // 0=BUY, 1=SELL
-
+contract DealersExePVE is IDealersExePVE, ReentrancyGuard, Ownable {
     // =============================================================
     //                            STORAGE
     // =============================================================
-
-    struct PveStats {
-        uint32 wins;
-        uint32 losses;
-        uint32 ties;
-        uint32 dealChoices;
-        uint32 threatenChoices;
-        uint32 bailChoices;
-    }
 
     IDealersExeCore public dealersExeCore;
     IERC721Minimal public dealersExeNFT;
@@ -71,7 +55,9 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         uint256 drugId,
         uint256 drugAmount,
         int256 cashChange,
-        int256 reputationChange
+        int256 reputationChange,
+        int256 drugBalanceChange,
+        uint8 newHeatLevel
     );
 
     event DealerArrested(
@@ -307,13 +293,14 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
 
         int256 repChange;
         int256 cashChange;
+        int256 drugChange;
 
         if (hustleType == HustleType.BUY) {
-            (repChange, cashChange, ) = _processBuyOutcome(
+            (repChange, cashChange, drugChange) = _processBuyOutcome(
                 tokenId, outcome, drugId, amount, buyPrice
             );
         } else {
-            (repChange, cashChange, ) = _processSellOutcome(
+            (repChange, cashChange, drugChange) = _processSellOutcome(
                 tokenId, outcome, drugId, amount, sellPrice
             );
         }
@@ -328,7 +315,9 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
             drugId,
             amount,
             cashChange,
-            repChange
+            repChange,
+            drugChange,
+            dealersExeCore.getHeatLevel(tokenId)
         );
     }
 
