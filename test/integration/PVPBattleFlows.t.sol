@@ -106,7 +106,7 @@ contract PVPBattleFlowsTest is BaseTest {
         vm.mockCall(
             address(core),
             abi.encodeWithSelector(core.getJailChance.selector, attackerToken),
-            abi.encode(uint8(100))
+            abi.encode(uint16(1000))
         );
         _mockRandomness(_buildRng(0, 0, 10));
 

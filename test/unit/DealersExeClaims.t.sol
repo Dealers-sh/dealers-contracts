@@ -65,9 +65,6 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
     address public player1;
     address public player2;
 
-    uint256 public signerPk;
-    address public signerAddr;
-
     uint256 constant DEALER_1 = 1;
     uint256 constant DEALER_2 = 2;
     uint256 constant DRUG_WEED = 1;
@@ -75,7 +72,6 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
     function setUp() public virtual {
         player1 = makeAddr("player1");
         player2 = makeAddr("player2");
-        (signerAddr, signerPk) = makeAddrAndKey("claimsSigner");
 
         vm.deal(player1, 100 ether);
         vm.deal(player2, 100 ether);
@@ -90,7 +86,7 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
         core = new DealersExeCore();
         nft = new DealersExeNFT(makeAddr("royalty"));
         claims = new DealersExeClaims(
-            address(core), address(nft), address(mockPVE), address(mockPVP), signerAddr
+            address(core), address(nft), address(mockPVE), address(mockPVP)
         );
 
         core.setNFTContract(address(nft));
@@ -126,17 +122,6 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
         });
         core.setReputationTiers(tiers);
         core.setMaxReputation(1000);
-    }
-
-    function _signClaim(
-        uint256 tokenId, uint256 claimId, uint8 rewardType, uint256 rewardId, uint256 amount
-    ) internal view returns (bytes memory) {
-        bytes32 messageHash = keccak256(
-            abi.encodePacked(tokenId, claimId, rewardType, rewardId, amount)
-        );
-        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(messageHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, ethSignedHash);
-        return abi.encodePacked(r, s, v);
     }
 
     function _setAchievement(
@@ -312,146 +297,124 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
         claims.claimAchievement(DEALER_1, 0);
     }
 
-    function test_claimAchievement_revertConditionNone() public {
-        _setAchievement(0, 0, 0, 0, 1, 0, 50); // NONE condition
+    function test_setAchievement_revertConditionNone() public {
+        vm.expectRevert(DealersExeClaims.InvalidAchievementConfig.selector);
+        _setAchievement(0, 0, 0, 0, 1, 0, 50);
+    }
 
-        vm.prank(player1);
-        vm.expectRevert(DealersExeClaims.InvalidConditionForAchievement.selector);
-        claims.claimAchievement(DEALER_1, 0);
+    function test_setAchievement_revertInvalidConditionType() public {
+        vm.expectRevert(DealersExeClaims.InvalidAchievementConfig.selector);
+        _setAchievement(0, 99, 0, 5, 1, 0, 100);
+    }
+
+    function test_setAchievement_revertInvalidRewardType() public {
+        vm.expectRevert(DealersExeClaims.InvalidAchievementConfig.selector);
+        _setAchievement(0, 1, 0, 5, 99, 0, 100);
     }
 
     // =========================================================================
-    //                   SIGNATURE CLAIMS — HAPPY PATH
+    //                    ADMIN GRANTS — HAPPY PATH
     // =========================================================================
 
-    function test_claimWithSignature_reputation() public {
-        uint256 repBefore = core.getTotalReputation(DEALER_1);
-        bytes memory sig = _signClaim(DEALER_1, 1, 0, 0, 50);
-
-        vm.prank(player1);
-        claims.claimWithSignature(DEALER_1, 1, 0, 0, 50, sig);
-
-        assertEq(core.getTotalReputation(DEALER_1), repBefore + 50);
-        assertTrue(claims.hasClaimedSignature(1, DEALER_1));
-    }
-
-    function test_claimWithSignature_cash() public {
+    function test_grantReward_cash() public {
         uint256 cashBefore = core.getCashBalance(DEALER_1);
-        bytes memory sig = _signClaim(DEALER_1, 2, 1, 0, 100);
-
-        vm.prank(player1);
-        claims.claimWithSignature(DEALER_1, 2, 1, 0, 100, sig);
-
+        claims.grantReward(DEALER_1, 1, 0, 100);
         assertEq(core.getCashBalance(DEALER_1), cashBefore + 100);
     }
 
-    function test_claimWithSignature_drug() public {
+    function test_grantReward_reputation() public {
+        uint256 repBefore = core.getTotalReputation(DEALER_1);
+        claims.grantReward(DEALER_1, 0, 0, 50);
+        assertEq(core.getTotalReputation(DEALER_1), repBefore + 50);
+    }
+
+    function test_grantReward_drug() public {
         uint256 drugBefore = core.getDrugBalance(DEALER_1, DRUG_WEED);
-        bytes memory sig = _signClaim(DEALER_1, 3, 2, DRUG_WEED, 25);
-
-        vm.prank(player1);
-        claims.claimWithSignature(DEALER_1, 3, 2, DRUG_WEED, 25, sig);
-
+        claims.grantReward(DEALER_1, 2, DRUG_WEED, 25);
         assertEq(core.getDrugBalance(DEALER_1, DRUG_WEED), drugBefore + 25);
     }
 
-    function test_claimWithSignature_attempts() public {
-        bytes memory sig = _signClaim(DEALER_1, 4, 3, 0, 0);
-
-        vm.prank(player1);
-        claims.claimWithSignature(DEALER_1, 4, 3, 0, 0, sig);
-
-        assertTrue(claims.hasClaimedSignature(4, DEALER_1));
+    function test_grantReward_attempts() public {
+        claims.grantReward(DEALER_1, 3, 0, 0);
     }
 
-    function test_claimWithSignature_differentTokensSameClaimId() public {
-        bytes memory sig1 = _signClaim(DEALER_1, 1, 1, 0, 50);
-        bytes memory sig2 = _signClaim(DEALER_2, 1, 1, 0, 50);
+    function test_batchGrantReward_samePayout() public {
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = DEALER_1;
+        tokenIds[1] = DEALER_2;
 
         uint256 cash1 = core.getCashBalance(DEALER_1);
         uint256 cash2 = core.getCashBalance(DEALER_2);
 
-        vm.prank(player1);
-        claims.claimWithSignature(DEALER_1, 1, 1, 0, 50, sig1);
-        vm.prank(player2);
-        claims.claimWithSignature(DEALER_2, 1, 1, 0, 50, sig2);
+        claims.batchGrantReward(tokenIds, 1, 0, 50);
 
         assertEq(core.getCashBalance(DEALER_1), cash1 + 50);
         assertEq(core.getCashBalance(DEALER_2), cash2 + 50);
     }
 
-    // =========================================================================
-    //                   SIGNATURE CLAIMS — REVERTS
-    // =========================================================================
+    function test_batchGrantRewards_differentPayouts() public {
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = DEALER_1;
+        tokenIds[1] = DEALER_2;
 
-    function test_claimWithSignature_revertDoubleClaim() public {
-        bytes memory sig = _signClaim(DEALER_1, 1, 1, 0, 50);
+        uint8[] memory rewardTypes = new uint8[](2);
+        rewardTypes[0] = 1; // CASH
+        rewardTypes[1] = 0; // REPUTATION
 
-        vm.startPrank(player1);
-        claims.claimWithSignature(DEALER_1, 1, 1, 0, 50, sig);
+        uint256[] memory rewardIds = new uint256[](2);
+        rewardIds[0] = 0;
+        rewardIds[1] = 0;
 
-        vm.expectRevert(DealersExeClaims.AlreadyClaimed.selector);
-        claims.claimWithSignature(DEALER_1, 1, 1, 0, 50, sig);
-        vm.stopPrank();
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 100;
+        amounts[1] = 50;
+
+        uint256 cash1 = core.getCashBalance(DEALER_1);
+        uint256 rep2 = core.getTotalReputation(DEALER_2);
+
+        claims.batchGrantRewards(tokenIds, rewardTypes, rewardIds, amounts);
+
+        assertEq(core.getCashBalance(DEALER_1), cash1 + 100);
+        assertEq(core.getTotalReputation(DEALER_2), rep2 + 50);
     }
 
-    function test_claimWithSignature_revertInvalidSignature() public {
-        bytes memory sig = _signClaim(DEALER_1, 1, 1, 0, 999);
+    // =========================================================================
+    //                    ADMIN GRANTS — REVERTS
+    // =========================================================================
+
+    function test_grantReward_revertNotOwner() public {
+        vm.prank(player1);
+        vm.expectRevert();
+        claims.grantReward(DEALER_1, 1, 0, 100);
+    }
+
+    function test_batchGrantReward_revertNotOwner() public {
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = DEALER_1;
 
         vm.prank(player1);
-        vm.expectRevert(DealersExeClaims.InvalidSignature.selector);
-        claims.claimWithSignature(DEALER_1, 1, 1, 0, 50, sig);
+        vm.expectRevert();
+        claims.batchGrantReward(tokenIds, 1, 0, 50);
     }
 
-    function test_claimWithSignature_revertNotTokenOwner() public {
-        bytes memory sig = _signClaim(DEALER_1, 1, 1, 0, 50);
+    function test_batchGrantRewards_revertLengthMismatch() public {
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = DEALER_1;
+        tokenIds[1] = DEALER_2;
 
-        vm.prank(player2);
-        vm.expectRevert(DealersExeClaims.NotTokenOwner.selector);
-        claims.claimWithSignature(DEALER_1, 1, 1, 0, 50, sig);
+        uint8[] memory rewardTypes = new uint8[](1);
+        rewardTypes[0] = 1;
+
+        uint256[] memory rewardIds = new uint256[](2);
+        uint256[] memory amounts = new uint256[](2);
+
+        vm.expectRevert(DealersExeClaims.LengthMismatch.selector);
+        claims.batchGrantRewards(tokenIds, rewardTypes, rewardIds, amounts);
     }
 
-    function test_claimWithSignature_revertInvalidRewardType() public {
-        bytes memory sig = _signClaim(DEALER_1, 1, 99, 0, 50);
-
-        vm.prank(player1);
+    function test_grantReward_revertInvalidRewardType() public {
         vm.expectRevert(DealersExeClaims.InvalidRewardType.selector);
-        claims.claimWithSignature(DEALER_1, 1, 99, 0, 50, sig);
-    }
-
-    // =========================================================================
-    //               ACHIEVEMENT + SIGNATURE NAMESPACE ISOLATION
-    // =========================================================================
-
-    function test_achievementAndSignatureClaimsSeparate() public {
-        _setAchievement(1, 1, 0, 1, 1, 0, 50);
-        mockPVE.setStats(DEALER_1, 1, 0, 0);
-
-        bytes memory sig = _signClaim(DEALER_1, 1, 1, 0, 50);
-
-        uint256 cashBefore = core.getCashBalance(DEALER_1);
-
-        vm.startPrank(player1);
-        claims.claimAchievement(DEALER_1, 1);
-        claims.claimWithSignature(DEALER_1, 1, 1, 0, 50, sig);
-        vm.stopPrank();
-
-        assertEq(core.getCashBalance(DEALER_1), cashBefore + 100);
-    }
-
-    // =========================================================================
-    //                       SIGNER ROTATION
-    // =========================================================================
-
-    function test_signerRotationInvalidatesOldSignatures() public {
-        bytes memory sig = _signClaim(DEALER_1, 1, 1, 0, 50);
-
-        (address newSigner,) = makeAddrAndKey("newSigner");
-        claims.setSigner(newSigner);
-
-        vm.prank(player1);
-        vm.expectRevert(DealersExeClaims.InvalidSignature.selector);
-        claims.claimWithSignature(DEALER_1, 1, 1, 0, 50, sig);
+        claims.grantReward(DEALER_1, 99, 0, 50);
     }
 
     // =========================================================================
@@ -482,17 +445,6 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
         vm.prank(player1);
         vm.expectRevert();
         _setAchievement(0, 1, 0, 5, 1, 0, 100);
-    }
-
-    function test_setSigner_onlyOwner() public {
-        vm.prank(player1);
-        vm.expectRevert();
-        claims.setSigner(player1);
-    }
-
-    function test_setSigner_rejectsZero() public {
-        vm.expectRevert(DealersExeClaims.InvalidAddress.selector);
-        claims.setSigner(address(0));
     }
 
     function test_setCore_onlyOwner() public {
@@ -533,12 +485,19 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
         claims.claimAchievement(DEALER_1, 0);
     }
 
-    function test_emitsSignatureRewardClaimedEvent() public {
-        bytes memory sig = _signClaim(DEALER_1, 1, 1, 0, 50);
+    function test_emitsRewardGrantedEvent() public {
+        vm.expectEmit(true, false, false, true);
+        emit DealersExeClaims.RewardGranted(DEALER_1, 1, 0, 50);
+        claims.grantReward(DEALER_1, 1, 0, 50);
+    }
 
-        vm.prank(player1);
-        vm.expectEmit(true, true, false, true);
-        emit DealersExeClaims.SignatureRewardClaimed(DEALER_1, 1, 1, 0, 50);
-        claims.claimWithSignature(DEALER_1, 1, 1, 0, 50, sig);
+    function test_emitsBatchRewardGrantedEvent() public {
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = DEALER_1;
+        tokenIds[1] = DEALER_2;
+
+        vm.expectEmit(false, false, false, true);
+        emit DealersExeClaims.BatchRewardGranted(2, 1, 0, 50);
+        claims.batchGrantReward(tokenIds, 1, 0, 50);
     }
 }

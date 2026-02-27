@@ -2,8 +2,6 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import "./IDealersExeCore.sol";
 import "./DealersExePVE.sol";
@@ -11,20 +9,17 @@ import "./DealersExePVP.sol";
 import "../utils/IERC721Minimal.sol";
 
 /**
- * @title DealersExeClaims - Hybrid achievement & signature-based reward claims
+ * @title DealersExeClaims - Achievement & admin reward claims
  *
  * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Two claim paths:
  *      1. On-chain achievements: contract reads PVE/PVP/Core stats, verifies threshold
- *      2. Signature claims: backend signs claims for off-chain actions
+ *      2. Admin grants: owner distributes rewards for off-chain events via script
  * @author Dealers.Exe Team
  */
 contract DealersExeClaims is ReentrancyGuard, Ownable {
-    using ECDSA for bytes32;
-    using MessageHashUtils for bytes32;
-
     // =============================================================
     //                            ENUMS
     // =============================================================
@@ -32,7 +27,7 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
     enum RewardType { REPUTATION, CASH, DRUG, ATTEMPTS }
 
     enum ConditionType {
-        NONE,               // 0 - signature-only (no on-chain check)
+        NONE,               // 0 - unused (reserved)
         PVE_WINS,           // 1
         PVE_LOSSES,         // 2
         PVE_TIES,           // 3
@@ -67,23 +62,21 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
     IERC721Minimal public dealersExeNFT;
     DealersExePVE public pveContract;
     DealersExePVP public pvpContract;
-    address public signer;
 
     mapping(uint256 => Achievement) public achievements;
     uint256 public achievementCount;
 
     mapping(uint256 achievementId => mapping(uint256 tokenId => bool)) public achievementClaimed;
-    mapping(uint256 claimId => mapping(uint256 tokenId => bool)) public signatureClaimed;
 
     // =============================================================
     //                           EVENTS
     // =============================================================
 
     event AchievementClaimed(uint256 indexed tokenId, uint256 indexed achievementId, uint8 rewardType, uint256 rewardAmount);
-    event SignatureRewardClaimed(uint256 indexed tokenId, uint256 indexed claimId, uint8 rewardType, uint256 rewardId, uint256 amount);
+    event RewardGranted(uint256 indexed tokenId, uint8 rewardType, uint256 rewardId, uint256 amount);
+    event BatchRewardGranted(uint256 count, uint8 rewardType, uint256 rewardId, uint256 amount);
     event AchievementSet(uint256 indexed achievementId, uint8 conditionType, uint256 threshold, uint8 rewardType, uint256 rewardAmount);
     event AchievementRemoved(uint256 indexed achievementId);
-    event SignerUpdated(address indexed oldSigner, address indexed newSigner);
 
     // =============================================================
     //                           ERRORS
@@ -91,12 +84,13 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
 
     error NotTokenOwner();
     error AlreadyClaimed();
-    error InvalidSignature();
     error InvalidRewardType();
     error InvalidAddress();
     error AchievementNotActive();
     error ThresholdNotMet();
     error InvalidConditionForAchievement();
+    error InvalidAchievementConfig();
+    error LengthMismatch();
 
     // =============================================================
     //                        CONSTRUCTOR
@@ -106,15 +100,16 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
         address _dealersExeCore,
         address _dealersExeNFT,
         address _pve,
-        address _pvp,
-        address _signer
+        address _pvp
     ) {
+        if (_dealersExeCore == address(0) || _dealersExeNFT == address(0) || _pve == address(0) || _pvp == address(0)) {
+            revert InvalidAddress();
+        }
         _initializeOwner(msg.sender);
         dealersExeCore = IDealersExeCore(_dealersExeCore);
         dealersExeNFT = IERC721Minimal(_dealersExeNFT);
         pveContract = DealersExePVE(_pve);
         pvpContract = DealersExePVP(_pvp);
-        signer = _signer;
     }
 
     // =============================================================
@@ -123,6 +118,18 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
 
     function claimAchievement(uint256 tokenId, uint256 achievementId) external nonReentrant {
         if (dealersExeNFT.ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
+        _claimAchievement(tokenId, achievementId);
+    }
+
+    function claimAchievements(uint256 tokenId, uint256[] calldata achievementIds) external nonReentrant {
+        if (dealersExeNFT.ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
+        for (uint256 i; i < achievementIds.length;) {
+            _claimAchievement(tokenId, achievementIds[i]);
+            unchecked { ++i; }
+        }
+    }
+
+    function _claimAchievement(uint256 tokenId, uint256 achievementId) internal {
         if (achievementClaimed[achievementId][tokenId]) revert AlreadyClaimed();
 
         Achievement storage a = achievements[achievementId];
@@ -139,30 +146,46 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
     }
 
     // =============================================================
-    //                    SIGNATURE-BASED CLAIMS
+    //                      ADMIN GRANT REWARDS
     // =============================================================
 
-    function claimWithSignature(
+    function grantReward(
         uint256 tokenId,
-        uint256 claimId,
         uint8 rewardType,
         uint256 rewardId,
-        uint256 amount,
-        bytes calldata signature
-    ) external nonReentrant {
-        if (dealersExeNFT.ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
-        if (signatureClaimed[claimId][tokenId]) revert AlreadyClaimed();
-
-        bytes32 messageHash = keccak256(
-            abi.encodePacked(tokenId, claimId, rewardType, rewardId, amount)
-        );
-        address recovered = messageHash.toEthSignedMessageHash().recover(signature);
-        if (recovered != signer) revert InvalidSignature();
-
-        signatureClaimed[claimId][tokenId] = true;
+        uint256 amount
+    ) external onlyOwner {
         _grantReward(tokenId, rewardType, rewardId, amount);
+        emit RewardGranted(tokenId, rewardType, rewardId, amount);
+    }
 
-        emit SignatureRewardClaimed(tokenId, claimId, rewardType, rewardId, amount);
+    function batchGrantReward(
+        uint256[] calldata tokenIds,
+        uint8 rewardType,
+        uint256 rewardId,
+        uint256 amount
+    ) external onlyOwner {
+        for (uint256 i; i < tokenIds.length;) {
+            _grantReward(tokenIds[i], rewardType, rewardId, amount);
+            unchecked { ++i; }
+        }
+        emit BatchRewardGranted(tokenIds.length, rewardType, rewardId, amount);
+    }
+
+    function batchGrantRewards(
+        uint256[] calldata tokenIds,
+        uint8[] calldata rewardTypes,
+        uint256[] calldata rewardIds,
+        uint256[] calldata amounts
+    ) external onlyOwner {
+        if (tokenIds.length != rewardTypes.length || tokenIds.length != rewardIds.length || tokenIds.length != amounts.length) {
+            revert LengthMismatch();
+        }
+        for (uint256 i; i < tokenIds.length;) {
+            _grantReward(tokenIds[i], rewardTypes[i], rewardIds[i], amounts[i]);
+            emit RewardGranted(tokenIds[i], rewardTypes[i], rewardIds[i], amounts[i]);
+            unchecked { ++i; }
+        }
     }
 
     // =============================================================
@@ -171,10 +194,6 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
 
     function hasClaimedAchievement(uint256 achievementId, uint256 tokenId) external view returns (bool) {
         return achievementClaimed[achievementId][tokenId];
-    }
-
-    function hasClaimedSignature(uint256 claimId, uint256 tokenId) external view returns (bool) {
-        return signatureClaimed[claimId][tokenId];
     }
 
     function getAchievement(uint256 achievementId) external view returns (Achievement memory) {
@@ -222,7 +241,7 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
         } else if (conditionType == uint8(ConditionType.DRUG_BALANCE)) {
             return dealersExeCore.getDrugBalance(tokenId, conditionValue);
         }
-        return 0;
+        revert InvalidConditionForAchievement();
     }
 
     function _grantReward(uint256 tokenId, uint8 rewardType, uint256 rewardId, uint256 amount) internal {
@@ -244,6 +263,11 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
     // =============================================================
 
     function setAchievement(uint256 achievementId, Achievement calldata achievement) external onlyOwner {
+        if (achievement.conditionType == uint8(ConditionType.NONE) || achievement.conditionType > uint8(ConditionType.DRUG_BALANCE)) {
+            revert InvalidAchievementConfig();
+        }
+        if (achievement.rewardType > uint8(RewardType.ATTEMPTS)) revert InvalidAchievementConfig();
+
         achievements[achievementId] = achievement;
         if (achievementId >= achievementCount) achievementCount = achievementId + 1;
         emit AchievementSet(achievementId, achievement.conditionType, achievement.threshold, achievement.rewardType, achievement.rewardAmount);
@@ -252,13 +276,6 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
     function removeAchievement(uint256 achievementId) external onlyOwner {
         delete achievements[achievementId];
         emit AchievementRemoved(achievementId);
-    }
-
-    function setSigner(address _signer) external onlyOwner {
-        if (_signer == address(0)) revert InvalidAddress();
-        address old = signer;
-        signer = _signer;
-        emit SignerUpdated(old, _signer);
     }
 
     function setDealersExeCore(address _core) external onlyOwner {

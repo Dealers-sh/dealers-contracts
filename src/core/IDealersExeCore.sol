@@ -105,7 +105,7 @@ interface IDealersExeCore {
     function getHeatLevel(uint256 tokenId) external view returns (uint8);
 
     /// @notice Get the jail chance percentage based on heat level
-    function getJailChance(uint256 tokenId) external view returns (uint8);
+    function getJailChance(uint256 tokenId) external view returns (uint16);
 
     /// @notice Check if a dealer has an active boost
     function hasActiveBoost(uint256 tokenId) external view returns (bool);

@@ -5,7 +5,7 @@ import "../base/DeployBase.s.sol";
 
 /**
  * @title DeployClaims
- * @dev Constructor deps: DEALERS_CORE, DEALERS_NFT, DEALERS_PVE, DEALERS_PVP, DEV_WALLET (as initial signer)
+ * @dev Constructor deps: DEALERS_CORE, DEALERS_NFT, DEALERS_PVE, DEALERS_PVP
  *      Post-deploy:
  *        - Core.authorizeContract(claims, true)
  *
@@ -21,12 +21,10 @@ contract DeployClaims is DeployBase {
         _requireAddress(nft, "DEALERS_NFT");
         _requireAddress(pve, "DEALERS_PVE");
         _requireAddress(pvp, "DEALERS_PVP");
-        _requireAddress(devWallet, "DEV_WALLET");
-
         vm.startBroadcast();
         claims = _zkCreate(abi.encodePacked(
             vm.getCode("DealersExeClaims.sol:DealersExeClaims"),
-            abi.encode(core, nft, pve, pvp, devWallet)
+            abi.encode(core, nft, pve, pvp)
         ));
         vm.stopBroadcast();
 

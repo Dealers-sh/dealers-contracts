@@ -89,6 +89,16 @@ interface IBoostsContract {
 }
 
 interface IClaimsContract {
+    struct Achievement {
+        uint8 conditionType;
+        uint256 conditionValue;
+        uint256 threshold;
+        uint8 rewardType;
+        uint256 rewardId;
+        uint256 rewardAmount;
+        bool active;
+    }
+    function setAchievement(uint256 achievementId, Achievement calldata achievement) external;
     function setDealersExeCore(address _core) external;
     function setDealersExeNFT(address _nft) external;
     function setPVE(address _pve) external;
@@ -97,6 +107,7 @@ interface IClaimsContract {
     function dealersExeNFT() external view returns (address);
     function pveContract() external view returns (address);
     function pvpContract() external view returns (address);
+    function achievementCount() external view returns (uint256);
 }
 
 // =============================================================================

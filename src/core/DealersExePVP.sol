@@ -86,7 +86,7 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
         int16 defenderRepChange
     );
 
-    event DealerArrested(uint256 indexed tokenId, uint8 heatLevel);
+    event DealerArrested(uint256 indexed tokenId, uint16 jailChance);
     event CoreContractUpdated(address indexed oldCore, address indexed newCore);
     event NFTContractUpdated(address indexed oldNFT, address indexed newNFT);
     event AreaRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
@@ -558,8 +558,8 @@ contract DealersExePVP is ReentrancyGuard, Ownable {
     }
 
     function _checkAndProcessArrest(uint256 attackerId, uint256 rng) private returns (bool) {
-        uint8 jailChance = core.getJailChance(attackerId);
-        uint8 jailRoll = uint8(rng % 100);
+        uint16 jailChance = core.getJailChance(attackerId);
+        uint16 jailRoll = uint16(rng % 1000);
 
         if (jailRoll < jailChance) {
             core.sendToJail(attackerId);

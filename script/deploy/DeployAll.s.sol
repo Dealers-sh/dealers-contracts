@@ -147,10 +147,9 @@ contract DeployAll is DeployBase {
             _requireAddress(nft, "DEALERS_NFT");
             _requireAddress(pve, "DEALERS_PVE");
             _requireAddress(pvp, "DEALERS_PVP");
-            _requireAddress(devWallet, "DEV_WALLET");
             claims = _zkCreate(abi.encodePacked(
                 vm.getCode("DealersExeClaims.sol:DealersExeClaims"),
-                abi.encode(core, nft, pve, pvp, devWallet)
+                abi.encode(core, nft, pve, pvp)
             ));
             console.log("DealersExeClaims deployed:", claims);
         } else {

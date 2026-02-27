@@ -109,7 +109,7 @@ contract DealersExePVPTest is BaseTest {
         _addDrugsToDealer(defenderToken, DRUG_WEED, 1000);
     }
 
-    function _mockJailChance(uint256 tokenId, uint8 chance) internal {
+    function _mockJailChance(uint256 tokenId, uint16 chance) internal {
         vm.mockCall(
             address(core),
             abi.encodeWithSelector(core.getJailChance.selector, tokenId),
@@ -150,7 +150,7 @@ contract DealersExePVPTest is BaseTest {
     }
 
     function _setupForArrest() internal {
-        _mockJailChance(attackerToken, 100);
+        _mockJailChance(attackerToken, 1000);
         _mockRandomness(_buildRng(0, 0, 10));
     }
 

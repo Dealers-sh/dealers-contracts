@@ -15,6 +15,7 @@ struct CoreConfig {
     uint8 breakoutSuccessChance;
     uint8 jailDrugConfiscationPercent;
     uint256 starterCash;
+    uint16 jailChancePerHeat;
 }
 
 interface ICoreConfig {
@@ -30,7 +31,8 @@ interface ICoreConfig {
         uint8 wantedPosterSuccessChance,
         uint8 breakoutSuccessChance,
         uint8 jailDrugConfiscationPercent,
-        uint256 starterCash
+        uint256 starterCash,
+        uint16 jailChancePerHeat
     );
 }
 
@@ -104,7 +106,8 @@ contract SetupTestnetPricing is DeployBase {
             uint8 wantedPosterSuccessChance,
             uint8 breakoutSuccessChance,
             uint8 jailDrugConfiscationPercent,
-            uint256 starterCash
+            uint256 starterCash,
+            uint16 jailChancePerHeat
         ) = c.config();
 
         uint256 newAttemptResetFee = attemptResetFee / DIVISOR;
@@ -122,7 +125,8 @@ contract SetupTestnetPricing is DeployBase {
             wantedPosterSuccessChance: wantedPosterSuccessChance,
             breakoutSuccessChance: breakoutSuccessChance,
             jailDrugConfiscationPercent: jailDrugConfiscationPercent,
-            starterCash: starterCash
+            starterCash: starterCash,
+            jailChancePerHeat: jailChancePerHeat
         }));
 
         console.log("  attemptResetFee: %s wei", vm.toString(newAttemptResetFee));

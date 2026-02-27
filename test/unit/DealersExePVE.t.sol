@@ -1163,18 +1163,18 @@ contract DealersExePVETest is Test, IERC721Receiver {
     function test_playGame_heatAffectsJailChance() public {
         _setupDealerForPlay(DEALER_ID_1);
 
-        uint8 jailChanceAt0 = core.getJailChance(DEALER_ID_1);
+        uint16 jailChanceAt0 = core.getJailChance(DEALER_ID_1);
         assertEq(jailChanceAt0, 0, "Heat 0 = 0% jail chance");
 
         _setHeatLevel(DEALER_ID_1, 3);
 
-        uint8 jailChanceAt3 = core.getJailChance(DEALER_ID_1);
-        assertEq(jailChanceAt3, 3, "Heat 3 = 3% jail chance");
+        uint16 jailChanceAt3 = core.getJailChance(DEALER_ID_1);
+        assertEq(jailChanceAt3, 15, "Heat 3 = 1.5% jail chance (15/1000)");
 
         _setHeatLevel(DEALER_ID_1, 2);
 
-        uint8 jailChanceAt5 = core.getJailChance(DEALER_ID_1);
-        assertEq(jailChanceAt5, 5, "Heat 5 = 5% jail chance");
+        uint16 jailChanceAt5 = core.getJailChance(DEALER_ID_1);
+        assertEq(jailChanceAt5, 25, "Heat 5 = 2.5% jail chance (25/1000)");
     }
 
     // =============================================================

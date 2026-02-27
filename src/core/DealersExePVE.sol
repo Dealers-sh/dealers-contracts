@@ -77,7 +77,7 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
     event DealerArrested(
         uint256 indexed tokenId,
         address indexed player,
-        uint8 heatLevel
+        uint16 jailChance
     );
 
     event CoreContractUpdated(address indexed oldCore, address indexed newCore);
@@ -251,8 +251,8 @@ contract DealersExePVE is ReentrancyGuard, Ownable {
         uint256 amount,
         uint256 stakeValue
     ) private returns (bool) {
-        uint8 jailChance = dealersExeCore.getJailChance(tokenId);
-        uint8 jailRoll = uint8(rng % 100);
+        uint16 jailChance = dealersExeCore.getJailChance(tokenId);
+        uint16 jailRoll = uint16(rng % 1000);
 
         if (jailRoll < jailChance) {
             // Arrested! Lose stake

@@ -107,6 +107,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         uint8 breakoutSuccessChance;      // 33 - % chance to escape jail
         uint8 jailDrugConfiscationPercent; // 3 - % of one random drug confiscated on jail
         uint256 starterCash;              // 250 - Starting $CASH for new dealers
+        uint16 jailChancePerHeat;         // 5 - Jail chance per heat level (out of 1000, so 5 = 0.5%)
     }
 
     // =============================================================
@@ -240,7 +241,8 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
             wantedPosterSuccessChance: 50,
             breakoutSuccessChance: 50,
             jailDrugConfiscationPercent: 3,
-            starterCash: 250
+            starterCash: 250,
+            jailChancePerHeat: 5
         });
     }
 
@@ -667,9 +669,9 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         external
         view
         dealerExists(tokenId)
-        returns (uint8)
+        returns (uint16)
     {
-        return dealers[tokenId].heatLevel;
+        return uint16(dealers[tokenId].heatLevel) * config.jailChancePerHeat;
     }
 
     /**
