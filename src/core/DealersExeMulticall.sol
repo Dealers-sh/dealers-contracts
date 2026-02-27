@@ -46,6 +46,8 @@ contract DealersExeMulticall {
         uint32 pvpAttackLosses;
         uint32 pvpDefendWins;
         uint32 pvpDefendLosses;
+        uint32 lastBreakoutAttempt;
+        bool canBreakoutToday;
     }
 
     struct AreaDrug {
@@ -64,6 +66,8 @@ contract DealersExeMulticall {
         uint256 movementFee;
         uint256 minReputation;
         bool isActive;
+        bool isSafeHouse;
+        bool isJail;
         uint256 dealerCount;
         AreaDrug[] drugs;
     }
@@ -156,6 +160,11 @@ contract DealersExeMulticall {
         state.pvpAttackLosses = pvpStats.attackLosses;
         state.pvpDefendWins = pvpStats.defendWins;
         state.pvpDefendLosses = pvpStats.defendLosses;
+
+        (,, uint32 lastBreakout,,,,,) = core.dealers(tokenId);
+        state.lastBreakoutAttempt = lastBreakout;
+        uint256 dayStart = (block.timestamp / 1 days) * 1 days;
+        state.canBreakoutToday = lastBreakout == 0 || lastBreakout < uint32(dayStart);
     }
 
     function getAreaEconomy(uint8 areaId) external view returns (AreaEconomy memory) {
@@ -179,6 +188,8 @@ contract DealersExeMulticall {
         economy.movementFee = info.movementFee;
         economy.minReputation = info.minReputation;
         economy.isActive = info.isActive;
+        economy.isSafeHouse = info.isSafeHouse;
+        economy.isJail = info.isJail;
         economy.dealerCount = areaRegistry.getDealerCountInArea(areaId);
 
         uint256[] memory drugIds = areaRegistry.getAreaDrugIds(areaId);

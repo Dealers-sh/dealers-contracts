@@ -42,6 +42,8 @@ contract DealersExeMulticallTest is BaseTest {
         assertEq(state.pveTies, 0);
         assertEq(state.pvpAttackWins, 0);
         assertEq(state.pvpDefendWins, 0);
+        assertEq(state.lastBreakoutAttempt, 0);
+        assertTrue(state.canBreakoutToday);
     }
 
     function test_getFullDealerState_drugBalances() public view {
@@ -87,6 +89,8 @@ contract DealersExeMulticallTest is BaseTest {
 
         assertEq(keccak256(bytes(economy.areaName)), keccak256(bytes("Manhattan")));
         assertTrue(economy.isActive);
+        assertFalse(economy.isSafeHouse);
+        assertFalse(economy.isJail);
         assertEq(economy.areaId, 1);
         assertGt(economy.drugs.length, 0);
 
@@ -95,6 +99,16 @@ contract DealersExeMulticallTest is BaseTest {
             assertGt(economy.drugs[i].buyPrice, 0);
             assertGt(economy.drugs[i].sellPrice, 0);
         }
+    }
+
+    function test_getAreaEconomy_specialAreaFlags() public view {
+        DealersExeMulticall.AreaEconomy memory safeHouse = multicall.getAreaEconomy(core.SAFE_HOUSE_AREA());
+        assertTrue(safeHouse.isSafeHouse);
+        assertFalse(safeHouse.isJail);
+
+        DealersExeMulticall.AreaEconomy memory jail = multicall.getAreaEconomy(core.JAIL_AREA());
+        assertTrue(jail.isJail);
+        assertFalse(jail.isSafeHouse);
     }
 
     function test_getAllAreasEconomy() public view {

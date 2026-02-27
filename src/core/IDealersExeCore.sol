@@ -58,7 +58,17 @@ interface IDealersExeCore {
     //                      VIEW FUNCTIONS
     // =============================================================
 
-    /// @notice Get all dealer data for a token
+    function dealers(uint256 tokenId) external view returns (
+        uint256 reputation,
+        uint32 lastPlayTimestamp,
+        uint32 lastBreakoutAttempt,
+        uint8 currentArea,
+        uint8 previousArea,
+        uint8 dailyAttemptsRemaining,
+        uint8 heatLevel,
+        bool isInitialized
+    );
+
     function getDealerData(uint256 tokenId) external view returns (
         uint8 currentArea,
         uint256 reputation,
