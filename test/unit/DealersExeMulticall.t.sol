@@ -2,16 +2,16 @@
 pragma solidity ^0.8.28;
 
 import "../base/BaseTest.sol";
-import "../../src/core/DealersExeLens.sol";
+import "../../src/core/DealersExeMulticall.sol";
 import "../../src/utils/IDrugRegistry.sol";
 
-contract DealersExeLensTest is BaseTest {
-    DealersExeLens public lens;
+contract DealersExeMulticallTest is BaseTest {
+    DealersExeMulticall public multicall;
     uint256 internal tokenId1;
 
     function setUp() public override {
         super.setUp();
-        lens = new DealersExeLens(
+        multicall = new DealersExeMulticall(
             address(core),
             address(pve),
             address(pvp),
@@ -22,7 +22,7 @@ contract DealersExeLensTest is BaseTest {
     }
 
     function test_getFullDealerState_starterValues() public view {
-        DealersExeLens.FullDealerState memory state = lens.getFullDealerState(tokenId1);
+        DealersExeMulticall.FullDealerState memory state = multicall.getFullDealerState(tokenId1);
 
         assertEq(state.reputation, core.STARTING_REPUTATION());
         assertEq(state.currentArea, core.STARTING_AREA());
@@ -45,7 +45,7 @@ contract DealersExeLensTest is BaseTest {
     }
 
     function test_getFullDealerState_drugBalances() public view {
-        DealersExeLens.FullDealerState memory state = lens.getFullDealerState(tokenId1);
+        DealersExeMulticall.FullDealerState memory state = multicall.getFullDealerState(tokenId1);
 
         uint256[] memory allDrugs = drugRegistry.getAllDrugIds();
         assertEq(state.drugBalances.length, allDrugs.length);
@@ -67,7 +67,7 @@ contract DealersExeLensTest is BaseTest {
         vm.prank(player1);
         boosts.purchaseBoost{value: 0.0025 ether}(tokenId1, 1);
 
-        DealersExeLens.FullDealerState memory state = lens.getFullDealerState(tokenId1);
+        DealersExeMulticall.FullDealerState memory state = multicall.getFullDealerState(tokenId1);
 
         assertTrue(state.boostActive);
         assertGt(state.boostExpiry, block.timestamp);
@@ -78,12 +78,12 @@ contract DealersExeLensTest is BaseTest {
     }
 
     function test_getFullDealerState_reputationTitle() public view {
-        DealersExeLens.FullDealerState memory state = lens.getFullDealerState(tokenId1);
+        DealersExeMulticall.FullDealerState memory state = multicall.getFullDealerState(tokenId1);
         assertEq(keccak256(bytes(state.reputationTitle)), keccak256(bytes("Outsider")));
     }
 
     function test_getAreaEconomy_manhattan() public view {
-        DealersExeLens.AreaEconomy memory economy = lens.getAreaEconomy(1);
+        DealersExeMulticall.AreaEconomy memory economy = multicall.getAreaEconomy(1);
 
         assertEq(keccak256(bytes(economy.areaName)), keccak256(bytes("Manhattan")));
         assertTrue(economy.isActive);
@@ -98,7 +98,7 @@ contract DealersExeLensTest is BaseTest {
     }
 
     function test_getAllAreasEconomy() public view {
-        DealersExeLens.AreaEconomy[] memory economies = lens.getAllAreasEconomy();
+        DealersExeMulticall.AreaEconomy[] memory economies = multicall.getAllAreasEconomy();
 
         uint8 totalAreas = areaRegistry.getTotalAreas();
         assertEq(economies.length, totalAreas);
@@ -111,29 +111,29 @@ contract DealersExeLensTest is BaseTest {
 
     function test_getFullDealerState_revertUninitialized() public {
         uint256 fakeTokenId = 99999;
-        vm.expectRevert(abi.encodeWithSelector(DealersExeLens.DealerNotInitialized.selector, fakeTokenId));
-        lens.getFullDealerState(fakeTokenId);
+        vm.expectRevert(abi.encodeWithSelector(DealersExeMulticall.DealerNotInitialized.selector, fakeTokenId));
+        multicall.getFullDealerState(fakeTokenId);
     }
 
     function test_constructor_revertZeroAddress() public {
-        vm.expectRevert(abi.encodeWithSelector(DealersExeLens.ZeroAddress.selector, "core"));
-        new DealersExeLens(address(0), address(pve), address(pvp), address(areaRegistry), address(drugRegistry));
+        vm.expectRevert(abi.encodeWithSelector(DealersExeMulticall.ZeroAddress.selector, "core"));
+        new DealersExeMulticall(address(0), address(pve), address(pvp), address(areaRegistry), address(drugRegistry));
 
-        vm.expectRevert(abi.encodeWithSelector(DealersExeLens.ZeroAddress.selector, "pve"));
-        new DealersExeLens(address(core), address(0), address(pvp), address(areaRegistry), address(drugRegistry));
+        vm.expectRevert(abi.encodeWithSelector(DealersExeMulticall.ZeroAddress.selector, "pve"));
+        new DealersExeMulticall(address(core), address(0), address(pvp), address(areaRegistry), address(drugRegistry));
 
-        vm.expectRevert(abi.encodeWithSelector(DealersExeLens.ZeroAddress.selector, "pvp"));
-        new DealersExeLens(address(core), address(pve), address(0), address(areaRegistry), address(drugRegistry));
+        vm.expectRevert(abi.encodeWithSelector(DealersExeMulticall.ZeroAddress.selector, "pvp"));
+        new DealersExeMulticall(address(core), address(pve), address(0), address(areaRegistry), address(drugRegistry));
 
-        vm.expectRevert(abi.encodeWithSelector(DealersExeLens.ZeroAddress.selector, "areaRegistry"));
-        new DealersExeLens(address(core), address(pve), address(pvp), address(0), address(drugRegistry));
+        vm.expectRevert(abi.encodeWithSelector(DealersExeMulticall.ZeroAddress.selector, "areaRegistry"));
+        new DealersExeMulticall(address(core), address(pve), address(pvp), address(0), address(drugRegistry));
 
-        vm.expectRevert(abi.encodeWithSelector(DealersExeLens.ZeroAddress.selector, "drugRegistry"));
-        new DealersExeLens(address(core), address(pve), address(pvp), address(areaRegistry), address(0));
+        vm.expectRevert(abi.encodeWithSelector(DealersExeMulticall.ZeroAddress.selector, "drugRegistry"));
+        new DealersExeMulticall(address(core), address(pve), address(pvp), address(areaRegistry), address(0));
     }
 
     function test_getFullDealerState_drugRarityTyped() public view {
-        DealersExeLens.FullDealerState memory state = lens.getFullDealerState(tokenId1);
+        DealersExeMulticall.FullDealerState memory state = multicall.getFullDealerState(tokenId1);
 
         assertEq(uint8(state.drugBalances[0].rarity), uint8(IDrugRegistry.DrugRarity.COMMON));
         assertEq(uint8(state.drugBalances[1].rarity), uint8(IDrugRegistry.DrugRarity.UNCOMMON));

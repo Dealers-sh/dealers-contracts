@@ -7,7 +7,7 @@ import {IDealersExePVP} from "./IDealersExePVP.sol";
 import {IAreaRegistry} from "../utils/IAreaRegistry.sol";
 import {IDrugRegistry} from "../utils/IDrugRegistry.sol";
 
-contract DealersExeLens {
+contract DealersExeMulticall {
     error ZeroAddress(string param);
     error DealerNotInitialized(uint256 tokenId);
 
