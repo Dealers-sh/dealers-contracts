@@ -31,14 +31,12 @@ contract DealerRendererHTML is IDealerRendererHTML, Ownable {
     // =============================================================
 
     event FileStoreUpdated(address indexed oldStore, address indexed newStore);
-    event GunzipFilenameUpdated(string oldFilename, string newFilename);
     event GzipFilenameUpdated(string oldFilename, string newFilename);
 
     // =============================================================
     //                            STORAGE
     // =============================================================
 
-    string public gunzipFilename = "gunzipScripts-0.0.2.js";
     string public dealerGzipFilename = "src1.min.js.gz";
     IFileStore public fileStore;
 
@@ -68,17 +66,6 @@ contract DealerRendererHTML is IDealerRendererHTML, Ownable {
     }
 
     /**
-     * @notice Set the gunzip decompression library filename in FileStore
-     * @param _gunzipFilename The filename of the gunzip JS library
-     */
-    function setGunzipFilename(string memory _gunzipFilename) external onlyOwner {
-        if (bytes(_gunzipFilename).length == 0) revert EmptyFilename();
-        string memory oldFilename = gunzipFilename;
-        gunzipFilename = _gunzipFilename;
-        emit GunzipFilenameUpdated(oldFilename, _gunzipFilename);
-    }
-
-    /**
      * @notice Set the gzipped dealer UI script filename in FileStore
      * @param _dealerGzipFilename The filename of the gzipped JS in FileStore
      */
@@ -92,18 +79,6 @@ contract DealerRendererHTML is IDealerRendererHTML, Ownable {
     // =============================================================
     //                        VIEW FUNCTIONS
     // =============================================================
-
-    /**
-     * @notice Get the gunzip decompression script tag
-     * @return Script tag with base64-encoded gunzip library
-     */
-    function getGzip() public view returns (string memory) {
-        return string.concat(
-            "<script src=\"data:text/javascript;base64,",
-            fileStore.getFile(gunzipFilename).read(),
-            "\"></script>"
-        );
-    }
 
     /**
      * @notice Get the gzipped dealer UI script tag
@@ -129,7 +104,7 @@ contract DealerRendererHTML is IDealerRendererHTML, Ownable {
             '<!DOCTYPE html><html lang="en"><head>',
             _buildHead(tokenId, svgBase64),
             getScriptJs(),
-            getGzip(),
+            _decompressScript(),
             '</head><body>',
             svg,
             '</body></html>'
@@ -139,6 +114,22 @@ contract DealerRendererHTML is IDealerRendererHTML, Ownable {
     // =============================================================
     //                      INTERNAL HELPERS
     // =============================================================
+
+    function _decompressScript() private pure returns (string memory) {
+        return '<script>'
+            '(function(){'
+            'document.querySelectorAll(\'script[type="text/javascript+gzip"]\').forEach(async function(s){'
+            'var b=atob(s.src.split(",")[1]),a=new Uint8Array(b.length);'
+            'for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);'
+            'var r=new Blob([a]).stream().pipeThrough(new DecompressionStream("gzip"));'
+            'var t=await new Response(r).text();'
+            'var e=document.createElement("script");'
+            'e.textContent=t;'
+            'document.head.appendChild(e);'
+            '});'
+            '})();'
+            '</script>';
+    }
 
     function _buildHead(uint256 tokenId, string memory svgBase64) private pure returns (string memory) {
         string memory id = tokenId.toString();
