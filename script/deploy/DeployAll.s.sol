@@ -43,6 +43,7 @@ contract DeployAll is DeployBase {
 
         vm.stopBroadcast();
 
+        _saveAddresses();
         _printSummary();
     }
 
@@ -194,6 +195,12 @@ contract DeployAll is DeployBase {
         // AreaRegistry -> Core
         IAreaRegistry areaReg = IAreaRegistry(areaRegistry);
         if (areaReg.coreContract() != core) areaReg.setCoreContract(core);
+
+        // Randomness authorizations
+        IRandomness rng = IRandomness(randomness);
+        if (!rng.isAuthorizedResolver(core)) rng.authorizeResolver(core, true);
+        if (!rng.isAuthorizedResolver(pve)) rng.authorizeResolver(pve, true);
+        if (!rng.isAuthorizedResolver(pvp)) rng.authorizeResolver(pvp, true);
 
         // Module references
         IDealersExeNFT nftC = IDealersExeNFT(nft);

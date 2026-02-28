@@ -126,30 +126,97 @@ abstract contract DeployBase is Script {
     address public pve;
     address public pvp;
     address public claims;
+    address public rendererSvg;
+    address public rendererHtml;
+    address public multicall;
 
     // Wallet addresses
     address public devWallet;
     address public bankVault;
     address public royaltyReceiver;
 
+    // =========================================================================
+    //                         ADDRESS PERSISTENCE
+    // =========================================================================
+
+    function _getDeploymentPath() internal view returns (string memory) {
+        uint256 chainId = block.chainid;
+        if (chainId == 11124) return "script/data/deployments/testnet.json";
+        if (chainId == 2741) return "script/data/deployments/mainnet.json";
+        return "script/data/deployments/local.json";
+    }
+
     function _loadAddresses() internal {
-        drugRegistry = vm.envOr("DRUG_REGISTRY", address(0));
-        areaRegistry = vm.envOr("AREA_REGISTRY", address(0));
-        core = vm.envOr("DEALERS_CORE", address(0));
-        paymentHandler = vm.envOr("PAYMENT_HANDLER", address(0));
-        randomness = vm.envOr("RANDOMNESS", address(0));
-        nft = vm.envOr("DEALERS_NFT", address(0));
-        boosts = vm.envOr("DEALERS_BOOSTS", address(0));
-        pve = vm.envOr("DEALERS_PVE", address(0));
-        pvp = vm.envOr("DEALERS_PVP", address(0));
-        claims = vm.envOr("DEALERS_CLAIMS", address(0));
+        string memory path = _getDeploymentPath();
+        try vm.readFile(path) returns (string memory json) {
+            drugRegistry = _jsonAddrOr(json, ".drugRegistry", "DRUG_REGISTRY");
+            areaRegistry = _jsonAddrOr(json, ".areaRegistry", "AREA_REGISTRY");
+            core = _jsonAddrOr(json, ".core", "DEALERS_CORE");
+            paymentHandler = _jsonAddrOr(json, ".paymentHandler", "PAYMENT_HANDLER");
+            randomness = _jsonAddrOr(json, ".randomness", "RANDOMNESS");
+            nft = _jsonAddrOr(json, ".nft", "DEALERS_NFT");
+            boosts = _jsonAddrOr(json, ".boosts", "DEALERS_BOOSTS");
+            pve = _jsonAddrOr(json, ".pve", "DEALERS_PVE");
+            pvp = _jsonAddrOr(json, ".pvp", "DEALERS_PVP");
+            claims = _jsonAddrOr(json, ".claims", "DEALERS_CLAIMS");
+            rendererSvg = _jsonAddrOr(json, ".rendererSvg", "RENDERER_SVG");
+            rendererHtml = _jsonAddrOr(json, ".rendererHtml", "RENDERER_HTML");
+            multicall = _jsonAddrOr(json, ".multicall", "DEALER_MULTICALL");
+        } catch {
+            drugRegistry = vm.envOr("DRUG_REGISTRY", address(0));
+            areaRegistry = vm.envOr("AREA_REGISTRY", address(0));
+            core = vm.envOr("DEALERS_CORE", address(0));
+            paymentHandler = vm.envOr("PAYMENT_HANDLER", address(0));
+            randomness = vm.envOr("RANDOMNESS", address(0));
+            nft = vm.envOr("DEALERS_NFT", address(0));
+            boosts = vm.envOr("DEALERS_BOOSTS", address(0));
+            pve = vm.envOr("DEALERS_PVE", address(0));
+            pvp = vm.envOr("DEALERS_PVP", address(0));
+            claims = vm.envOr("DEALERS_CLAIMS", address(0));
+            rendererSvg = vm.envOr("RENDERER_SVG", address(0));
+            rendererHtml = vm.envOr("RENDERER_HTML", address(0));
+            multicall = vm.envOr("DEALER_MULTICALL", address(0));
+        }
+
         devWallet = vm.envOr("DEV_WALLET", address(0));
         bankVault = vm.envOr("BANK_VAULT", address(0));
         royaltyReceiver = vm.envOr("ROYALTY_RECEIVER", address(0));
     }
 
+    function _jsonAddrOr(string memory json, string memory key, string memory envKey) internal returns (address) {
+        try vm.parseJsonAddress(json, key) returns (address val) {
+            if (val != address(0)) return val;
+        } catch {}
+        return vm.envOr(envKey, address(0));
+    }
+
+    function _saveAddresses() internal {
+        string memory obj = "deploy";
+        vm.serializeAddress(obj, "drugRegistry", drugRegistry);
+        vm.serializeAddress(obj, "areaRegistry", areaRegistry);
+        vm.serializeAddress(obj, "core", core);
+        vm.serializeAddress(obj, "paymentHandler", paymentHandler);
+        vm.serializeAddress(obj, "randomness", randomness);
+        vm.serializeAddress(obj, "nft", nft);
+        vm.serializeAddress(obj, "boosts", boosts);
+        vm.serializeAddress(obj, "pve", pve);
+        vm.serializeAddress(obj, "pvp", pvp);
+        vm.serializeAddress(obj, "claims", claims);
+        vm.serializeAddress(obj, "rendererSvg", rendererSvg);
+        vm.serializeAddress(obj, "rendererHtml", rendererHtml);
+        string memory json = vm.serializeAddress(obj, "multicall", multicall);
+
+        string memory path = _getDeploymentPath();
+        vm.writeJson(json, path);
+        console.log("Addresses saved to:", path);
+    }
+
+    // =========================================================================
+    //                            UTILITIES
+    // =========================================================================
+
     function _requireAddress(address addr, string memory name) internal pure {
-        require(addr != address(0), string.concat(name, " not set in .env"));
+        require(addr != address(0), string.concat(name, " not set"));
     }
 
     function _zkCreate(bytes memory bytecode) internal returns (address deployed) {

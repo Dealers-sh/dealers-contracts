@@ -89,6 +89,8 @@ contract DeployRenderers is Script {
 
         vm.stopBroadcast();
 
+        _saveRendererAddresses(rendererSVG, rendererHTML);
+
         console.log("");
         console.log("==============================================");
         console.log("   Renderer Deployment Complete!");
@@ -100,5 +102,28 @@ contract DeployRenderers is Script {
         console.log("Set renderers on NFT (requires --zksync since NFT is zkSync bytecode):");
         console.log("  cast send", nft, '"setContractRendererSVG(address)"', rendererSVG);
         console.log("  cast send", nft, '"setContractRendererHTML(address)"', rendererHTML);
+    }
+
+    function _saveRendererAddresses(address svg, address html) internal {
+        string memory path = _getDeploymentPath();
+
+        try vm.readFile(path) returns (string memory existing) {
+            vm.writeJson(vm.toString(svg), path, ".rendererSvg");
+            vm.writeJson(vm.toString(html), path, ".rendererHtml");
+        } catch {
+            string memory obj = "deploy";
+            vm.serializeAddress(obj, "rendererSvg", svg);
+            string memory json = vm.serializeAddress(obj, "rendererHtml", html);
+            vm.writeJson(json, path);
+        }
+
+        console.log("Addresses saved to:", path);
+    }
+
+    function _getDeploymentPath() internal view returns (string memory) {
+        uint256 chainId = block.chainid;
+        if (chainId == 11124) return "script/data/deployments/testnet.json";
+        if (chainId == 2741) return "script/data/deployments/mainnet.json";
+        return "script/data/deployments/local.json";
     }
 }

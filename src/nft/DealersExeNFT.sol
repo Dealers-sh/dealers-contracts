@@ -18,7 +18,7 @@ interface IDealerRendererSVG {
 }
 
 interface IDealerRendererHTML {
-    function getHTML(string memory svg) external view returns (string memory);
+    function getHTML(uint256 tokenId, string memory svg) external view returns (string memory);
 }
 
 /**
@@ -330,9 +330,9 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         // Build JSON via bytes => one final copy
         bytes memory json = abi.encodePacked(
             '{"name":"Dealer #', tokenId.toString(),
-            '","description":"Drug Wars - On-Chain Mafia Strategy Game. An on-chain PvE/PvP mafia strategy game built around dynamic NFT dealers with embedded gameplay interfaces and player-to-player drug trading.",',
+            '","description":"Dealer #', tokenId.toString(), ' is a dynamic on-chain NFT with embedded gameplay, evolving stats, and permanently stored ASCII art. Click on your dealer to start playing Dealers.exe.",',
             '"attributes":[', attrs, '],',
-            _getAnimationUrl(svg),
+            _getAnimationUrl(tokenId, svg),
             '"image":"data:image/svg+xml;base64,', Base64.encode(bytes(svg)), '"}'
         );
 
@@ -390,12 +390,12 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         }
     }
 
-    function _getAnimationUrl(string memory svg) private view returns (bytes memory) {
+    function _getAnimationUrl(uint256 tokenId, string memory svg) private view returns (bytes memory) {
         IDealerRendererHTML htmlRenderer = contractRendererHTML;
         if (address(htmlRenderer) == address(0)) return "";
         return abi.encodePacked(
             '"animation_url":"data:text/html;base64,',
-            Base64.encode(bytes(htmlRenderer.getHTML(svg))),
+            Base64.encode(bytes(htmlRenderer.getHTML(tokenId, svg))),
             '",'
         );
     }

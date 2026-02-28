@@ -16,5 +16,5 @@ interface IDealerRendererHTML {
     // =============================================================
 
     /// @notice Generate HTML wrapper for an SVG
-    function getHTML(string memory svg) external view returns (string memory);
+    function getHTML(uint256 tokenId, string memory svg) external view returns (string memory);
 }

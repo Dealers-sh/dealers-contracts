@@ -23,12 +23,13 @@ contract DeployMulticall is DeployBase {
         _requireAddress(drugRegistry, "DRUG_REGISTRY");
 
         vm.startBroadcast();
-        address multicall = _zkCreate(abi.encodePacked(
+        multicall = _zkCreate(abi.encodePacked(
             vm.getCode("DealersExeMulticall.sol:DealersExeMulticall"),
             abi.encode(core, pve, pvp, areaRegistry, drugRegistry)
         ));
         vm.stopBroadcast();
 
+        _saveAddresses();
         console.log("DealersExeMulticall deployed:", multicall);
     }
 }
