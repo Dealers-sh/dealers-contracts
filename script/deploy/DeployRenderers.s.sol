@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "forge-std/Script.sol";
+import "../base/DeployBase.s.sol";
 import "../../src/nft/DealerRendererSVG.sol";
 import "../../src/nft/DealerRendererHTML.sol";
 
-interface IDealersExeNFT {
+interface INFTRenderer {
     function setContractRendererSVG(address newAddress) external;
     function setContractRendererHTML(address newAddress) external;
     function contractRendererSVG() external view returns (address);
@@ -31,15 +31,15 @@ interface IDealersExeNFT {
  * but provides full EVM compatibility.
  *
  * ============================================================================
- *                          ENVIRONMENT VARIABLES
+ *                          ADDRESS LOADING
  * ============================================================================
  *
- * Required:
- *   DEALERS_NFT     - NFT contract address to set renderers on
+ * Addresses are loaded from testnet.json (or mainnet.json) via DeployBase.
+ * Falls back to environment variables if the JSON file doesn't exist.
  *
- * Optional (to skip deployment of already-deployed renderers):
- *   RENDERER_SVG    - Skip SVG renderer deployment, use this address
- *   RENDERER_HTML   - Skip HTML renderer deployment, use this address
+ * If rendererSvg/rendererHtml are already set (from JSON or env), deployment
+ * of that renderer is skipped. To force redeployment, remove the keys from
+ * the JSON file.
  *
  * ============================================================================
  *                          USAGE INSTRUCTIONS
@@ -47,22 +47,19 @@ interface IDealersExeNFT {
  *
  * IMPORTANT: Do NOT use --zksync flag when running this script!
  *
- *   source .env && forge script script/DeployRenderers.s.sol:DeployRenderers \
+ *   source .env && forge script script/deploy/DeployRenderers.s.sol:DeployRenderers \
  *     --rpc-url https://api.testnet.abs.xyz \
  *     --account dealersKeystore \
  *     --broadcast
  *
  * @author Dealers.Exe Team
  */
-contract DeployRenderers is Script {
+contract DeployRenderers is DeployBase {
     address constant FILE_STORE = 0xFe1411d6864592549AdE050215482e4385dFa0FB;
 
     function run() external {
-        address nft = vm.envAddress("DEALERS_NFT");
-        require(nft != address(0), "DEALERS_NFT not set");
-
-        address rendererSVG = vm.envOr("RENDERER_SVG", address(0));
-        address rendererHTML = vm.envOr("RENDERER_HTML", address(0));
+        _loadAddresses();
+        _requireAddress(nft, "DEALERS_NFT");
 
         vm.startBroadcast();
 
@@ -71,59 +68,36 @@ contract DeployRenderers is Script {
         console.log("==============================================");
         console.log("");
 
-        if (rendererSVG != address(0)) {
-            console.log("Skipping DealerRendererSVG (already deployed):", rendererSVG);
+        if (rendererSvg != address(0)) {
+            console.log("Skipping DealerRendererSVG (already deployed):", rendererSvg);
         } else {
             DealerRendererSVG svg = new DealerRendererSVG();
-            rendererSVG = address(svg);
-            console.log("DealerRendererSVG deployed at:", rendererSVG);
+            rendererSvg = address(svg);
+            console.log("DealerRendererSVG deployed at:", rendererSvg);
         }
 
-        if (rendererHTML != address(0)) {
-            console.log("Skipping DealerRendererHTML (already deployed):", rendererHTML);
+        if (rendererHtml != address(0)) {
+            console.log("Skipping DealerRendererHTML (already deployed):", rendererHtml);
         } else {
             DealerRendererHTML html = new DealerRendererHTML(FILE_STORE);
-            rendererHTML = address(html);
-            console.log("DealerRendererHTML deployed at:", rendererHTML);
+            rendererHtml = address(html);
+            console.log("DealerRendererHTML deployed at:", rendererHtml);
         }
 
         vm.stopBroadcast();
 
-        _saveRendererAddresses(rendererSVG, rendererHTML);
+        _saveAddresses();
 
         console.log("");
         console.log("==============================================");
         console.log("   Renderer Deployment Complete!");
         console.log("==============================================");
         console.log("");
-        console.log("  RENDERER_SVG=", rendererSVG);
-        console.log("  RENDERER_HTML=", rendererHTML);
+        console.log("  RENDERER_SVG=", rendererSvg);
+        console.log("  RENDERER_HTML=", rendererHtml);
         console.log("");
         console.log("Set renderers on NFT (requires --zksync since NFT is zkSync bytecode):");
-        console.log("  cast send", nft, '"setContractRendererSVG(address)"', rendererSVG);
-        console.log("  cast send", nft, '"setContractRendererHTML(address)"', rendererHTML);
-    }
-
-    function _saveRendererAddresses(address svg, address html) internal {
-        string memory path = _getDeploymentPath();
-
-        try vm.readFile(path) returns (string memory existing) {
-            vm.writeJson(vm.toString(svg), path, ".rendererSvg");
-            vm.writeJson(vm.toString(html), path, ".rendererHtml");
-        } catch {
-            string memory obj = "deploy";
-            vm.serializeAddress(obj, "rendererSvg", svg);
-            string memory json = vm.serializeAddress(obj, "rendererHtml", html);
-            vm.writeJson(json, path);
-        }
-
-        console.log("Addresses saved to:", path);
-    }
-
-    function _getDeploymentPath() internal view returns (string memory) {
-        uint256 chainId = block.chainid;
-        if (chainId == 11124) return "script/data/deployments/testnet.json";
-        if (chainId == 2741) return "script/data/deployments/mainnet.json";
-        return "script/data/deployments/local.json";
+        console.log("  cast send", nft, '"setContractRendererSVG(address)"', rendererSvg);
+        console.log("  cast send", nft, '"setContractRendererHTML(address)"', rendererHtml);
     }
 }

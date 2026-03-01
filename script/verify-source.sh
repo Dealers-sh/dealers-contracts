@@ -8,13 +8,16 @@
 #   source .env && ./script/verify-source.sh boosts pvp    # verify specific contracts
 #   source .env && ./script/verify-source.sh renderers     # verify renderers only
 #
-# Requires: ETHERSCAN_API_KEY env var + contract addresses in .env
+# Requires: ETHERSCAN_API_KEY + DEV_WALLET/BANK_VAULT/ROYALTY_RECEIVER in .env.
+# Contract addresses are loaded from testnet.json (env vars override).
 
 set -e
 
 CHAIN_ID=11124
 VERIFIER_URL="https://api.etherscan.io/v2/api?chainid=${CHAIN_ID}"
-COMPILER_VERSION="0.8.28"
+ZKSYNC_VERIFIER_URL="https://api-explorer-verify.testnet.abs.xyz/contract_verification"
+SOLC_VERSION="0.8.28"
+DEPLOY_JSON="script/data/deployments/testnet.json"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -25,6 +28,27 @@ if [ -z "$ETHERSCAN_API_KEY" ]; then
     echo -e "${RED}Error: ETHERSCAN_API_KEY not set${NC}"
     exit 1
 fi
+
+# Load address from testnet.json, returns empty string if not found
+_addr() {
+    local val
+    val=$(jq -r ".$1 // empty" "$DEPLOY_JSON" 2>/dev/null || true)
+    if [ -n "$val" ] && [ "$val" != "0x0000000000000000000000000000000000000000" ]; then
+        echo "$val"
+    fi
+}
+
+DRUG_REGISTRY="${DRUG_REGISTRY:-$(_addr drugRegistry)}"
+AREA_REGISTRY="${AREA_REGISTRY:-$(_addr areaRegistry)}"
+DEALERS_CORE="${DEALERS_CORE:-$(_addr core)}"
+PAYMENT_HANDLER="${PAYMENT_HANDLER:-$(_addr paymentHandler)}"
+RANDOMNESS="${RANDOMNESS:-$(_addr randomness)}"
+DEALERS_NFT="${DEALERS_NFT:-$(_addr nft)}"
+DEALERS_BOOSTS="${DEALERS_BOOSTS:-$(_addr boosts)}"
+DEALERS_PVE="${DEALERS_PVE:-$(_addr pve)}"
+DEALERS_PVP="${DEALERS_PVP:-$(_addr pvp)}"
+RENDERER_SVG="${RENDERER_SVG:-$(_addr rendererSvg)}"
+RENDERER_HTML="${RENDERER_HTML:-$(_addr rendererHtml)}"
 
 verify_contract() {
     local address=$1
@@ -40,27 +64,59 @@ verify_contract() {
 
     echo -ne "  Verifying ${GREEN}$name${NC} at $address... "
 
-    local cmd=(forge verify-contract "$address" "$contract_path"
-        --verifier etherscan
-        --verifier-url "$VERIFIER_URL"
-        --etherscan-api-key "$ETHERSCAN_API_KEY"
-        --chain "$CHAIN_ID"
-        --compiler-version "$COMPILER_VERSION"
-        --evm-version cancun
-        --num-of-optimizations 200)
-
-    if [ -n "$constructor_args" ]; then
-        cmd+=(--constructor-args "$constructor_args")
-    fi
-
+    local output
+    local rc=0
     if [ "$use_zksync" = "true" ]; then
-        cmd+=(--zksync)
+        if [ -z "$constructor_args" ]; then
+            output=$(forge verify-contract "$address" \
+                "$contract_path" \
+                --verifier zksync \
+                --verifier-url "$ZKSYNC_VERIFIER_URL" \
+                --chain "$CHAIN_ID" \
+                --zksync \
+                --watch 2>&1) || rc=$?
+        else
+            output=$(forge verify-contract "$address" \
+                "$contract_path" \
+                --constructor-args "$constructor_args" \
+                --verifier zksync \
+                --verifier-url "$ZKSYNC_VERIFIER_URL" \
+                --chain "$CHAIN_ID" \
+                --zksync \
+                --watch 2>&1) || rc=$?
+        fi
+    else
+        if [ -z "$constructor_args" ]; then
+            output=$(forge verify-contract "$address" \
+                "$contract_path" \
+                --verifier etherscan \
+                --verifier-url "$VERIFIER_URL" \
+                --etherscan-api-key "$ETHERSCAN_API_KEY" \
+                --chain "$CHAIN_ID" \
+                --compiler-version "$SOLC_VERSION" \
+                --num-of-optimizations 200 \
+                --via-ir \
+                --watch 2>&1) || rc=$?
+        else
+            output=$(forge verify-contract "$address" \
+                "$contract_path" \
+                --constructor-args "$constructor_args" \
+                --verifier etherscan \
+                --verifier-url "$VERIFIER_URL" \
+                --etherscan-api-key "$ETHERSCAN_API_KEY" \
+                --chain "$CHAIN_ID" \
+                --compiler-version "$SOLC_VERSION" \
+                --num-of-optimizations 200 \
+                --via-ir \
+                --watch 2>&1) || rc=$?
+        fi
     fi
 
-    if "${cmd[@]}" > /dev/null 2>&1; then
+    if [ $rc -eq 0 ]; then
         echo -e "${GREEN}OK${NC}"
     else
         echo -e "${RED}FAILED${NC}"
+        echo "$output" | tail -5 | sed 's/^/    /'
     fi
 }
 

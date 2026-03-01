@@ -157,6 +157,16 @@ contract DeployAll is DeployBase {
             console.log("DealersExeClaims: skipped (exists)");
         }
 
+        if (multicall == address(0)) {
+            multicall = _zkCreate(abi.encodePacked(
+                vm.getCode("DealersExeMulticall.sol:DealersExeMulticall"),
+                abi.encode(core, pve, pvp, areaRegistry, drugRegistry)
+            ));
+            console.log("DealersExeMulticall deployed:", multicall);
+        } else {
+            console.log("DealersExeMulticall: skipped (exists)");
+        }
+
         console.log("");
     }
 
@@ -290,6 +300,7 @@ contract DeployAll is DeployBase {
         console.log("DEALERS_PVE=", pve);
         console.log("DEALERS_PVP=", pvp);
         console.log("DEALERS_CLAIMS=", claims);
+        console.log("DEALER_MULTICALL=", multicall);
         console.log("");
         console.log("Remaining:");
         console.log("  1. Deploy renderers (EVM mode, no --zksync)");

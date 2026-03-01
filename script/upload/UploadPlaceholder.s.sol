@@ -1,37 +1,37 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "forge-std/Script.sol";
 import "../../src/nft/IDealerRendererSVG.sol";
 import "../../src/nft/IFileStore.sol";
+import "../base/DeployBase.s.sol";
 
 /**
  * @title UploadPlaceholder - Upload and set placeholder SVG
  * @notice Uploads placeholder from traits.json to FileStore and sets it on the renderer
- * @dev FileStore.createFile auto-chunks large content into 24575-byte SSTORE2 pointers
+ * @dev FileStore.createFile auto-chunks large content into 24575-byte SSTORE2 pointers.
+ *      Loads renderer address from testnet.json via DeployBase.
  *
  * Usage:
- *   source .env && forge script script/UploadPlaceholder.s.sol:UploadPlaceholder \
+ *   forge script script/upload/UploadPlaceholder.s.sol:UploadPlaceholder \
  *     --broadcast \
  *     --account dealersKeystore \
- *     --rpc-url $ABSTRACT_TESTNET_RPC \
- *     --chain $ABSTRACT_TESTNET_CHAIN_ID
+ *     --rpc-url https://api.testnet.abs.xyz
  */
-contract UploadPlaceholder is Script {
+contract UploadPlaceholder is DeployBase {
     IFileStore constant FILE_STORE = IFileStore(0xFe1411d6864592549AdE050215482e4385dFa0FB);
     string constant TRAITS_JSON_PATH = "script/data/traits.json";
     uint256 constant CHUNK_SIZE = 24000;
 
     function run() external {
-        address renderer = vm.envAddress("RENDERER_SVG");
-        require(renderer != address(0), "RENDERER_SVG not set");
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
 
         vm.startBroadcast();
 
         console.log("==============================================");
         console.log("   Uploading Placeholder SVG");
         console.log("==============================================");
-        console.log("Renderer:", renderer);
+        console.log("Renderer:", rendererSvg);
         console.log("");
 
         string memory jsonPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
@@ -63,7 +63,7 @@ contract UploadPlaceholder is Script {
             needsJsonUpdate = true;
         }
 
-        IDealerRendererSVG(renderer).setPlaceholderSvg(pointer);
+        IDealerRendererSVG(rendererSvg).setPlaceholderSvg(pointer);
         console.log("Set placeholder on renderer");
 
         vm.stopBroadcast();

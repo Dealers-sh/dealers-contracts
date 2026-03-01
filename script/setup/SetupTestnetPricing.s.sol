@@ -54,7 +54,7 @@ interface IBoostsPricing {
 interface IAreaPricing {
     function updateMovementFee(uint8 areaId, uint256 newFee) external;
     function getMovementFee(uint8 areaId) external view returns (uint256);
-    function getAreaCount() external view returns (uint8);
+    function getTotalAreas() external view returns (uint8);
 }
 
 /**
@@ -155,7 +155,7 @@ contract SetupTestnetPricing is DeployBase {
         console.log("Area movement fees:");
 
         IAreaPricing a = IAreaPricing(areaRegistry);
-        uint8 areaCount = a.getAreaCount();
+        uint8 areaCount = a.getTotalAreas();
 
         // Regular areas (1 to areaCount)
         for (uint8 i = 1; i <= areaCount; i++) {

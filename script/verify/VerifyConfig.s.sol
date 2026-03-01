@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "forge-std/Script.sol";
+import "../base/DeployBase.s.sol";
 
 /**
  * @title VerifyConfig - Verify All Contract Configurations
  * @notice Reads and displays the configuration state of all deployed contracts
- * @dev Run without broadcast - this is a read-only script
+ * @dev Run without broadcast - this is a read-only script.
+ *      Loads addresses from testnet.json via DeployBase.
  *
  * Usage:
- *   source .env
- *   forge script script/VerifyConfig.s.sol:VerifyConfig \
+ *   forge script script/verify/VerifyConfig.s.sol:VerifyConfig \
  *     --rpc-url https://api.testnet.abs.xyz \
  *     --skip "DealerRenderer" --skip "DeployRenderers"
  */
 
-interface ICore {
+interface IVerifyCore {
     function drugRegistry() external view returns (address);
     function areaRegistry() external view returns (address);
     function nftContract() external view returns (address);
@@ -25,7 +25,7 @@ interface ICore {
     function owner() external view returns (address);
 }
 
-interface INFT {
+interface IVerifyNFT {
     function dealersExeCore() external view returns (address);
     function contractRendererSVG() external view returns (address);
     function contractRendererHTML() external view returns (address);
@@ -35,25 +35,25 @@ interface INFT {
     function MAX_SUPPLY() external view returns (uint256);
 }
 
-interface IDrugRegistry {
+interface IVerifyDrugRegistry {
     function authorizedContracts(address) external view returns (bool);
     function owner() external view returns (address);
 }
 
-interface IPaymentHandler {
+interface IVerifyPaymentHandler {
     function authorizedContracts(address) external view returns (bool);
     function devWallet() external view returns (address);
     function bankVault() external view returns (address);
     function owner() external view returns (address);
 }
 
-interface IAreaRegistry {
+interface IVerifyAreaRegistry {
     function coreContract() external view returns (address);
     function drugRegistry() external view returns (address);
     function owner() external view returns (address);
 }
 
-interface IPVP {
+interface IVerifyPVP {
     function core() external view returns (address);
     function nftContract() external view returns (address);
     function areaRegistry() external view returns (address);
@@ -62,7 +62,7 @@ interface IPVP {
     function owner() external view returns (address);
 }
 
-interface IPVE {
+interface IVerifyPVE {
     function dealersExeCore() external view returns (address);
     function dealersExeNFT() external view returns (address);
     function areaRegistry() external view returns (address);
@@ -70,26 +70,14 @@ interface IPVE {
     function owner() external view returns (address);
 }
 
-interface IBoosts {
+interface IVerifyBoosts {
     function dealersExeCore() external view returns (address);
     function dealersExeNFT() external view returns (address);
     function paymentHandler() external view returns (address);
     function owner() external view returns (address);
 }
 
-contract VerifyConfig is Script {
-    address public drugRegistry;
-    address public areaRegistry;
-    address public core;
-    address public paymentHandler;
-    address public nft;
-    address public boosts;
-    address public pve;
-    address public pvp;
-    address public randomness;
-    address public rendererSVG;
-    address public rendererHTML;
-
+contract VerifyConfig is DeployBase {
     uint256 public issues;
 
     function run() external {
@@ -113,21 +101,6 @@ contract VerifyConfig is Script {
         _printSummary();
     }
 
-    function _loadAddresses() internal {
-        // Load from environment - script will fail if required addresses are missing
-        drugRegistry = vm.envOr("DRUG_REGISTRY", address(0));
-        areaRegistry = vm.envOr("AREA_REGISTRY", address(0));
-        core = vm.envOr("DEALERS_CORE", address(0));
-        paymentHandler = vm.envOr("PAYMENT_HANDLER", address(0));
-        nft = vm.envOr("DEALERS_NFT", address(0));
-        boosts = vm.envOr("DEALERS_BOOSTS", address(0));
-        pve = vm.envOr("DEALERS_PVE", address(0));
-        pvp = vm.envOr("DEALERS_PVP", address(0));
-        randomness = vm.envOr("RANDOMNESS", address(0));
-        rendererSVG = vm.envOr("RENDERER_SVG", address(0));
-        rendererHTML = vm.envOr("RENDERER_HTML", address(0));
-    }
-
     function _verifyCore() internal view {
         console.log("DEALERS_CORE:", core);
         console.log("--------------------------------------------------------------------------------");
@@ -138,7 +111,7 @@ contract VerifyConfig is Script {
             return;
         }
 
-        ICore c = ICore(core);
+        IVerifyCore c = IVerifyCore(core);
 
         console.log("  References:");
         _checkRef("    drugRegistry", c.drugRegistry(), drugRegistry);
@@ -167,12 +140,12 @@ contract VerifyConfig is Script {
             return;
         }
 
-        INFT n = INFT(nft);
+        IVerifyNFT n = IVerifyNFT(nft);
 
         console.log("  References:");
         _checkRef("    dealersExeCore", n.dealersExeCore(), core);
-        _checkRenderer("    rendererSVG", n.contractRendererSVG(), rendererSVG);
-        _checkRenderer("    rendererHTML", n.contractRendererHTML(), rendererHTML);
+        _checkRenderer("    rendererSvg", n.contractRendererSVG(), rendererSvg);
+        _checkRenderer("    rendererHtml", n.contractRendererHTML(), rendererHtml);
 
         console.log("  Status:");
         console.log("    mintStatus:", _mintStatusString(n.mintStatus()));
@@ -193,7 +166,7 @@ contract VerifyConfig is Script {
             return;
         }
 
-        IDrugRegistry dr = IDrugRegistry(drugRegistry);
+        IVerifyDrugRegistry dr = IVerifyDrugRegistry(drugRegistry);
 
         console.log("  Authorizations:");
         _checkAuth("    Core", dr.authorizedContracts(core), core);
@@ -212,7 +185,7 @@ contract VerifyConfig is Script {
             return;
         }
 
-        IPaymentHandler ph = IPaymentHandler(paymentHandler);
+        IVerifyPaymentHandler ph = IVerifyPaymentHandler(paymentHandler);
 
         console.log("  Config:");
         console.log("    devWallet:", ph.devWallet());
@@ -236,7 +209,7 @@ contract VerifyConfig is Script {
             return;
         }
 
-        IAreaRegistry ar = IAreaRegistry(areaRegistry);
+        IVerifyAreaRegistry ar = IVerifyAreaRegistry(areaRegistry);
 
         console.log("  References:");
         _checkRef("    coreContract", ar.coreContract(), core);
@@ -256,7 +229,7 @@ contract VerifyConfig is Script {
             return;
         }
 
-        IPVE p = IPVE(pve);
+        IVerifyPVE p = IVerifyPVE(pve);
 
         console.log("  References:");
         _checkRef("    dealersExeCore", p.dealersExeCore(), core);
@@ -278,7 +251,7 @@ contract VerifyConfig is Script {
             return;
         }
 
-        IPVP p = IPVP(pvp);
+        IVerifyPVP p = IVerifyPVP(pvp);
 
         console.log("  References:");
         _checkRef("    core", p.core(), core);
@@ -301,7 +274,7 @@ contract VerifyConfig is Script {
             return;
         }
 
-        IBoosts b = IBoosts(boosts);
+        IVerifyBoosts b = IVerifyBoosts(boosts);
 
         console.log("  References:");
         _checkRef("    dealersExeCore", b.dealersExeCore(), core);

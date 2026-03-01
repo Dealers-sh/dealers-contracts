@@ -19,7 +19,7 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     //                            CONSTANTS
     // =============================================================
 
-    uint256 public constant MIN_AMOUNT = 0.001 ether;
+    uint256 public constant MIN_AMOUNT = 0.0001 ether;
     uint256 public constant BANK_FEE_PERCENT = 2000;  // 20% to bank vault, 80% to dev
 
     // =============================================================

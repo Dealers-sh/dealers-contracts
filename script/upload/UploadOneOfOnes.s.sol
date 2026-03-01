@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "forge-std/Script.sol";
 import "../../src/nft/IDealerRendererSVG.sol";
 import "../../src/nft/IFileStore.sol";
+import "../base/DeployBase.s.sol";
 
 /**
  * @title UploadOneOfOnes - Upload Complete SVG Art for One-of-One Characters
  * @notice Uploads one-of-one SVG files to FileStore and optionally assigns them to tokens
  * @dev This script is designed for EVM mode deployment (no --zksync flag).
+ *      Loads renderer address from testnet.json via DeployBase.
  *
  * ============================================================================
  *                           ONE-OF-ONE WORKFLOW
@@ -37,29 +38,29 @@ import "../../src/nft/IFileStore.sol";
  * ============================================================================
  *
  * Upload all one-of-one SVGs to FileStore:
- *   forge script script/UploadOneOfOnes.s.sol:UploadOneOfOnes \
+ *   forge script script/upload/UploadOneOfOnes.s.sol:UploadOneOfOnes \
  *     --sig "uploadOneOfOnes()" \
  *     --rpc-url https://api.testnet.abs.xyz \
  *     --account dealersKeystore \
  *     --broadcast
  *
  * Assign a specific one-of-one to a token:
- *   forge script script/UploadOneOfOnes.s.sol:UploadOneOfOnes \
- *     --sig "assignOneOfOne(address,uint256,string)" <RENDERER> <TOKEN_ID> "Satoshi" \
+ *   forge script script/upload/UploadOneOfOnes.s.sol:UploadOneOfOnes \
+ *     --sig "assignOneOfOne(uint256,string)" <TOKEN_ID> "Satoshi" \
  *     --rpc-url https://api.testnet.abs.xyz \
  *     --account dealersKeystore \
  *     --broadcast
  *
  * Assign all uploaded one-of-ones to explicit token IDs:
- *   forge script script/UploadOneOfOnes.s.sol:UploadOneOfOnes \
- *     --sig "assignAllOneOfOnes(address,uint256[])" <RENDERER> "[1,42,100,...]" \
+ *   forge script script/upload/UploadOneOfOnes.s.sol:UploadOneOfOnes \
+ *     --sig "assignAllOneOfOnes(uint256[])" "[1,42,100,...]" \
  *     --rpc-url https://api.testnet.abs.xyz \
  *     --account dealersKeystore \
  *     --broadcast
  *
  * @author Dealers.Exe Team
  */
-contract UploadOneOfOnes is Script {
+contract UploadOneOfOnes is DeployBase {
     IFileStore constant FILE_STORE = IFileStore(0xFe1411d6864592549AdE050215482e4385dFa0FB);
 
     string constant ONEOFONE_PATH = "../traits/oneofone/";
@@ -117,15 +118,17 @@ contract UploadOneOfOnes is Script {
     }
 
     function assignOneOfOne(
-        address renderer,
         uint256 tokenId,
         string calldata characterName
     ) external {
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
+
         vm.startBroadcast();
         console.log("==============================================");
         console.log("   Assigning One-of-One to Token");
         console.log("==============================================");
-        console.log("Renderer:", renderer);
+        console.log("Renderer:", rendererSvg);
         console.log("Token ID:", tokenId);
         console.log("Character:", characterName);
         console.log("");
@@ -138,23 +141,26 @@ contract UploadOneOfOnes is Script {
 
         console.log("Found pointer:", pointer);
 
-        IDealerRendererSVG(renderer).setOneOfOne(tokenId, characterName, pointer);
+        IDealerRendererSVG(rendererSvg).setOneOfOne(tokenId, characterName, pointer);
 
         console.log(string.concat("Successfully assigned ", characterName, " to token ", vm.toString(tokenId)));
 
         vm.stopBroadcast();
     }
 
-    function assignAllOneOfOnes(address renderer, uint256[] calldata oneOfOneTokenIds) external {
+    function assignAllOneOfOnes(uint256[] calldata oneOfOneTokenIds) external {
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
+
         vm.startBroadcast();
         console.log("==============================================");
         console.log("   Assigning All One-of-Ones to Tokens");
         console.log("==============================================");
-        console.log("Renderer:", renderer);
+        console.log("Renderer:", rendererSvg);
         console.log(string.concat("Token IDs provided: ", vm.toString(oneOfOneTokenIds.length)));
         console.log("");
 
-        IDealerRendererSVG rendererContract = IDealerRendererSVG(renderer);
+        IDealerRendererSVG rendererContract = IDealerRendererSVG(rendererSvg);
 
         string memory pointerJsonPath = _getPointerJsonPath();
         string memory existingJson = _loadExistingPointers(pointerJsonPath);
@@ -220,12 +226,15 @@ contract UploadOneOfOnes is Script {
         vm.stopBroadcast();
     }
 
-    function listOneOfOneTokens(uint256[] calldata tokenIds, address renderer) external view {
+    function listOneOfOneTokens(uint256[] calldata tokenIds) external {
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
+
         console.log("==============================================");
         console.log("   One-of-One Token IDs");
         console.log("==============================================");
 
-        IDealerRendererSVG rendererContract = IDealerRendererSVG(renderer);
+        IDealerRendererSVG rendererContract = IDealerRendererSVG(rendererSvg);
 
         console.log(string.concat("Checking ", vm.toString(tokenIds.length), " token IDs:"));
         for (uint256 i = 0; i < tokenIds.length; i++) {

@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "forge-std/Script.sol";
 import "../../src/nft/IDealerRendererSVG.sol";
 import "../../src/nft/IFileStore.sol";
+import "../base/DeployBase.s.sol";
 
 /**
  * @title UploadTraits - Upload SVG traits from traits.json to FileStore
  * @notice Reads traits.json, uploads traits where pointer is null, updates JSON with new pointers
  * @dev Designed for EVM mode deployment (no --zksync flag) since it uses SSTORE2/EXTCODECOPY.
+ *      Loads renderer address from testnet.json via DeployBase.
  *
  * JSON format (script/data/traits.json):
  * {
@@ -19,29 +20,29 @@ import "../../src/nft/IFileStore.sol";
  *
  * Usage:
  *   # Upload normal traits
- *   forge script script/UploadTraits.s.sol:UploadTraits \
- *     --sig "uploadNormal(address)" <RENDERER_ADDRESS> \
+ *   forge script script/upload/UploadTraits.s.sol:UploadTraits \
+ *     --sig "uploadNormal()" \
  *     --rpc-url https://api.testnet.abs.xyz \
  *     --account dealersKeystore \
  *     --broadcast
  *
  *   # Upload special traits
- *   forge script script/UploadTraits.s.sol:UploadTraits \
- *     --sig "uploadSpecial(address)" <RENDERER_ADDRESS> \
+ *   forge script script/upload/UploadTraits.s.sol:UploadTraits \
+ *     --sig "uploadSpecial()" \
  *     --rpc-url https://api.testnet.abs.xyz \
  *     --account dealersKeystore \
  *     --broadcast
  *
- *   # Upload one-of-ones (requires distribution initialized + token IDs)
- *   forge script script/UploadTraits.s.sol:UploadTraits \
- *     --sig "uploadOneOfOnes(address,uint256[])" <RENDERER_ADDRESS> "[1,42,99]" \
+ *   # Upload one-of-ones (requires token IDs)
+ *   forge script script/upload/UploadTraits.s.sol:UploadTraits \
+ *     --sig "uploadOneOfOnes(uint256[])" "[1,42,99]" \
  *     --rpc-url https://api.testnet.abs.xyz \
  *     --account dealersKeystore \
  *     --broadcast
  *
  * @author Dealers.Exe Team
  */
-contract UploadTraits is Script {
+contract UploadTraits is DeployBase {
     IFileStore constant FILE_STORE = IFileStore(0xFe1411d6864592549AdE050215482e4385dFa0FB);
 
     string constant TRAITS_JSON_PATH = "script/data/traits.json";
@@ -51,55 +52,67 @@ contract UploadTraits is Script {
         "earaccessory", "facialhair", "mouth", "chin", "neck", "accessory"
     ];
 
-    function uploadNormal(address renderer) external {
+    function uploadNormal() external {
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
+
         vm.startBroadcast();
         console.log("==============================================");
         console.log("   Uploading Normal Traits from traits.json");
         console.log("==============================================");
-        console.log("Renderer:", renderer);
+        console.log("Renderer:", rendererSvg);
         console.log("");
 
-        _uploadTraitsFromJson(renderer, 0);
+        _uploadTraitsFromJson(rendererSvg, 0);
 
         vm.stopBroadcast();
     }
 
-    function uploadSpecial(address renderer) external {
+    function uploadSpecial() external {
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
+
         vm.startBroadcast();
         console.log("==============================================");
         console.log("   Uploading Special Traits from traits.json");
         console.log("==============================================");
-        console.log("Renderer:", renderer);
+        console.log("Renderer:", rendererSvg);
         console.log("");
 
-        _uploadTraitsFromJson(renderer, 1);
+        _uploadTraitsFromJson(rendererSvg, 1);
 
         vm.stopBroadcast();
     }
 
-    function uploadOneOfOnes(address renderer, uint256[] calldata tokenIds) external {
+    function uploadOneOfOnes(uint256[] calldata tokenIds) external {
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
+
         vm.startBroadcast();
         console.log("==============================================");
         console.log("   Uploading One-of-Ones from traits.json");
         console.log("==============================================");
-        console.log("Renderer:", renderer);
+        console.log("Renderer:", rendererSvg);
         console.log("Token IDs count:", tokenIds.length);
         console.log("");
 
-        _uploadOneOfOnesFromJson(renderer, tokenIds);
+        _uploadOneOfOnesFromJson(rendererSvg, tokenIds);
 
         vm.stopBroadcast();
     }
 
-    function uploadPlaceholder(address renderer) external {
+    function uploadPlaceholder() external {
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
+
         vm.startBroadcast();
         console.log("==============================================");
         console.log("   Uploading Placeholder from traits.json");
         console.log("==============================================");
-        console.log("Renderer:", renderer);
+        console.log("Renderer:", rendererSvg);
         console.log("");
 
-        _uploadPlaceholderFromJson(renderer);
+        _uploadPlaceholderFromJson(rendererSvg);
 
         vm.stopBroadcast();
     }
