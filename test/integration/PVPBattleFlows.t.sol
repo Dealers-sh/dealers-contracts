@@ -65,8 +65,7 @@ contract PVPBattleFlowsTest is BaseTest {
         uint256 expected = _ceilDiv(defenderWeedBefore * 2, 100);
         assertEq(stolen, expected, "Should steal 2% of weed (rounded up)");
 
-        uint256 transferred = stolen / 2;
-        assertEq(attackerWeedAfter, attackerWeedBefore + transferred, "Attacker gains half stolen weed");
+        assertEq(attackerWeedAfter, attackerWeedBefore + stolen, "Attacker gains all stolen weed");
     }
 
     function test_pvpFlow_defenderWins() public {

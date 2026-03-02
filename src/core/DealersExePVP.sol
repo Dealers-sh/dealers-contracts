@@ -109,7 +109,8 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
             rarityWeightCommon: 50,
             rarityWeightUncommon: 30,
             rarityWeightRare: 20,
-            repRangePercent: 25
+            repRangePercent: 25,
+            defenderRepBonus: 2
         });
     }
 
@@ -553,35 +554,23 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         uint8 area,
         uint256 battleRandomness
     ) private returns (uint256 drugIdStolen, uint256 drugsStolen, uint256 cashStolen, int16 attackerRepChange, int16 defenderRepChange) {
-        uint256 winnerId;
-        uint256 loserId;
-
         if (attackerWon) {
-            winnerId = attackerId;
-            loserId = defenderId;
+            (drugIdStolen, drugsStolen) = _stealDrugs(attackerId, defenderId, area, battleRandomness);
+            cashStolen = _stealCash(attackerId, defenderId);
+
+            int16 attackerBaseRep = core.getReputationChange(attackerId, 0);
+            uint8 attackerRepMultiplier = core.getRepMultiplier(attackerId);
+            attackerRepChange = int16((int256(attackerBaseRep) * int256(uint256(attackerRepMultiplier))) / 100);
+            defenderRepChange = core.getReputationChange(defenderId, 2);
+
+            core.updateReputation(attackerId, int256(attackerRepChange));
+            core.updateReputation(defenderId, int256(defenderRepChange));
         } else {
-            winnerId = defenderId;
-            loserId = attackerId;
-        }
+            attackerRepChange = core.getReputationChange(attackerId, 2);
+            defenderRepChange = int16(int8(config.defenderRepBonus));
 
-        (drugIdStolen, drugsStolen) = _stealDrugs(winnerId, loserId, area, battleRandomness);
-        cashStolen = _stealCash(winnerId, loserId);
-
-        int16 winnerBaseRep = core.getReputationChange(winnerId, 0);
-        int16 loserBaseRep = core.getReputationChange(loserId, 2);
-
-        uint8 winnerRepMultiplier = core.getRepMultiplier(winnerId);
-        int16 winnerRepChange = int16((int256(winnerBaseRep) * int256(uint256(winnerRepMultiplier))) / 100);
-
-        core.updateReputation(winnerId, int256(winnerRepChange));
-        core.updateReputation(loserId, int256(loserBaseRep));
-
-        if (attackerWon) {
-            attackerRepChange = winnerRepChange;
-            defenderRepChange = loserBaseRep;
-        } else {
-            attackerRepChange = loserBaseRep;
-            defenderRepChange = winnerRepChange;
+            core.updateReputation(attackerId, int256(attackerRepChange));
+            core.updateReputation(defenderId, int256(defenderRepChange));
         }
 
         return (drugIdStolen, drugsStolen, cashStolen, attackerRepChange, defenderRepChange);
@@ -646,12 +635,8 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         uint256 stolen = _ceilDiv(loserBalance * config.drugStealPercent, 100);
 
         if (stolen > 0) {
-            uint256 transferred = stolen / 2;
-
             core.updateDrugBalance(loserId, selectedDrugId, -int256(stolen));
-            if (transferred > 0) {
-                core.updateDrugBalance(winnerId, selectedDrugId, int256(transferred));
-            }
+            core.updateDrugBalance(winnerId, selectedDrugId, int256(stolen));
         }
 
         return (selectedDrugId, stolen);
@@ -664,12 +649,8 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         stolen = _ceilDiv(loserCash * config.cashStealPercent, 100);
 
         if (stolen > 0) {
-            uint256 transferred = stolen / 2;
-
             core.spendCash(loserId, stolen);
-            if (transferred > 0) {
-                core.addCash(winnerId, transferred);
-            }
+            core.addCash(winnerId, stolen);
         }
 
         return stolen;

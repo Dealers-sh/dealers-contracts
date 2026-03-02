@@ -312,21 +312,36 @@ contract DealersExePVPTest is BaseTest {
         uint256 expected = _ceilDiv(defenderWeedBefore * 2, 100);
         assertEq(stolen, expected, "Defender should lose 2% of weed");
 
-        uint256 transferred = stolen / 2;
-        assertEq(attackerWeedAfter, attackerWeedBefore + transferred, "Attacker gains half of stolen");
+        assertEq(attackerWeedAfter, attackerWeedBefore + stolen, "Attacker gains all stolen drugs");
     }
 
-    function test_attack_attackerLoses_defenderSteals() public {
+    function test_attack_attackerLoses_noStealFromAttacker() public {
         _setupDealersForPVP();
 
         uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
+        uint256 defenderWeedBefore = core.getDrugBalance(defenderToken, DRUG_WEED);
 
         _setupForLoss();
         _executeAttack();
 
         uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
+        uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
 
-        assertLt(attackerWeedAfter, attackerWeedBefore, "Attacker should lose drugs");
+        assertEq(attackerWeedAfter, attackerWeedBefore, "Attacker drugs unchanged on loss");
+        assertEq(defenderWeedAfter, defenderWeedBefore, "Defender drugs unchanged on attacker loss");
+    }
+
+    function test_attack_attackerLoses_defenderGetsFlat2Rep() public {
+        _setupDealersForPVP();
+
+        (, uint256 defenderRepBefore,,,,) = core.getDealerData(defenderToken);
+
+        _setupForLoss();
+        _executeAttack();
+
+        (, uint256 defenderRepAfter,,,,) = core.getDealerData(defenderToken);
+
+        assertEq(defenderRepAfter, defenderRepBefore + 2, "Defender should gain flat +2 rep");
     }
 
     function test_attack_winnerGetsRepBoost() public {
@@ -431,8 +446,8 @@ contract DealersExePVPTest is BaseTest {
         uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
         uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
 
-        // stolen = ceilDiv(10 * 2, 100) = 1, transferred = 1/2 = 0 (burned entirely)
-        assertEq(attackerWeedAfter, attackerWeedBefore, "stolen=1, transferred=1/2=0, winner gets nothing");
+        // stolen = ceilDiv(10 * 2, 100) = 1, winner gets all
+        assertEq(attackerWeedAfter, attackerWeedBefore + 1, "stolen=1, winner gets all");
         assertEq(defenderWeedAfter, 9, "Defender loses 1 (rounded up from 0.2)");
     }
 
@@ -661,7 +676,8 @@ contract DealersExePVPTest is BaseTest {
             rarityWeightCommon: 50,
             rarityWeightUncommon: 30,
             rarityWeightRare: 20,
-            repRangePercent: 100
+            repRangePercent: 100,
+            defenderRepBonus: 2
         }));
 
         vm.prank(player1);
@@ -834,7 +850,8 @@ contract DealersExePVPTest is BaseTest {
             rarityWeightCommon: 50,
             rarityWeightUncommon: 30,
             rarityWeightRare: 20,
-            repRangePercent: 100
+            repRangePercent: 100,
+            defenderRepBonus: 2
         }));
 
         (canFight, ) = pvp.canAttack(attackerToken, defenderToken);

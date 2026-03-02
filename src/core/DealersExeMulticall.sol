@@ -49,6 +49,8 @@ contract DealersExeMulticall {
         uint32 pvpDefendLosses;
         uint32 lastBreakoutAttempt;
         bool canBreakoutToday;
+        uint8 attacksReceivedToday;
+        uint8 maxAttacksPerDay;
     }
 
     struct AreaDrug {
@@ -167,6 +169,14 @@ contract DealersExeMulticall {
         state.lastBreakoutAttempt = lastBreakout;
         uint256 dayStart = (block.timestamp / 1 days) * 1 days;
         state.canBreakoutToday = lastBreakout == 0 || lastBreakout < uint32(dayStart);
+
+        uint256 currentDay = block.timestamp / 1 days;
+        (,,,,uint8 maxAttacksPerDay,,,,,,,) = pvp.config();
+        state.maxAttacksPerDay = maxAttacksPerDay;
+        if (pvp.lastAttackDay(tokenId) == currentDay) {
+            uint256 received = pvp.attacksReceivedToday(tokenId);
+            state.attacksReceivedToday = uint8(received);
+        }
     }
 
     function getAreaEconomy(uint8 areaId) external view returns (AreaEconomy memory) {
