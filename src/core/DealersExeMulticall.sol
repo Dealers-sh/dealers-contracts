@@ -20,6 +20,7 @@ contract DealersExeMulticall {
 
     struct FullDealerState {
         uint256 reputation;
+        uint256 stashBonusRep;
         uint8 currentArea;
         uint8 heatLevel;
         uint8 dailyAttemptsRemaining;
@@ -110,7 +111,8 @@ contract DealersExeMulticall {
 
         if (!isInitialized) revert DealerNotInitialized(tokenId);
 
-        state.reputation = reputation;
+        state.stashBonusRep = core.getStashBonus(tokenId);
+        state.reputation = reputation + state.stashBonusRep;
         state.currentArea = currentArea;
         state.heatLevel = heatLevel;
         state.dailyAttemptsRemaining = dailyAttemptsRemaining;
@@ -119,7 +121,7 @@ contract DealersExeMulticall {
         state.isJailed = core.isInJail(tokenId);
         state.isInSafeHouse = core.isInSafeHouse(tokenId);
         state.jailChance = core.getJailChance(tokenId);
-        state.reputationTitle = core.getReputationTitle(reputation);
+        state.reputationTitle = core.getReputationTitle(state.reputation);
 
         (uint8 threat, uint8 armor) = core.getDealerStats(tokenId);
         state.threat = threat;

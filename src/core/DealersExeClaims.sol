@@ -37,7 +37,10 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
         PVP_TOTAL_WINS,     // 7 - attackWins + defendWins
         REPUTATION,         // 8
         CASH_BALANCE,       // 9
-        DRUG_BALANCE        // 10 - uses conditionValue as drugId
+        DRUG_BALANCE,       // 10 - uses conditionValue as drugId
+        PVE_DEAL_CHOICES,   // 11
+        PVE_THREATEN_CHOICES, // 12
+        PVE_BAIL_CHOICES    // 13
     }
 
     // =============================================================
@@ -240,6 +243,15 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
             return dealersExeCore.getCashBalance(tokenId);
         } else if (conditionType == uint8(ConditionType.DRUG_BALANCE)) {
             return dealersExeCore.getDrugBalance(tokenId, conditionValue);
+        } else if (conditionType == uint8(ConditionType.PVE_DEAL_CHOICES)) {
+            (,,, uint32 dealChoices,,) = pveContract.dealerPveStats(tokenId);
+            return dealChoices;
+        } else if (conditionType == uint8(ConditionType.PVE_THREATEN_CHOICES)) {
+            (,,,, uint32 threatenChoices,) = pveContract.dealerPveStats(tokenId);
+            return threatenChoices;
+        } else if (conditionType == uint8(ConditionType.PVE_BAIL_CHOICES)) {
+            (,,,,, uint32 bailChoices) = pveContract.dealerPveStats(tokenId);
+            return bailChoices;
         }
         revert InvalidConditionForAchievement();
     }
@@ -263,7 +275,7 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
     // =============================================================
 
     function setAchievement(uint256 achievementId, Achievement calldata achievement) external onlyOwner {
-        if (achievement.conditionType == uint8(ConditionType.NONE) || achievement.conditionType > uint8(ConditionType.DRUG_BALANCE)) {
+        if (achievement.conditionType == uint8(ConditionType.NONE) || achievement.conditionType > uint8(ConditionType.PVE_BAIL_CHOICES)) {
             revert InvalidAchievementConfig();
         }
         if (achievement.rewardType > uint8(RewardType.ATTEMPTS)) revert InvalidAchievementConfig();
@@ -271,6 +283,13 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
         achievements[achievementId] = achievement;
         if (achievementId >= achievementCount) achievementCount = achievementId + 1;
         emit AchievementSet(achievementId, achievement.conditionType, achievement.threshold, achievement.rewardType, achievement.rewardAmount);
+    }
+
+    function batchMarkClaimed(uint256 achievementId, uint256[] calldata tokenIds) external onlyOwner {
+        for (uint256 i; i < tokenIds.length;) {
+            achievementClaimed[achievementId][tokenIds[i]] = true;
+            unchecked { ++i; }
+        }
     }
 
     function removeAchievement(uint256 achievementId) external onlyOwner {

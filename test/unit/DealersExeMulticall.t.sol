@@ -24,7 +24,7 @@ contract DealersExeMulticallTest is BaseTest {
     function test_getFullDealerState_starterValues() public view {
         DealersExeMulticall.FullDealerState memory state = multicall.getFullDealerState(tokenId1);
 
-        assertEq(state.reputation, core.STARTING_REPUTATION());
+        assertEq(state.reputation, core.getTotalReputation(tokenId1));
         assertEq(state.currentArea, core.STARTING_AREA());
         assertEq(state.heatLevel, 0);
         assertEq(state.dailyAttemptsRemaining, core.BASE_MAX_ATTEMPTS());

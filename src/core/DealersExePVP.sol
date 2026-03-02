@@ -146,8 +146,7 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
 
     modifier reputable(uint256 tokenId) {
         if (config.minReputation > 0) {
-            (, uint256 rep,,,,) = core.getDealerData(tokenId);
-            if (rep < config.minReputation) revert InsufficientReputation();
+            if (core.getTotalReputation(tokenId) < config.minReputation) revert InsufficientReputation();
         }
         _;
     }
@@ -288,12 +287,14 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
                 continue;
             }
 
-            (, uint256 rep, uint8 attempts, , , bool init) = core.getDealerData(tokenId);
+            (,, uint8 attempts, , , bool init) = core.getDealerData(tokenId);
 
             if (!init) {
                 unchecked { ++i; }
                 continue;
             }
+
+            uint256 rep = core.getTotalReputation(tokenId);
 
             if (config.minReputation > 0 && rep < config.minReputation) {
                 unchecked { ++i; }

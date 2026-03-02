@@ -30,8 +30,9 @@ contract DeployPVP is DeployBase {
         ));
         vm.stopBroadcast();
 
+        _saveAddresses();
         console.log("DealersExePVP deployed:", pvp);
         console.log("");
-        console.log("Next: update DEALERS_PVP in .env, then run SetupWiring.s.sol");
+        console.log("Next: run SetupWiring.s.sol to wire up references and authorizations");
     }
 }
