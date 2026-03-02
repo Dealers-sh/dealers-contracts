@@ -77,6 +77,7 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     error ContractPaused();
     error DefenderExhausted();
     error InsufficientReputation();
+    error OutOfRepRange();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -107,7 +108,8 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
             cashStealPercent: 1,
             rarityWeightCommon: 50,
             rarityWeightUncommon: 30,
-            rarityWeightRare: 20
+            rarityWeightRare: 20,
+            repRangePercent: 25
         });
     }
 
@@ -172,6 +174,9 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         reputable(defenderId)
     {
         if (attackerId == defenderId) revert SameDealer();
+        if (!_isInRepRange(core.getTotalReputation(attackerId), core.getTotalReputation(defenderId))) {
+            revert OutOfRepRange();
+        }
 
         uint8 area = _validateLocationsAndGetArea(attackerId, defenderId);
 
@@ -216,15 +221,15 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
      * @return reason Error code: 0=OK, 1=same dealer, 2=attacker not init, 3=defender not init,
      *         4=attacker in jail, 5=attacker in safe house, 6=defender in jail, 7=defender in safe house,
      *         8=different areas, 9=no attempts, 10=defender exhausted,
-     *         11=attacker low rep, 12=defender low rep
+     *         11=out of rep range, 12=below min reputation
      */
     function canAttack(uint256 attackerId, uint256 defenderId) external view returns (bool canFight, uint8 reason) {
         if (attackerId == defenderId) return (false, 1);
 
-        (, uint256 attackerRep, uint8 attackerAttempts, , , bool attackerInit) = core.getDealerData(attackerId);
+        (, , uint8 attackerAttempts, , , bool attackerInit) = core.getDealerData(attackerId);
         if (!attackerInit) return (false, 2);
 
-        (, uint256 defenderRep, , , , bool defenderInit) = core.getDealerData(defenderId);
+        (, , , , , bool defenderInit) = core.getDealerData(defenderId);
         if (!defenderInit) return (false, 3);
 
         if (core.isInJail(attackerId)) return (false, 4);
@@ -243,33 +248,29 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
             return (false, 10);
         }
 
+        uint256 attackerTotalRep = core.getTotalReputation(attackerId);
+        uint256 defenderTotalRep = core.getTotalReputation(defenderId);
+
+        if (!_isInRepRange(attackerTotalRep, defenderTotalRep)) return (false, 11);
+
         if (config.minReputation > 0) {
-            if (attackerRep < config.minReputation) return (false, 11);
-            if (defenderRep < config.minReputation) return (false, 12);
+            if (attackerTotalRep < config.minReputation || defenderTotalRep < config.minReputation) {
+                return (false, 12);
+            }
         }
 
         return (true, 0);
     }
 
-    /**
-     * @notice Get potential PVP targets for a dealer
-     * @param attackerId The attacker's token ID
-     * @param minReputation Minimum reputation filter (0 for no minimum)
-     * @param maxReputation Maximum reputation filter (0 for no maximum)
-     * @param offset Pagination offset
-     * @param limit Maximum number of results to return
-     * @return targets Array of potential targets with full stats
-     * @return totalInArea Total number of dealers in the attacker's area
-     */
     function getPotentialTargets(
         uint256 attackerId,
-        uint256 minReputation,
-        uint256 maxReputation,
         uint256 offset,
         uint256 limit
     ) external view returns (PVPTarget[] memory targets, uint256 totalInArea) {
         (uint8 attackerArea, , , , , bool attackerInit) = core.getDealerData(attackerId);
         if (!attackerInit) return (new PVPTarget[](0), 0);
+
+        uint256 attackerRep = core.getTotalReputation(attackerId);
 
         (uint256[] memory dealersInArea, uint256 total) = areaRegistry.getDealersInArea(attackerArea, 0, type(uint256).max);
         totalInArea = total;
@@ -301,11 +302,7 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
                 continue;
             }
 
-            if (minReputation > 0 && rep < minReputation) {
-                unchecked { ++i; }
-                continue;
-            }
-            if (maxReputation > 0 && rep > maxReputation) {
+            if (!_isInRepRange(attackerRep, rep)) {
                 unchecked { ++i; }
                 continue;
             }
@@ -444,13 +441,16 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     function _canAttackTarget(uint256 attackerId, uint256 defenderId) private view returns (bool) {
         if (core.isInJail(attackerId) || core.isInSafeHouse(attackerId)) return false;
 
-        (, uint256 attackerRep, uint8 attackerAttempts, , , ) = core.getDealerData(attackerId);
+        (, , uint8 attackerAttempts, , , ) = core.getDealerData(attackerId);
         if (attackerAttempts == 0) return false;
 
+        uint256 attackerTotalRep = core.getTotalReputation(attackerId);
+        uint256 defenderTotalRep = core.getTotalReputation(defenderId);
+
+        if (!_isInRepRange(attackerTotalRep, defenderTotalRep)) return false;
+
         if (config.minReputation > 0) {
-            if (attackerRep < config.minReputation) return false;
-            (, uint256 defenderRep,,,,) = core.getDealerData(defenderId);
-            if (defenderRep < config.minReputation) return false;
+            if (attackerTotalRep < config.minReputation || defenderTotalRep < config.minReputation) return false;
         }
 
         uint256 currentDay = block.timestamp / 1 days;
@@ -459,6 +459,13 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         }
 
         return true;
+    }
+
+    function _isInRepRange(uint256 attackerRep, uint256 defenderRep) private view returns (bool) {
+        uint256 range = attackerRep * config.repRangePercent / 100;
+        uint256 minRep = attackerRep > range ? attackerRep - range : 0;
+        uint256 maxRep = attackerRep + range;
+        return defenderRep >= minRep && defenderRep <= maxRep;
     }
 
     function _validateLocationsAndGetArea(uint256 attackerId, uint256 defenderId) private view returns (uint8) {

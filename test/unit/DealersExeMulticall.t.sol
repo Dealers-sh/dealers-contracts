@@ -111,16 +111,22 @@ contract DealersExeMulticallTest is BaseTest {
         assertFalse(jail.isSafeHouse);
     }
 
-    function test_getAllAreasEconomy() public view {
-        DealersExeMulticall.AreaEconomy[] memory economies = multicall.getAllAreasEconomy();
+    function test_getAllAreas() public view {
+        DealersExeMulticall.AreaEconomy[] memory economies = multicall.getAllAreas();
 
         uint8 totalAreas = areaRegistry.getTotalAreas();
-        assertEq(economies.length, totalAreas);
+        assertEq(economies.length, totalAreas + 2);
 
-        for (uint256 i = 0; i < economies.length; i++) {
-            assertEq(economies[i].areaId, i + 1);
+        assertEq(economies[0].areaId, 0);
+        assertTrue(economies[0].isSafeHouse);
+
+        for (uint256 i = 1; i <= totalAreas; i++) {
+            assertEq(economies[i].areaId, i);
             assertTrue(bytes(economies[i].areaName).length > 0);
         }
+
+        assertEq(economies[totalAreas + 1].areaId, 255);
+        assertTrue(economies[totalAreas + 1].isJail);
     }
 
     function test_getFullDealerState_revertUninitialized() public {

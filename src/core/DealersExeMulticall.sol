@@ -173,13 +173,16 @@ contract DealersExeMulticall {
         return _buildAreaEconomy(areaId);
     }
 
-    function getAllAreasEconomy() external view returns (AreaEconomy[] memory economies) {
+    function getAllAreas() external view returns (AreaEconomy[] memory economies) {
         uint8 totalAreas = areaRegistry.getTotalAreas();
-        economies = new AreaEconomy[](totalAreas);
+        economies = new AreaEconomy[](totalAreas + 2);
+
+        economies[0] = _buildAreaEconomy(0);
         for (uint8 i = 0; i < totalAreas;) {
-            economies[i] = _buildAreaEconomy(i + 1);
+            economies[i + 1] = _buildAreaEconomy(i + 1);
             unchecked { ++i; }
         }
+        economies[totalAreas + 1] = _buildAreaEconomy(255);
     }
 
     function _buildAreaEconomy(uint8 areaId) internal view returns (AreaEconomy memory economy) {

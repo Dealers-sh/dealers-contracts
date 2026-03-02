@@ -361,6 +361,8 @@ contract DealersExePVPTest is BaseTest {
 
     function test_attack_steals2PercentOfOneWeightedDrug() public {
         _setupDealersForPVP();
+        _addDrugsToDealer(attackerToken, DRUG_XTC, 500);
+        _addDrugsToDealer(attackerToken, DRUG_COCAINE, 100);
         _addDrugsToDealer(defenderToken, DRUG_XTC, 500);
         _addDrugsToDealer(defenderToken, DRUG_COCAINE, 100);
 
@@ -437,6 +439,8 @@ contract DealersExePVPTest is BaseTest {
     function test_attack_onlyOneDrugTypeStolen() public {
         _moveDealerToArea(attackerToken, AREA_MANHATTAN);
         _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _addDrugsToDealer(attackerToken, DRUG_XTC, 200);
+        _addDrugsToDealer(attackerToken, DRUG_COCAINE, 500);
         _addDrugsToDealer(defenderToken, DRUG_XTC, 200);
         _addDrugsToDealer(defenderToken, DRUG_COCAINE, 500);
 
@@ -656,28 +660,29 @@ contract DealersExePVPTest is BaseTest {
             cashStealPercent: 1,
             rarityWeightCommon: 50,
             rarityWeightUncommon: 30,
-            rarityWeightRare: 20
+            rarityWeightRare: 20,
+            repRangePercent: 100
         }));
 
         vm.prank(player1);
         pvp.attack(attackerToken, defenderToken);
     }
 
-    function test_canAttack_returnsReason11ForLowAttackerRep() public {
+    function test_canAttack_returnsReason11ForOutOfRepRange() public {
         _moveDealerToArea(attackerToken, AREA_MANHATTAN);
         _moveDealerToArea(defenderToken, AREA_MANHATTAN);
-        _setReputation(attackerToken, 50);
-        _setReputation(defenderToken, 200);
+        _setReputation(attackerToken, 1000);
+        _setReputation(defenderToken, 2000);
 
         (bool canFight, uint8 reason) = pvp.canAttack(attackerToken, defenderToken);
         assertFalse(canFight);
         assertEq(reason, 11);
     }
 
-    function test_canAttack_returnsReason12ForLowDefenderRep() public {
+    function test_canAttack_returnsReason12ForBelowMinReputation() public {
         _moveDealerToArea(attackerToken, AREA_MANHATTAN);
         _moveDealerToArea(defenderToken, AREA_MANHATTAN);
-        _setReputation(attackerToken, 200);
+        _setReputation(attackerToken, 50);
         _setReputation(defenderToken, 50);
 
         (bool canFight, uint8 reason) = pvp.canAttack(attackerToken, defenderToken);
@@ -711,5 +716,128 @@ contract DealersExePVPTest is BaseTest {
         assertEq(attackerStats.attackWins, 0);
         assertEq(defenderStats.defendWins, 1);
         assertEq(defenderStats.defendLosses, 0);
+    }
+
+    // =============================================================
+    //                     REP RANGE (6 tests)
+    // =============================================================
+
+    function test_canAttack_failsForOutOfRepRange() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 1000);
+        _setReputation(defenderToken, 2000);
+
+        (bool canFight, uint8 reason) = pvp.canAttack(attackerToken, defenderToken);
+        assertFalse(canFight, "Should not be able to attack out of rep range");
+        assertEq(reason, 11, "Reason should be 11 (out of rep range)");
+    }
+
+    function test_canAttack_succeedsWithinRepRange() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 1000);
+        _setReputation(defenderToken, 1200);
+
+        (bool canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        assertTrue(canFight, "Should be able to attack within rep range");
+    }
+
+    function test_canAttack_repRangeEdgeCases() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 1000);
+
+        // Exactly at upper boundary: 1000 + 25% = 1250
+        _setReputation(defenderToken, 1250);
+        (bool canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        assertTrue(canFight, "Exactly at upper boundary should succeed");
+
+        // One above upper boundary
+        _setReputation(defenderToken, 1251);
+        (canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        assertFalse(canFight, "One above upper boundary should fail");
+
+        // Exactly at lower boundary: 1000 - 25% = 750
+        _setReputation(defenderToken, 750);
+        (canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        assertTrue(canFight, "Exactly at lower boundary should succeed");
+
+        // One below lower boundary
+        _setReputation(defenderToken, 749);
+        (canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        assertFalse(canFight, "One below lower boundary should fail");
+    }
+
+    function test_getPotentialTargets_filtersOnRepRange() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 1000);
+
+        uint256 inRangeToken = _mintAndInitialize(address(uint160(500)));
+        _moveDealerToArea(inRangeToken, AREA_MANHATTAN);
+        _setReputation(inRangeToken, 1200);
+
+        uint256 outOfRangeToken = _mintAndInitialize(address(uint160(501)));
+        _moveDealerToArea(outOfRangeToken, AREA_MANHATTAN);
+        _setReputation(outOfRangeToken, 2000);
+
+        _setReputation(defenderToken, 900);
+
+        (IDealersExePVP.PVPTarget[] memory targets, ) = pvp.getPotentialTargets(attackerToken, 0, 100);
+
+        bool foundInRange = false;
+        bool foundDefender = false;
+        bool foundOutOfRange = false;
+        for (uint256 i = 0; i < targets.length; i++) {
+            if (targets[i].tokenId == inRangeToken) foundInRange = true;
+            if (targets[i].tokenId == defenderToken) foundDefender = true;
+            if (targets[i].tokenId == outOfRangeToken) foundOutOfRange = true;
+        }
+
+        assertTrue(foundInRange, "In-range target should be included");
+        assertTrue(foundDefender, "Defender within range should be included");
+        assertFalse(foundOutOfRange, "Out-of-range target should be excluded");
+    }
+
+    function test_attack_revertsOutOfRepRange() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 1000);
+        _setReputation(defenderToken, 2000);
+        _addDrugsToDealer(attackerToken, DRUG_WEED, 1000);
+        _addDrugsToDealer(defenderToken, DRUG_WEED, 1000);
+
+        vm.prank(player1);
+        vm.expectRevert(DealersExePVP.OutOfRepRange.selector);
+        pvp.attack(attackerToken, defenderToken);
+    }
+
+    function test_repRangePercent_updatable() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 1000);
+        _setReputation(defenderToken, 2000);
+
+        (bool canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        assertFalse(canFight, "Should fail with default 25% range");
+
+        vm.prank(owner);
+        pvp.setPVPConfig(IDealersExePVP.PVPConfig({
+            minReputation: 100,
+            baseWinChance: 50,
+            minWinChance: 25,
+            maxWinChance: 75,
+            maxAttacksPerDay: 3,
+            drugStealPercent: 2,
+            cashStealPercent: 1,
+            rarityWeightCommon: 50,
+            rarityWeightUncommon: 30,
+            rarityWeightRare: 20,
+            repRangePercent: 100
+        }));
+
+        (canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        assertTrue(canFight, "Should succeed with 100% range");
     }
 }

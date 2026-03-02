@@ -24,6 +24,7 @@ interface IDealersExePVP {
         uint8 rarityWeightCommon;
         uint8 rarityWeightUncommon;
         uint8 rarityWeightRare;
+        uint8 repRangePercent;
     }
 
     struct PVPTarget {
@@ -49,8 +50,6 @@ interface IDealersExePVP {
 
     function getPotentialTargets(
         uint256 attackerId,
-        uint256 minReputation,
-        uint256 maxReputation,
         uint256 offset,
         uint256 limit
     ) external view returns (PVPTarget[] memory targets, uint256 totalInArea);
