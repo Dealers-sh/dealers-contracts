@@ -25,9 +25,11 @@ contract DeployAreaRegistry is DeployBase {
         ));
         vm.stopBroadcast();
 
+        _saveAddresses();
+
         console.log("DEAreaRegistry deployed:", areaRegistry);
         console.log("  DrugRegistry:", drugRegistry);
         console.log("");
-        console.log("Next: update AREA_REGISTRY in .env, then run SetupWiring.s.sol");
+        console.log("Next: run SetupWiring.s.sol");
     }
 }

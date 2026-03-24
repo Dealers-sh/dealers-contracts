@@ -22,6 +22,6 @@ interface IDEPaymentHandler {
     //                        VIEW FUNCTIONS
     // =============================================================
 
-    /// @notice Calculate fees for a given amount (20% bank, 80% dev)
-    function calculateFees(uint256 amount) external pure returns (uint256 bankFee, uint256 devFee);
+    /// @notice Calculate fees for a given amount based on current split
+    function calculateFees(uint256 amount) external view returns (uint256 bankFee, uint256 devFee);
 }

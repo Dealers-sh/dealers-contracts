@@ -78,7 +78,7 @@ The project follows a **modular architecture** where a central data contract (`D
 **DealersExePVP** ([src/DealersExePVP.sol](src/DealersExePVP.sol))
 - Same-area PVP requirement
 - Win chance: 50% + (threat - armor), capped 25-75%
-- 1-hour cooldown, 10% drug steal on win
+- 1-hour cooldown, 2% drug steal on win
 
 **DEPaymentHandler** ([src/DEPaymentHandler.sol](src/DEPaymentHandler.sol))
 - Centralized ETH management and fee distribution

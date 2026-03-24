@@ -71,6 +71,24 @@ contract DERandomness is Ownable {
         )));
     }
 
+    function getRandomValues(bytes32 seed, uint8 count) external returns (uint256[] memory values) {
+        if (!authorizedResolvers[msg.sender]) revert NotAuthorized();
+        unchecked { ++nonce; }
+
+        values = new uint256[](count);
+        if (count == 0) return values;
+
+        uint256 base = uint256(keccak256(abi.encodePacked(
+            block.prevrandao, block.timestamp, block.number, seed, nonce, address(this)
+        )));
+
+        values[0] = base;
+        for (uint8 i = 1; i < count;) {
+            values[i] = uint256(keccak256(abi.encodePacked(base, i)));
+            unchecked { ++i; }
+        }
+    }
+
     // =============================================================
     //                        VIEW FUNCTIONS
     // =============================================================

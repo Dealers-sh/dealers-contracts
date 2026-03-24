@@ -29,8 +29,10 @@ contract DeployBoosts is DeployBase {
         ));
         vm.stopBroadcast();
 
+        _saveAddresses();
+
         console.log("DealersExeBoosts deployed:", boosts);
         console.log("");
-        console.log("Next: update DEALERS_BOOSTS in .env, then run SetupWiring.s.sol");
+        console.log("Next: run SetupWiring.s.sol");
     }
 }

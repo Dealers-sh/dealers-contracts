@@ -28,8 +28,10 @@ contract DeployClaims is DeployBase {
         ));
         vm.stopBroadcast();
 
+        _saveAddresses();
+
         console.log("DealersExeClaims deployed:", claims);
         console.log("");
-        console.log("Next: update DEALERS_CLAIMS in .env, then run SetupWiring.s.sol");
+        console.log("Next: run SetupWiring.s.sol");
     }
 }

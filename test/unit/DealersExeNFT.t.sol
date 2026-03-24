@@ -430,9 +430,10 @@ contract DealersExeNFTTest is BaseTest {
 
         assertTrue(_containsSubstring(json, '"name":"Dealer #'));
         assertTrue(_containsSubstring(json, '"attributes":['));
+        assertTrue(_containsSubstring(json, '"trait_type":"Rank"'));
+        assertTrue(_containsSubstring(json, '"trait_type":"Infamy"'));
         assertTrue(_containsSubstring(json, '"trait_type":"Area"'));
-        assertTrue(_containsSubstring(json, '"trait_type":"Reputation"'));
-        assertTrue(_containsSubstring(json, '"trait_type":"Heat Level"'));
+        assertTrue(_containsSubstring(json, '"trait_type":"Heat"'));
     }
 
     function test_tokenURI_revertTokenDoesNotExist() public {

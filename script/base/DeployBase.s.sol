@@ -110,6 +110,13 @@ interface IClaimsContract {
     function achievementCount() external view returns (uint256);
 }
 
+interface IActionsContract {
+    function setPaymentHandler(address _handler) external;
+    function setRandomness(address _randomness) external;
+    function paymentHandler() external view returns (address);
+    function randomness() external view returns (address);
+}
+
 // =============================================================================
 //                              BASE CONTRACT
 // =============================================================================
@@ -126,6 +133,7 @@ abstract contract DeployBase is Script {
     address public pve;
     address public pvp;
     address public claims;
+    address public actions;
     address public rendererSvg;
     address public rendererHtml;
     address public multicall;
@@ -159,6 +167,7 @@ abstract contract DeployBase is Script {
             pve = _jsonAddrOr(json, ".pve", "DEALERS_PVE");
             pvp = _jsonAddrOr(json, ".pvp", "DEALERS_PVP");
             claims = _jsonAddrOr(json, ".claims", "DEALERS_CLAIMS");
+            actions = _jsonAddrOr(json, ".actions", "DEALERS_ACTIONS");
             rendererSvg = _jsonAddrOr(json, ".rendererSvg", "RENDERER_SVG");
             rendererHtml = _jsonAddrOr(json, ".rendererHtml", "RENDERER_HTML");
             multicall = _jsonAddrOr(json, ".multicall", "DEALER_MULTICALL");
@@ -173,6 +182,7 @@ abstract contract DeployBase is Script {
             pve = vm.envOr("DEALERS_PVE", address(0));
             pvp = vm.envOr("DEALERS_PVP", address(0));
             claims = vm.envOr("DEALERS_CLAIMS", address(0));
+            actions = vm.envOr("DEALERS_ACTIONS", address(0));
             rendererSvg = vm.envOr("RENDERER_SVG", address(0));
             rendererHtml = vm.envOr("RENDERER_HTML", address(0));
             multicall = vm.envOr("DEALER_MULTICALL", address(0));
@@ -202,6 +212,7 @@ abstract contract DeployBase is Script {
         vm.serializeAddress(obj, "pve", pve);
         vm.serializeAddress(obj, "pvp", pvp);
         vm.serializeAddress(obj, "claims", claims);
+        vm.serializeAddress(obj, "actions", actions);
         vm.serializeAddress(obj, "rendererSvg", rendererSvg);
         vm.serializeAddress(obj, "rendererHtml", rendererHtml);
         string memory json = vm.serializeAddress(obj, "multicall", multicall);

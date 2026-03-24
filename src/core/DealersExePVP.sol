@@ -10,16 +10,6 @@ import {IDrugRegistry} from "../utils/IDrugRegistry.sol";
 import {IERC721Minimal} from "../utils/IERC721Minimal.sol";
 import {IDERandomness} from "../utils/IDERandomness.sol";
 
-/**
- * @title DealersExePVP - Player vs Player Combat Module
- *
- * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
- * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
- *
- * @dev Handles PVP gameplay with stat-based win chances, drug/cash stealing, and defender protection
- *      Uses AreaRegistry for drug availability per area
- * @author Dealers.Exe Team
- */
 contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     // =============================================================
     //                            STORAGE
@@ -38,6 +28,9 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     mapping(uint256 => uint256) public attacksReceivedToday;
     mapping(uint256 => PvpStats) public dealerPvpStats;
 
+    uint256[3] public dropDrugIds;   // [goodsId, contrabandId, jewelsId]
+    uint8[4] public dropWeights;     // [30, 40, 20, 10] — nothing, goods, contraband, jewels
+
     // =============================================================
     //                            EVENTS
     // =============================================================
@@ -52,6 +45,8 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         int16 attackerRepChange,
         int16 defenderRepChange
     );
+
+    event LootDropped(uint256 indexed attackerId, uint256 indexed drugId);
 
     event DealerArrested(uint256 indexed tokenId, uint16 jailChance);
     event CoreContractUpdated(address indexed oldCore, address indexed newCore);
@@ -78,17 +73,14 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     error DefenderExhausted();
     error InsufficientReputation();
     error OutOfRepRange();
+    error NoAttemptsRemaining();
+    error InvalidDropConfig();
+    error InvalidPVPConfig();
 
     // =============================================================
     //                            CONSTRUCTOR
     // =============================================================
 
-    /**
-     * @notice Initializes the PVP contract
-     * @param _core Address of the core dealers contract
-     * @param _nftContract Address of the NFT contract for ownership checks
-     * @param _areaRegistry Address of the area registry
-     */
     constructor(address _core, address _nftContract, address _areaRegistry) {
         if (_core == address(0) || _nftContract == address(0) || _areaRegistry == address(0)) {
             revert ContractNotSet();
@@ -112,6 +104,9 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
             repRangePercent: 25,
             defenderRepBonus: 2
         });
+
+        dropDrugIds = [uint256(1), 2, 3];
+        dropWeights = [uint8(30), 40, 20, 10];
     }
 
     // =============================================================
@@ -131,12 +126,6 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         _;
     }
 
-    modifier dealerExists(uint256 tokenId) {
-        (, , , , , bool isInitialized) = core.getDealerData(tokenId);
-        if (!isInitialized) revert DealerNotInitialized();
-        _;
-    }
-
     modifier onlyDealerOwner(uint256 tokenId) {
         if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
         _;
@@ -147,46 +136,45 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         _;
     }
 
-    modifier reputable(uint256 tokenId) {
-        if (config.minReputation > 0) {
-            if (core.getTotalReputation(tokenId) < config.minReputation) revert InsufficientReputation();
-        }
-        _;
-    }
-
     // =============================================================
     //                        MAIN ATTACK FUNCTION
     // =============================================================
 
-    /**
-     * @notice Attack another dealer in the same area
-     * @param attackerId Your dealer's token ID
-     * @param defenderId Target dealer's token ID
-     */
     function attack(uint256 attackerId, uint256 defenderId)
         external
         nonReentrant
         whenNotPaused
         contractsSet
-        dealerExists(attackerId)
-        dealerExists(defenderId)
         onlyDealerOwner(attackerId)
-        reputable(attackerId)
-        reputable(defenderId)
     {
         if (attackerId == defenderId) revert SameDealer();
-        if (!_isInRepRange(core.getTotalReputation(attackerId), core.getTotalReputation(defenderId))) {
+
+        (IDealersExeCore.GameState memory atkState, IDealersExeCore.GameState memory defState) =
+            core.getBothGameStates(attackerId, defenderId);
+
+        if (!atkState.isInitialized) revert DealerNotInitialized();
+        if (!defState.isInitialized) revert DealerNotInitialized();
+
+        if (atkState.isJailed) revert DealerInJail();
+        if (atkState.isInSafeHouse) revert DealerInSafeHouse();
+        if (defState.isJailed) revert DealerInJail();
+        if (defState.isInSafeHouse) revert DealerInSafeHouse();
+
+        if (atkState.currentArea != defState.currentArea) revert DifferentArea();
+        if (atkState.dailyAttemptsRemaining == 0) revert NoAttemptsRemaining();
+
+        if (config.minReputation > 0) {
+            if (atkState.totalReputation < config.minReputation) revert InsufficientReputation();
+            if (defState.totalReputation < config.minReputation) revert InsufficientReputation();
+        }
+
+        if (!_isInRepRange(atkState.totalReputation, defState.totalReputation)) {
             revert OutOfRepRange();
         }
 
-        uint8 area = _validateLocationsAndGetArea(attackerId, defenderId);
-
         _checkDefenderProtection(defenderId);
 
-        core.useAttempt(attackerId);
-        core.incrementHeatLevel(attackerId);
-
-        _executeBattle(attackerId, defenderId, area);
+        _executeBattle(attackerId, defenderId, atkState, defState);
     }
 
     // =============================================================
@@ -201,61 +189,36 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         (uint8 attackerThreat, ) = core.getDealerStats(attackerId);
         (, uint8 defenderArmor) = core.getDealerStats(defenderId);
 
-        int256 statModifier = int256(uint256(attackerThreat)) - int256(uint256(defenderArmor));
-        int256 finalChance = int256(uint256(config.baseWinChance)) + statModifier;
-
-        if (finalChance < int256(uint256(config.minWinChance))) {
-            return config.minWinChance;
-        }
-        if (finalChance > int256(uint256(config.maxWinChance))) {
-            return config.maxWinChance;
-        }
-
-        return uint256(finalChance);
+        return _calcWinChance(attackerThreat, defenderArmor);
     }
 
-    /**
-     * @notice Check if an attack is possible between two dealers
-     * @param attackerId The attacker's token ID
-     * @param defenderId The defender's token ID
-     * @return canFight Whether the attack can proceed
-     * @return reason Error code: 0=OK, 1=same dealer, 2=attacker not init, 3=defender not init,
-     *         4=attacker in jail, 5=attacker in safe house, 6=defender in jail, 7=defender in safe house,
-     *         8=different areas, 9=no attempts, 10=defender exhausted,
-     *         11=out of rep range, 12=below min reputation
-     */
     function canAttack(uint256 attackerId, uint256 defenderId) external view returns (bool canFight, uint8 reason) {
         if (attackerId == defenderId) return (false, 1);
 
-        (, , uint8 attackerAttempts, , , bool attackerInit) = core.getDealerData(attackerId);
-        if (!attackerInit) return (false, 2);
+        (IDealersExeCore.GameState memory atkState, IDealersExeCore.GameState memory defState) =
+            core.getBothGameStates(attackerId, defenderId);
 
-        (, , , , , bool defenderInit) = core.getDealerData(defenderId);
-        if (!defenderInit) return (false, 3);
+        if (!atkState.isInitialized) return (false, 2);
+        if (!defState.isInitialized) return (false, 3);
 
-        if (core.isInJail(attackerId)) return (false, 4);
-        if (core.isInSafeHouse(attackerId)) return (false, 5);
-        if (core.isInJail(defenderId)) return (false, 6);
-        if (core.isInSafeHouse(defenderId)) return (false, 7);
+        if (atkState.isJailed) return (false, 4);
+        if (atkState.isInSafeHouse) return (false, 5);
+        if (defState.isJailed) return (false, 6);
+        if (defState.isInSafeHouse) return (false, 7);
 
-        (uint8 attackerArea, , , , , ) = core.getDealerData(attackerId);
-        (uint8 defenderArea, , , , , ) = core.getDealerData(defenderId);
-        if (attackerArea != defenderArea) return (false, 8);
+        if (atkState.currentArea != defState.currentArea) return (false, 8);
 
-        if (attackerAttempts == 0) return (false, 9);
+        if (atkState.dailyAttemptsRemaining == 0) return (false, 9);
 
         uint256 currentDay = block.timestamp / 1 days;
         if (lastAttackDay[defenderId] == currentDay && attacksReceivedToday[defenderId] >= config.maxAttacksPerDay) {
             return (false, 10);
         }
 
-        uint256 attackerTotalRep = core.getTotalReputation(attackerId);
-        uint256 defenderTotalRep = core.getTotalReputation(defenderId);
-
-        if (!_isInRepRange(attackerTotalRep, defenderTotalRep)) return (false, 11);
+        if (!_isInRepRange(atkState.totalReputation, defState.totalReputation)) return (false, 11);
 
         if (config.minReputation > 0) {
-            if (attackerTotalRep < config.minReputation || defenderTotalRep < config.minReputation) {
+            if (atkState.totalReputation < config.minReputation || defState.totalReputation < config.minReputation) {
                 return (false, 12);
             }
         }
@@ -268,12 +231,10 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         uint256 offset,
         uint256 limit
     ) external view returns (PVPTarget[] memory targets, uint256 totalInArea) {
-        (uint8 attackerArea, , , , , bool attackerInit) = core.getDealerData(attackerId);
-        if (!attackerInit) return (new PVPTarget[](0), 0);
+        IDealersExeCore.GameState memory atkState = core.getGameState(attackerId);
+        if (!atkState.isInitialized) return (new PVPTarget[](0), 0);
 
-        uint256 attackerRep = core.getTotalReputation(attackerId);
-
-        (uint256[] memory dealersInArea, uint256 total) = areaRegistry.getDealersInArea(attackerArea, 0, type(uint256).max);
+        (uint256[] memory dealersInArea, uint256 total) = areaRegistry.getDealersInArea(atkState.currentArea, 0, type(uint256).max);
         totalInArea = total;
 
         if (total == 0 || limit == 0) return (new PVPTarget[](0), total);
@@ -289,43 +250,35 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
                 continue;
             }
 
-            (,, uint8 attempts, , , bool init) = core.getDealerData(tokenId);
+            IDealersExeCore.GameState memory candState = core.getGameState(tokenId);
 
-            if (!init) {
+            if (!candState.isInitialized || candState.isJailed || candState.isInSafeHouse) {
                 unchecked { ++i; }
                 continue;
             }
 
-            uint256 rep = core.getTotalReputation(tokenId);
-
-            if (config.minReputation > 0 && rep < config.minReputation) {
+            if (config.minReputation > 0 && candState.totalReputation < config.minReputation) {
                 unchecked { ++i; }
                 continue;
             }
 
-            if (!_isInRepRange(attackerRep, rep)) {
+            if (!_isInRepRange(atkState.totalReputation, candState.totalReputation)) {
                 unchecked { ++i; }
                 continue;
             }
 
-            if (core.isInJail(tokenId) || core.isInSafeHouse(tokenId)) {
-                unchecked { ++i; }
-                continue;
-            }
+            uint256 winChancePct = _calcWinChance(atkState.threat, candState.armor);
 
-            (uint8 threat, uint8 armor) = core.getDealerStats(tokenId);
-            uint256 winChance = calculateWinChance(attackerId, tokenId);
-
-            bool attackable = _canAttackTarget(attackerId, tokenId);
+            bool attackable = _isDefenderAvailable(tokenId);
 
             tempTargets[matchCount] = PVPTarget({
                 tokenId: tokenId,
-                reputation: rep,
-                threat: threat,
-                armor: armor,
-                attemptsRemaining: attempts,
-                winChance: winChance,
-                lossChance: 100 - winChance,
+                reputation: candState.totalReputation,
+                threat: candState.threat,
+                armor: candState.armor,
+                attemptsRemaining: candState.dailyAttemptsRemaining,
+                winChance: winChancePct,
+                lossChance: 100 - winChancePct,
                 canAttackNow: attackable
             });
 
@@ -354,10 +307,6 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     //                        ADMIN FUNCTIONS
     // =============================================================
 
-    /**
-     * @notice Updates the core contract address
-     * @param _core New core contract address
-     */
     function setCore(address _core) external onlyOwner {
         if (_core == address(0)) revert ContractNotSet();
         address old = address(core);
@@ -365,10 +314,6 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         emit CoreContractUpdated(old, _core);
     }
 
-    /**
-     * @notice Updates the NFT contract address
-     * @param _nftContract New NFT contract address
-     */
     function setNFTContract(address _nftContract) external onlyOwner {
         if (_nftContract == address(0)) revert ContractNotSet();
         address old = address(nftContract);
@@ -376,10 +321,6 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         emit NFTContractUpdated(old, _nftContract);
     }
 
-    /**
-     * @notice Updates the Area Registry address
-     * @param _areaRegistry New Area Registry address
-     */
     function setAreaRegistry(address _areaRegistry) external onlyOwner {
         if (_areaRegistry == address(0)) revert ContractNotSet();
         address old = address(areaRegistry);
@@ -387,10 +328,6 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         emit AreaRegistryUpdated(old, _areaRegistry);
     }
 
-    /**
-     * @notice Updates the Drug Registry address
-     * @param _drugRegistry New Drug Registry address
-     */
     function setDrugRegistry(address _drugRegistry) external onlyOwner {
         if (_drugRegistry == address(0)) revert ContractNotSet();
         address old = address(drugRegistry);
@@ -398,10 +335,6 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         emit DrugRegistryUpdated(old, _drugRegistry);
     }
 
-    /**
-     * @notice Updates the Randomness contract address
-     * @param _randomness New Randomness contract address
-     */
     function setRandomness(address _randomness) external onlyOwner {
         if (_randomness == address(0)) revert ContractNotSet();
         address old = address(randomness);
@@ -409,27 +342,26 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         emit RandomnessUpdated(old, _randomness);
     }
 
-    /**
-     * @notice Updates all PVP configuration parameters
-     * @param _config New PVP configuration
-     */
     function setPVPConfig(PVPConfig calldata _config) external onlyOwner {
+        if (_config.maxWinChance > 100) revert InvalidPVPConfig();
+
         PVPConfig memory oldConfig = config;
         config = _config;
         emit PVPConfigUpdated(oldConfig, _config);
     }
 
-    /**
-     * @notice Pauses the contract, preventing attacks
-     */
+    function setDropConfig(uint256[3] calldata _dropDrugIds, uint8[4] calldata _dropWeights) external onlyOwner {
+        uint256 total = uint256(_dropWeights[0]) + _dropWeights[1] + _dropWeights[2] + _dropWeights[3];
+        if (total != 100) revert InvalidDropConfig();
+        dropDrugIds = _dropDrugIds;
+        dropWeights = _dropWeights;
+    }
+
     function pause() external onlyOwner {
         paused = true;
         emit Paused(msg.sender);
     }
 
-    /**
-     * @notice Unpauses the contract, allowing attacks
-     */
     function unpause() external onlyOwner {
         paused = false;
         emit Unpaused(msg.sender);
@@ -439,26 +371,11 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     //                     INTERNAL/PRIVATE HELPER FUNCTIONS
     // =============================================================
 
-    function _canAttackTarget(uint256 attackerId, uint256 defenderId) private view returns (bool) {
-        if (core.isInJail(attackerId) || core.isInSafeHouse(attackerId)) return false;
-
-        (, , uint8 attackerAttempts, , , ) = core.getDealerData(attackerId);
-        if (attackerAttempts == 0) return false;
-
-        uint256 attackerTotalRep = core.getTotalReputation(attackerId);
-        uint256 defenderTotalRep = core.getTotalReputation(defenderId);
-
-        if (!_isInRepRange(attackerTotalRep, defenderTotalRep)) return false;
-
-        if (config.minReputation > 0) {
-            if (attackerTotalRep < config.minReputation || defenderTotalRep < config.minReputation) return false;
-        }
-
+    function _isDefenderAvailable(uint256 defenderId) private view returns (bool) {
         uint256 currentDay = block.timestamp / 1 days;
         if (lastAttackDay[defenderId] == currentDay && attacksReceivedToday[defenderId] >= config.maxAttacksPerDay) {
             return false;
         }
-
         return true;
     }
 
@@ -469,17 +386,17 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         return defenderRep >= minRep && defenderRep <= maxRep;
     }
 
-    function _validateLocationsAndGetArea(uint256 attackerId, uint256 defenderId) private view returns (uint8) {
-        if (core.isInJail(attackerId)) revert DealerInJail();
-        if (core.isInSafeHouse(attackerId)) revert DealerInSafeHouse();
-        if (core.isInJail(defenderId)) revert DealerInJail();
-        if (core.isInSafeHouse(defenderId)) revert DealerInSafeHouse();
+    function _calcWinChance(uint8 attackerThreat, uint8 defenderArmor) private view returns (uint256) {
+        int256 statModifier = int256(uint256(attackerThreat)) - int256(uint256(defenderArmor));
+        int256 finalChance = int256(uint256(config.baseWinChance)) + statModifier;
 
-        (uint8 attackerArea, , , , , ) = core.getDealerData(attackerId);
-        (uint8 defenderArea, , , , , ) = core.getDealerData(defenderId);
-        if (attackerArea != defenderArea) revert DifferentArea();
-
-        return attackerArea;
+        if (finalChance < int256(uint256(config.minWinChance))) {
+            return config.minWinChance;
+        }
+        if (finalChance > int256(uint256(config.maxWinChance))) {
+            return config.maxWinChance;
+        }
+        return uint256(finalChance);
     }
 
     function _checkDefenderProtection(uint256 defenderId) private {
@@ -498,16 +415,28 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         }
     }
 
-    function _executeBattle(uint256 attackerId, uint256 defenderId, uint8 area) private {
+    function _executeBattle(
+        uint256 attackerId,
+        uint256 defenderId,
+        IDealersExeCore.GameState memory atkState,
+        IDealersExeCore.GameState memory defState
+    ) private {
         bytes32 seed = keccak256(abi.encodePacked(attackerId, defenderId, block.timestamp));
-        uint256 battleRandomness = randomness.getRandomness(seed);
+        uint256[] memory rng = randomness.getRandomValues(seed, 4);
 
-        if (_checkAndProcessArrest(attackerId, battleRandomness)) {
+        IDealersExeCore.GameOutcome memory atkOut;
+        atkOut.useAttempt = true;
+        atkOut.incrementHeat = true;
+
+        if (core.rollJailCheck(attackerId, rng[0])) {
+            atkOut.sendToJail = true;
+            core.applyGameOutcome(attackerId, atkOut);
+            emit DealerArrested(attackerId, atkState.jailChance);
             return;
         }
 
-        uint256 winChance = calculateWinChance(attackerId, defenderId);
-        bool attackerWon = ((battleRandomness >> 8) % 100) < winChance;
+        uint256 winChancePct = _calcWinChance(atkState.threat, defState.armor);
+        bool attackerWon = (rng[1] % 100) < winChancePct;
 
         unchecked {
             if (attackerWon) {
@@ -519,8 +448,55 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
             }
         }
 
-        (uint256 drugIdStolen, uint256 drugsStolen, uint256 cashStolen, int16 attackerRepChange, int16 defenderRepChange) =
-            _processBattleOutcome(attackerId, defenderId, attackerWon, area, battleRandomness);
+        IDealersExeCore.GameOutcome memory defOut;
+
+        uint256 drugIdStolen;
+        uint256 drugsStolen;
+        uint256 cashStolen;
+        int16 attackerRepChange;
+        int16 defenderRepChange;
+
+        if (attackerWon) {
+            (drugIdStolen, drugsStolen) = _computeDrugSteal(defenderId, atkState.currentArea, rng[2]);
+            cashStolen = _computeCashSteal(defState.cashBalance);
+
+            int256 repResult = (int256(atkState.repWinBonus) * int256(uint256(atkState.repMultiplier))) / 100;
+            if (repResult > type(int16).max) repResult = type(int16).max;
+            if (repResult < type(int16).min) repResult = type(int16).min;
+            attackerRepChange = int16(repResult);
+            defenderRepChange = defState.repLossPenalty;
+
+            atkOut.repDelta = int256(attackerRepChange);
+
+            defOut.repDelta = int256(defenderRepChange);
+
+            if (drugsStolen > 0) {
+                atkOut.drugId = drugIdStolen;
+                atkOut.drugDelta = int256(drugsStolen);
+                defOut.drugId = drugIdStolen;
+                defOut.drugDelta = -int256(drugsStolen);
+            }
+
+            if (cashStolen > 0) {
+                atkOut.cashDelta = int256(cashStolen);
+                defOut.cashDelta = -int256(cashStolen);
+            }
+        } else {
+            attackerRepChange = int16(atkState.repLossPenalty);
+            defenderRepChange = int16(uint16(config.defenderRepBonus));
+
+            atkOut.repDelta = int256(attackerRepChange);
+            defOut.repDelta = int256(defenderRepChange);
+        }
+
+        core.applyPVPOutcome(attackerId, defenderId, atkOut, defOut);
+
+        if (attackerWon) {
+            core.updateInfamy(attackerId, 3);
+            _applyDropReward(attackerId, rng[3]);
+        } else {
+            core.updateInfamy(attackerId, -1);
+        }
 
         emit PVPBattleResult(
             attackerId,
@@ -534,72 +510,46 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         );
     }
 
-    function _checkAndProcessArrest(uint256 attackerId, uint256 rng) private returns (bool) {
-        uint16 jailChance = core.getJailChance(attackerId);
-        uint16 jailRoll = uint16(rng % 1000);
+    function _applyDropReward(uint256 attackerId, uint256 rng) private {
+        uint256 roll = rng % 100;
+        if (roll < dropWeights[0]) return;
 
-        if (jailRoll < jailChance) {
-            core.sendToJail(attackerId);
-
-            emit DealerArrested(attackerId, jailChance);
-            return true;
+        uint256 cumulative = dropWeights[0];
+        for (uint256 i = 0; i < 3;) {
+            cumulative += dropWeights[i + 1];
+            if (roll < cumulative) {
+                uint256 drugId = dropDrugIds[i];
+                if (drugId != 0) {
+                    core.updateDrugBalance(attackerId, drugId, 1);
+                    emit LootDropped(attackerId, drugId);
+                }
+                return;
+            }
+            unchecked { ++i; }
         }
-        return false;
     }
 
-    function _processBattleOutcome(
-        uint256 attackerId,
-        uint256 defenderId,
-        bool attackerWon,
-        uint8 area,
-        uint256 battleRandomness
-    ) private returns (uint256 drugIdStolen, uint256 drugsStolen, uint256 cashStolen, int16 attackerRepChange, int16 defenderRepChange) {
-        if (attackerWon) {
-            (drugIdStolen, drugsStolen) = _stealDrugs(attackerId, defenderId, area, battleRandomness);
-            cashStolen = _stealCash(attackerId, defenderId);
-
-            int16 attackerBaseRep = core.getReputationChange(attackerId, 0);
-            uint8 attackerRepMultiplier = core.getRepMultiplier(attackerId);
-            attackerRepChange = int16((int256(attackerBaseRep) * int256(uint256(attackerRepMultiplier))) / 100);
-            defenderRepChange = core.getReputationChange(defenderId, 2);
-
-            core.updateReputation(attackerId, int256(attackerRepChange));
-            core.updateReputation(defenderId, int256(defenderRepChange));
-        } else {
-            attackerRepChange = core.getReputationChange(attackerId, 2);
-            defenderRepChange = int16(int8(config.defenderRepBonus));
-
-            core.updateReputation(attackerId, int256(attackerRepChange));
-            core.updateReputation(defenderId, int256(defenderRepChange));
-        }
-
-        return (drugIdStolen, drugsStolen, cashStolen, attackerRepChange, defenderRepChange);
-    }
-
-    function _stealDrugs(
-        uint256 winnerId,
+    function _computeDrugSteal(
         uint256 loserId,
         uint8 area,
         uint256 rng
-    ) private returns (uint256 selectedDrugId, uint256 totalStolen) {
+    ) private view returns (uint256 selectedDrugId, uint256 totalStolen) {
         uint256[] memory areaDrugIds = areaRegistry.getAreaDrugIds(area);
+        uint256[] memory balances = core.getAreaDrugBalances(loserId, areaDrugIds);
 
         uint256[] memory commonDrugs = new uint256[](areaDrugIds.length);
+        uint256[] memory commonBalances = new uint256[](areaDrugIds.length);
         uint256[] memory uncommonDrugs = new uint256[](areaDrugIds.length);
+        uint256[] memory uncommonBalances = new uint256[](areaDrugIds.length);
         uint256[] memory rareDrugs = new uint256[](areaDrugIds.length);
+        uint256[] memory rareBalances = new uint256[](areaDrugIds.length);
         uint256 commonCount;
         uint256 uncommonCount;
         uint256 rareCount;
 
         for (uint256 i = 0; i < areaDrugIds.length;) {
             uint256 drugId = areaDrugIds[i];
-            if (drugId == 0) {
-                unchecked { ++i; }
-                continue;
-            }
-
-            uint256 balance = core.getDrugBalance(loserId, drugId);
-            if (balance == 0) {
+            if (drugId == 0 || balances[i] == 0) {
                 unchecked { ++i; }
                 continue;
             }
@@ -608,12 +558,15 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
 
             if (rarity == IDrugRegistry.DrugRarity.COMMON) {
                 commonDrugs[commonCount] = drugId;
+                commonBalances[commonCount] = balances[i];
                 unchecked { ++commonCount; }
             } else if (rarity == IDrugRegistry.DrugRarity.UNCOMMON) {
                 uncommonDrugs[uncommonCount] = drugId;
+                uncommonBalances[uncommonCount] = balances[i];
                 unchecked { ++uncommonCount; }
             } else {
                 rareDrugs[rareCount] = drugId;
+                rareBalances[rareCount] = balances[i];
                 unchecked { ++rareCount; }
             }
 
@@ -624,60 +577,61 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
             return (0, 0);
         }
 
-        selectedDrugId = _selectDrugByRarity(
+        uint256 loserBalance;
+        (selectedDrugId, loserBalance) = _selectDrugByRarity(
             rng,
-            commonDrugs, commonCount,
-            uncommonDrugs, uncommonCount,
-            rareDrugs, rareCount
+            commonDrugs, commonBalances, commonCount,
+            uncommonDrugs, uncommonBalances, uncommonCount,
+            rareDrugs, rareBalances, rareCount
         );
 
-        uint256 loserBalance = core.getDrugBalance(loserId, selectedDrugId);
         uint256 stolen = _ceilDiv(loserBalance * config.drugStealPercent, 100);
-
-        if (stolen > 0) {
-            core.updateDrugBalance(loserId, selectedDrugId, -int256(stolen));
-            core.updateDrugBalance(winnerId, selectedDrugId, int256(stolen));
-        }
 
         return (selectedDrugId, stolen);
     }
 
-    function _stealCash(uint256 winnerId, uint256 loserId) private returns (uint256 stolen) {
-        uint256 loserCash = core.getCashBalance(loserId);
+    function _computeCashSteal(uint256 loserCash) private view returns (uint256) {
         if (loserCash == 0) return 0;
-
-        stolen = _ceilDiv(loserCash * config.cashStealPercent, 100);
-
-        if (stolen > 0) {
-            core.spendCash(loserId, stolen);
-            core.addCash(winnerId, stolen);
-        }
-
-        return stolen;
+        return _ceilDiv(loserCash * config.cashStealPercent, 100);
     }
 
     function _selectDrugByRarity(
         uint256 rng,
         uint256[] memory commonDrugs,
+        uint256[] memory commonBalances,
         uint256 commonCount,
         uint256[] memory uncommonDrugs,
+        uint256[] memory uncommonBalances,
         uint256 uncommonCount,
         uint256[] memory rareDrugs,
+        uint256[] memory rareBalances,
         uint256 rareCount
-    ) private view returns (uint256) {
-        uint256 roll = (rng >> 16) % 100;
+    ) private view returns (uint256, uint256) {
+        uint256 roll = rng % 100;
+        uint256 pickRng = uint256(keccak256(abi.encodePacked(rng)));
+        uint256 idx;
 
         if (roll < config.rarityWeightCommon && commonCount > 0) {
-            return commonDrugs[(rng >> 24) % commonCount];
+            idx = pickRng % commonCount;
+            return (commonDrugs[idx], commonBalances[idx]);
         } else if (roll < uint256(config.rarityWeightCommon) + uint256(config.rarityWeightUncommon) && uncommonCount > 0) {
-            return uncommonDrugs[(rng >> 32) % uncommonCount];
+            idx = pickRng % uncommonCount;
+            return (uncommonDrugs[idx], uncommonBalances[idx]);
         } else if (rareCount > 0) {
-            return rareDrugs[(rng >> 40) % rareCount];
+            idx = pickRng % rareCount;
+            return (rareDrugs[idx], rareBalances[idx]);
         }
 
-        if (commonCount > 0) return commonDrugs[(rng >> 24) % commonCount];
-        if (uncommonCount > 0) return uncommonDrugs[(rng >> 32) % uncommonCount];
-        return rareDrugs[(rng >> 40) % rareCount];
+        if (commonCount > 0) {
+            idx = pickRng % commonCount;
+            return (commonDrugs[idx], commonBalances[idx]);
+        }
+        if (uncommonCount > 0) {
+            idx = pickRng % uncommonCount;
+            return (uncommonDrugs[idx], uncommonBalances[idx]);
+        }
+        idx = pickRng % rareCount;
+        return (rareDrugs[idx], rareBalances[idx]);
     }
 
     function _ceilDiv(uint256 a, uint256 b) private pure returns (uint256) {

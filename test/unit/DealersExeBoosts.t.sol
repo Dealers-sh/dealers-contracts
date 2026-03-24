@@ -56,7 +56,6 @@ contract DealersExeBoostsTest is BaseTest {
         assertEq(tier.extraAttempts, 3);
         assertEq(tier.cashMultiplier, 125);  // 1.25x
         assertFalse(tier.freeAreaMovement);
-        assertFalse(tier.doubleHeistEntries);
         assertTrue(tier.isActive);
     }
 
@@ -70,7 +69,6 @@ contract DealersExeBoostsTest is BaseTest {
         assertEq(tier.extraAttempts, 5);
         assertEq(tier.cashMultiplier, 150);  // 1.5x
         assertFalse(tier.freeAreaMovement);
-        assertFalse(tier.doubleHeistEntries);
         assertTrue(tier.isActive);
     }
 
@@ -84,7 +82,6 @@ contract DealersExeBoostsTest is BaseTest {
         assertEq(tier.extraAttempts, 10);
         assertEq(tier.cashMultiplier, 175);  // 1.75x
         assertTrue(tier.freeAreaMovement);
-        assertTrue(tier.doubleHeistEntries);
         assertTrue(tier.isActive);
     }
 
@@ -98,13 +95,12 @@ contract DealersExeBoostsTest is BaseTest {
 
         assertTrue(core.hasActiveBoost(dealer1));
 
-        DealersExeCore.BoostData memory boost = core.getBoost(dealer1);
+        IDealersExeCore.BoostData memory boost = core.getBoost(dealer1);
         assertEq(boost.drugMultiplier, 125);  // 1.25x
         assertEq(boost.repMultiplier, 125);   // 1.25x
         assertEq(boost.extraAttempts, 3);
         assertEq(boost.cashMultiplier, 125);  // 1.25x
         assertFalse(boost.freeAreaMovement);
-        assertFalse(boost.doubleHeistEntries);
         assertEq(boost.expiresAt, uint64(block.timestamp + DURATION_3_DAYS));
     }
 
@@ -114,7 +110,7 @@ contract DealersExeBoostsTest is BaseTest {
         boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
         assertTrue(core.hasActiveBoost(dealer1));
 
-        vm.expectRevert(DealersExeBoosts.BoostAlreadyActive.selector);
+        vm.expectRevert(DealersExeBoosts.BoostTierTooLow.selector);
         boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
 
         vm.stopPrank();
@@ -198,7 +194,7 @@ contract DealersExeBoostsTest is BaseTest {
         assertTrue(core.hasActiveBoost(dealer2));
     }
 
-    function test_purchaseBoostBatch_skipsNonOwned() public {
+    function test_purchaseBoostBatch_appliesBoostToAnyDealer() public {
         uint256[] memory dealerIds = new uint256[](2);
         dealerIds[0] = dealer1;
         dealerIds[1] = dealer3;
@@ -209,7 +205,7 @@ contract DealersExeBoostsTest is BaseTest {
         boosts.purchaseBoostBatch{value: totalCost}(dealerIds, GRINDER_TIER);
 
         assertTrue(core.hasActiveBoost(dealer1));
-        assertFalse(core.hasActiveBoost(dealer3));
+        assertTrue(core.hasActiveBoost(dealer3));
     }
 
     function test_purchaseBoostBatch_skipsDuplicates() public {
@@ -224,12 +220,12 @@ contract DealersExeBoostsTest is BaseTest {
         boosts.purchaseBoostBatch{value: totalCost}(dealerIds, GRINDER_TIER);
 
         assertTrue(core.hasActiveBoost(dealer1));
-        DealersExeCore.BoostData memory boost = core.getBoost(dealer1);
+        IDealersExeCore.BoostData memory boost = core.getBoost(dealer1);
         assertEq(boost.expiresAt, uint64(block.timestamp + DURATION_3_DAYS));
         assertEq(balanceBefore - player1.balance, GRINDER_PRICE);
     }
 
-    function test_purchaseBoostBatch_refundsForSkipped() public {
+    function test_purchaseBoostBatch_chargesForAllSuccessful() public {
         uint256[] memory dealerIds = new uint256[](2);
         dealerIds[0] = dealer1;
         dealerIds[1] = dealer3;
@@ -241,7 +237,7 @@ contract DealersExeBoostsTest is BaseTest {
         boosts.purchaseBoostBatch{value: totalCost}(dealerIds, GRINDER_TIER);
 
         uint256 balanceAfter = player1.balance;
-        assertEq(balanceBefore - balanceAfter, GRINDER_PRICE);
+        assertEq(balanceBefore - balanceAfter, GRINDER_PRICE * 2);
     }
 
     function test_purchaseBoostBatch_revertEmptyBatch() public {
@@ -266,9 +262,8 @@ contract DealersExeBoostsTest is BaseTest {
         uint256 handlerBalanceAfter = address(paymentHandler).balance;
         uint256 bankBalanceAfter = bankVault.balance;
 
-        // Marketplace fee split: 20% to bank vault, 80% to dev wallet (held in handler)
-        uint256 bankFee = (GRINDER_PRICE * 2000) / 10000;  // 20% to bank
-        uint256 devFee = (GRINDER_PRICE * 8000) / 10000;   // 80% to dev (pending in handler)
+        uint256 bankFee = (GRINDER_PRICE * 6000) / 10000;  // 60% to bank
+        uint256 devFee = (GRINDER_PRICE * 4000) / 10000;   // 40% to dev (pending in handler)
 
         assertEq(handlerBalanceAfter - handlerBalanceBefore, devFee);
         assertEq(bankBalanceAfter - bankBalanceBefore, bankFee);
@@ -327,7 +322,7 @@ contract DealersExeBoostsTest is BaseTest {
             repMultiplier: 250,
             extraAttempts: 15,
             freeAreaMovement: true,
-            doubleHeistEntries: true,
+
             cashMultiplier: 250,
             isActive: true
         });
@@ -352,7 +347,7 @@ contract DealersExeBoostsTest is BaseTest {
             repMultiplier: 175,
             extraAttempts: 5,
             freeAreaMovement: false,
-            doubleHeistEntries: false,
+
             cashMultiplier: 175,
             isActive: true
         });

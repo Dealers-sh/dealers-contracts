@@ -317,9 +317,6 @@ contract PVEGameFlowsTest is BaseTest {
     }
 
     function test_flow_arrestDuringBuy() public {
-        vm.prank(player1);
-        core.bribeCop{value: 0.002 ether}(tokenId);
-
         for (uint8 i = 0; i < 5; i++) {
             vm.prank(owner);
             core.incrementHeatLevel(tokenId);
@@ -344,7 +341,7 @@ contract PVEGameFlowsTest is BaseTest {
 
             (, , uint8 attempts, , , ) = core.getDealerData(tokenId);
             if (attempts == 0) {
-                core.purchaseAttemptReset{value: 0.001 ether}(tokenId);
+                actions.purchaseAttemptReset{value: 0.001 ether}(tokenId);
             }
 
             try pve.playGame(
@@ -354,12 +351,12 @@ contract PVEGameFlowsTest is BaseTest {
                 DRUG_WEED,
                 buyAmount
             ) {
-                if (core.isInJail(tokenId)) {
+                if (core.getGameState(tokenId).isJailed) {
                     arrested = true;
 
                     uint256 cashAfter = core.getCashBalance(tokenId);
                     assertEq(cashAfter, cashBefore - cashCost, "Arrested: Should lose stake");
-                    assertTrue(core.isInJail(tokenId), "Should be in jail");
+                    assertTrue(core.getGameState(tokenId).isJailed, "Should be in jail");
 
                     (uint8 area, , , , , ) = core.getDealerData(tokenId);
                     assertEq(area, JAIL, "Area should be JAIL (255)");
@@ -402,12 +399,12 @@ contract PVEGameFlowsTest is BaseTest {
                 break;
             }
 
-            if (core.isInJail(tokenId)) {
+            if (core.getGameState(tokenId).isJailed) {
                 break;
             }
         }
 
-        if (!core.isInJail(tokenId)) {
+        if (!core.getGameState(tokenId).isJailed) {
             (, , uint8 finalAttempts, , , ) = core.getDealerData(tokenId);
             assertEq(finalAttempts, 0, "Should have 0 attempts after 5 games");
 
@@ -457,7 +454,7 @@ contract PVEGameFlowsTest is BaseTest {
 
         // Move to safe house (starts in Manhattan now)
         vm.prank(player1);
-        core.travel{value: 0}(safeHouseToken, SAFE_HOUSE);
+        actions.travel{value: 0}(safeHouseToken, SAFE_HOUSE);
 
         (uint8 area, , , , , ) = core.getDealerData(safeHouseToken);
         assertEq(area, SAFE_HOUSE, "Should be in safe house");
@@ -477,7 +474,7 @@ contract PVEGameFlowsTest is BaseTest {
         vm.prank(owner);
         core.sendToJail(tokenId);
 
-        assertTrue(core.isInJail(tokenId), "Should be in jail");
+        assertTrue(core.getGameState(tokenId).isJailed, "Should be in jail");
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVE.DealerInJail.selector);

@@ -157,6 +157,19 @@ contract DeployAll is DeployBase {
             console.log("DealersExeClaims: skipped (exists)");
         }
 
+        if (actions == address(0)) {
+            _requireAddress(core, "DEALERS_CORE");
+            _requireAddress(nft, "DEALERS_NFT");
+            _requireAddress(areaRegistry, "AREA_REGISTRY");
+            actions = _zkCreate(abi.encodePacked(
+                vm.getCode("DealersExeActions.sol:DealersExeActions"),
+                abi.encode(core, nft, areaRegistry)
+            ));
+            console.log("DealersExeActions deployed:", actions);
+        } else {
+            console.log("DealersExeActions: skipped (exists)");
+        }
+
         if (multicall == address(0)) {
             multicall = _zkCreate(abi.encodePacked(
                 vm.getCode("DealersExeMulticall.sol:DealersExeMulticall"),
@@ -192,6 +205,7 @@ contract DeployAll is DeployBase {
         _authorizeIfNeeded(c, boosts);
         _authorizeIfNeeded(c, nft);
         if (claims != address(0)) _authorizeIfNeeded(c, claims);
+        if (actions != address(0)) _authorizeIfNeeded(c, actions);
 
         // DrugRegistry auth
         IDrugRegistry drugReg = IDrugRegistry(drugRegistry);
@@ -201,6 +215,7 @@ contract DeployAll is DeployBase {
         IPaymentHandler payHandler = IPaymentHandler(paymentHandler);
         if (!payHandler.authorizedContracts(core)) payHandler.authorizeContract(core, true);
         if (!payHandler.authorizedContracts(boosts)) payHandler.authorizeContract(boosts, true);
+        if (actions != address(0) && !payHandler.authorizedContracts(actions)) payHandler.authorizeContract(actions, true);
 
         // AreaRegistry -> Core
         IAreaRegistry areaReg = IAreaRegistry(areaRegistry);
@@ -211,6 +226,7 @@ contract DeployAll is DeployBase {
         if (!rng.isAuthorizedResolver(core)) rng.authorizeResolver(core, true);
         if (!rng.isAuthorizedResolver(pve)) rng.authorizeResolver(pve, true);
         if (!rng.isAuthorizedResolver(pvp)) rng.authorizeResolver(pvp, true);
+        if (actions != address(0) && !rng.isAuthorizedResolver(actions)) rng.authorizeResolver(actions, true);
 
         // Module references
         IDealersExeNFT nftC = IDealersExeNFT(nft);
@@ -236,6 +252,12 @@ contract DeployAll is DeployBase {
             _setIfDifferent(claimsC.dealersExeNFT(), nft, claimsC.setDealersExeNFT);
             _setIfDifferent(address(claimsC.pveContract()), pve, claimsC.setPVE);
             _setIfDifferent(address(claimsC.pvpContract()), pvp, claimsC.setPVP);
+        }
+
+        if (actions != address(0)) {
+            IActionsContract actionsC = IActionsContract(actions);
+            _setIfDifferent(actionsC.paymentHandler(), paymentHandler, actionsC.setPaymentHandler);
+            _setIfDifferent(actionsC.randomness(), randomness, actionsC.setRandomness);
         }
 
         console.log("  Done.");
@@ -300,6 +322,7 @@ contract DeployAll is DeployBase {
         console.log("DEALERS_PVE=", pve);
         console.log("DEALERS_PVP=", pvp);
         console.log("DEALERS_CLAIMS=", claims);
+        console.log("DEALERS_ACTIONS=", actions);
         console.log("DEALER_MULTICALL=", multicall);
         console.log("");
         console.log("Remaining:");

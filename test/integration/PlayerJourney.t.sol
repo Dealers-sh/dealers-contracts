@@ -24,9 +24,6 @@ contract PlayerJourneyTest is BaseTest {
         assertEq(core.getDrugBalance(tokenId, DRUG_COCAINE), 1, "Starting Cocaine should be 1");
         assertEq(area, MANHATTAN, "Should start in Manhattan");
 
-        vm.prank(player1);
-        core.bribeCop{value: 0.002 ether}(tokenId);
-
         for (uint8 i = 0; i < 5; i++) {
             vm.prank(owner);
             core.authorizeContract(owner, true);
@@ -45,7 +42,7 @@ contract PlayerJourneyTest is BaseTest {
             (, , attempts, , , ) = core.getDealerData(tokenId);
 
             if (attempts == 0) {
-                core.purchaseAttemptReset{value: 0.001 ether}(tokenId);
+                actions.purchaseAttemptReset{value: 0.001 ether}(tokenId);
             }
 
             uint256 prevrandao = attemptCount * 12345;
@@ -61,7 +58,7 @@ contract PlayerJourneyTest is BaseTest {
             } catch {
             }
 
-            jailed = core.isInJail(tokenId);
+            jailed = core.getGameState(tokenId).isJailed;
             attemptCount++;
         }
         vm.stopPrank();
@@ -78,11 +75,11 @@ contract PlayerJourneyTest is BaseTest {
         uint256 repBeforeBail = reputation;
 
         vm.prank(player1);
-        core.payBail{value: BAIL_PRICE}(tokenId);
+        actions.payBail{value: BAIL_PRICE}(tokenId);
 
         (area, reputation, , , , ) = core.getDealerData(tokenId);
         assertEq(area, MANHATTAN, "Should be back in Manhattan after bail (returns to previous area)");
-        assertFalse(core.isInJail(tokenId), "Should not be in jail");
+        assertFalse(core.getGameState(tokenId).isJailed, "Should not be in jail");
         // Bail applies a 10% reputation penalty (min 50 preserved)
         if (repBeforeBail > 50) {
             assertLe(reputation, repBeforeBail, "Reputation should have penalty after bail");
@@ -115,14 +112,14 @@ contract PlayerJourneyTest is BaseTest {
 
         assertTrue(core.hasActiveBoost(tokenId), "Should have active boost");
 
-        DealersExeCore.BoostData memory boost = core.getBoost(tokenId);
+        IDealersExeCore.BoostData memory boost = core.getBoost(tokenId);
         assertEq(boost.drugMultiplier, 125, "Drug multiplier should be 125 (1.25x)");
         assertEq(boost.repMultiplier, 125, "Rep multiplier should be 125 (1.25x)");
         assertEq(boost.extraAttempts, 3, "Extra attempts should be 3");
 
         (, , uint8 attempts, , , ) = core.getDealerData(tokenId);
         if (attempts == 0) {
-            core.purchaseAttemptReset{value: 0.001 ether}(tokenId);
+            actions.purchaseAttemptReset{value: 0.001 ether}(tokenId);
         }
 
         vm.prevrandao(bytes32(uint256(12345)));
@@ -136,7 +133,8 @@ contract PlayerJourneyTest is BaseTest {
 
         vm.stopPrank();
 
-        assertEq(core.getMaxAttempts(tokenId), 8, "Max attempts should be 5 + 3 = 8");
+        uint8 maxAttempts = core.BASE_MAX_ATTEMPTS() + core.getBoost(tokenId).extraAttempts;
+        assertEq(maxAttempts, 8, "Max attempts should be 5 + 3 = 8");
     }
 
     function test_fullJourney_pvpBattle() public {
@@ -158,7 +156,7 @@ contract PlayerJourneyTest is BaseTest {
             uint256 snapshotId = vm.snapshotState();
 
             try pvp.attack(token1, token2) {
-                if (!core.isInJail(token1)) {
+                if (!core.getGameState(token1).isJailed) {
                     attackSucceeded = true;
                     break;
                 }
@@ -180,7 +178,7 @@ contract PlayerJourneyTest is BaseTest {
         (, , uint8 attempts, , , ) = core.getDealerData(token1);
         if (attempts == 0) {
             vm.prank(player1);
-            core.purchaseAttemptReset{value: 0.001 ether}(token1);
+            actions.purchaseAttemptReset{value: 0.001 ether}(token1);
         }
 
         vm.prank(player1);

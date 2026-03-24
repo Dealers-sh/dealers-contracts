@@ -77,6 +77,12 @@ interface IVerifyBoosts {
     function owner() external view returns (address);
 }
 
+interface IVerifyActions {
+    function paymentHandler() external view returns (address);
+    function randomness() external view returns (address);
+    function owner() external view returns (address);
+}
+
 contract VerifyConfig is DeployBase {
     uint256 public issues;
 
@@ -97,6 +103,7 @@ contract VerifyConfig is DeployBase {
         _verifyPVE();
         _verifyPVP();
         _verifyBoosts();
+        _verifyActions();
 
         _printSummary();
     }
@@ -125,6 +132,7 @@ contract VerifyConfig is DeployBase {
         _checkAuth("    PVP", c.authorizedContracts(pvp), pvp);
         _checkAuth("    Boosts", c.authorizedContracts(boosts), boosts);
         _checkAuth("    NFT", c.authorizedContracts(nft), nft);
+        if (actions != address(0)) _checkAuth("    Actions", c.authorizedContracts(actions), actions);
 
         console.log("  Owner:", c.owner());
         console.log("");
@@ -194,6 +202,7 @@ contract VerifyConfig is DeployBase {
         console.log("  Authorizations:");
         _checkAuth("    Core", ph.authorizedContracts(core), core);
         _checkAuth("    Boosts", ph.authorizedContracts(boosts), boosts);
+        if (actions != address(0)) _checkAuth("    Actions", ph.authorizedContracts(actions), actions);
 
         console.log("  Owner:", ph.owner());
         console.log("");
@@ -282,6 +291,26 @@ contract VerifyConfig is DeployBase {
         _checkRef("    paymentHandler", b.paymentHandler(), paymentHandler);
 
         console.log("  Owner:", b.owner());
+        console.log("");
+    }
+
+    function _verifyActions() internal view {
+        console.log("DEALERS_ACTIONS:", actions);
+        console.log("--------------------------------------------------------------------------------");
+
+        if (actions == address(0)) {
+            console.log("  [SKIP] Address not set in environment");
+            console.log("");
+            return;
+        }
+
+        IVerifyActions a = IVerifyActions(actions);
+
+        console.log("  References:");
+        _checkRef("    paymentHandler", a.paymentHandler(), paymentHandler);
+        _checkRef("    randomness", a.randomness(), randomness);
+
+        console.log("  Owner:", a.owner());
         console.log("");
     }
 

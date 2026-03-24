@@ -31,11 +31,12 @@ contract DeployCore is DeployBase {
         core = _zkCreate(vm.getCode("DealersExeCore.sol:DealersExeCore"));
         vm.stopBroadcast();
 
+        _saveAddresses();
+
         console.log("DealersExeCore deployed:", core);
         console.log("");
         console.log("Next steps:");
-        console.log("  1. Update DEALERS_CORE in .env");
-        console.log("  2. Run SetupWiring.s.sol");
-        console.log("  3. Run SetupTiers.s.sol");
+        console.log("  1. Run SetupWiring.s.sol");
+        console.log("  2. Run SetupTiers.s.sol");
     }
 }

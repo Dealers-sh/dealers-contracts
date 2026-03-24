@@ -262,6 +262,9 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
      * @dev Create the initial 3 drugs during construction
      */
     function _createInitialDrugs() private {
+        _createDrug("General Goods", DrugRarity.COMMON, 75);
+        _createDrug("Contraband", DrugRarity.UNCOMMON, 500);
+        _createDrug("Jewels", DrugRarity.RARE, 2500);
         _createDrug("Weed", DrugRarity.COMMON, 1);
         _createDrug("XTC", DrugRarity.UNCOMMON, 10);
         _createDrug("Cocaine", DrugRarity.RARE, 100);

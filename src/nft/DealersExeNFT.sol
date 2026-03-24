@@ -10,6 +10,7 @@ import {LibString} from "solady/src/utils/LibString.sol";
 import {Base64} from "solady/src/utils/Base64.sol";
 import {MerkleProofLib} from "solady/src/utils/MerkleProofLib.sol";
 import "../core/IDealersExeCore.sol";
+import "../utils/IAreaRegistry.sol";
 
 interface IDealerRendererSVG {
     function getSVG(uint256 tokenId) external view returns (string memory);
@@ -149,6 +150,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     function reserve(uint256 nftAmount)
         public
         onlyOwner
+        nonReentrant
         checkAndUpdateTotalMinted(nftAmount)
     {
         _mintDealer(msg.sender, nftAmount);
@@ -162,6 +164,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     function reserveTo(uint256 nftAmount, address recipient)
         public
         onlyOwner
+        nonReentrant
         checkAndUpdateTotalMinted(nftAmount)
     {
         _mintDealer(recipient, nftAmount);
@@ -175,6 +178,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     function reserveToMany(uint256 nftAmount, address[] memory recipients)
         public
         onlyOwner
+        nonReentrant
         checkAndUpdateTotalMinted(nftAmount * recipients.length)
     {
         uint256 len = recipients.length;
@@ -327,10 +331,11 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
             ? abi.encodePacked(staticTraits, ",", dynamicTraits)
             : abi.encodePacked(staticTraits, dynamicTraits);
 
-        // Build JSON via bytes => one final copy
+        string memory description = _buildDescription(tokenId);
+
         bytes memory json = abi.encodePacked(
             '{"name":"Dealer #', tokenId.toString(),
-            '","description":"Dealer #', tokenId.toString(), ' is a dynamic on-chain NFT with embedded gameplay, evolving stats, and permanently stored ASCII art. Click on your dealer to start playing Dealers.exe.",',
+            '","description":"', description, '",',
             '"attributes":[', attrs, '],',
             _getAnimationUrl(tokenId, svg),
             '"image":"data:image/svg+xml;base64,', Base64.encode(bytes(svg)), '"}'
@@ -380,14 +385,82 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
             bool isInitialized
         ) {
             if (!isInitialized) return "";
+
+            string memory rank = IDealersExeCore(core).getReputationTitle(reputation);
+            string memory areaName = _getAreaName(core, currentArea);
+            string memory heat = _heatStars(heatLevel);
+            uint256 infamy = IDealersExeCore(core).getInfamy(tokenId);
+
             return abi.encodePacked(
-                '{"trait_type":"Area","value":"', currentArea.toString(), '"},',
-                '{"trait_type":"Reputation","value":"', reputation.toString(), '"},',
-                '{"trait_type":"Heat Level","value":"', heatLevel.toString(), '"}'
+                '{"trait_type":"Rank","value":"', rank, '"},',
+                '{"trait_type":"Infamy","display_type":"number","value":', infamy.toString(), '},',
+                '{"trait_type":"Area","value":"', areaName, '"},',
+                '{"trait_type":"Heat","value":"', heat, '"}'
             );
         } catch {
             return "";
         }
+    }
+
+    function _buildDescription(uint256 tokenId) private view returns (string memory) {
+        address core = dealersExeCore;
+        if (core == address(0)) {
+            return string(abi.encodePacked(
+                "Dealer #", tokenId.toString(),
+                " is part of the Dealers.exe collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
+            ));
+        }
+
+        try IDealersExeCore(core).getDealerData(tokenId) returns (
+            uint8 /* currentArea */,
+            uint256 reputation,
+            uint8 /* dailyAttemptsRemaining */,
+            uint8 /* heatLevel */,
+            uint32 /* lastPlayTimestamp */,
+            bool isInitialized
+        ) {
+            if (!isInitialized) {
+                return string(abi.encodePacked(
+                    "Dealer #", tokenId.toString(),
+                    " is part of the Dealers.exe collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
+                ));
+            }
+
+            string memory rank = IDealersExeCore(core).getReputationTitle(reputation);
+            uint256 infamy = IDealersExeCore(core).getInfamy(tokenId);
+
+            return string(abi.encodePacked(
+                "Dealer #", tokenId.toString(),
+                " is a ", rank,
+                " (", reputation.toString(), " rep)",
+                " with an infamy score of ", infamy.toString(),
+                ". Part of the Dealers.exe collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
+            ));
+        } catch {
+            return string(abi.encodePacked(
+                "Dealer #", tokenId.toString(),
+                " is part of the Dealers.exe collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
+            ));
+        }
+    }
+
+    function _getAreaName(address core, uint8 areaId) private view returns (string memory) {
+        try IAreaRegistry(address(IDealersExeCore(core).areaRegistry())).getAreaInfo(areaId) returns (
+            IAreaRegistry.AreaInfo memory info
+        ) {
+            return info.name;
+        } catch {
+            return areaId.toString();
+        }
+    }
+
+    function _heatStars(uint8 level) private pure returns (string memory) {
+        if (level == 0) return "None";
+        if (level == 1) return "\\u2605";
+        if (level == 2) return "\\u2605\\u2605";
+        if (level == 3) return "\\u2605\\u2605\\u2605";
+        if (level == 4) return "\\u2605\\u2605\\u2605\\u2605";
+        return "\\u2605\\u2605\\u2605\\u2605\\u2605";
     }
 
     function _getAnimationUrl(uint256 tokenId, string memory svg) private view returns (bytes memory) {
@@ -522,7 +595,7 @@ contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      * @param to Recipient address (address(0) defaults to owner)
      * @param amount Amount of ETH to withdraw in wei (0 withdraws all)
      */
-    function withdraw(address to, uint256 amount) external onlyOwner {
+    function withdraw(address to, uint256 amount) external onlyOwner nonReentrant {
         address recipient = to == address(0) ? owner() : to;
         uint256 withdrawAmount = amount == 0 ? address(this).balance : amount;
 

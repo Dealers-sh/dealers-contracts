@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {Ownable} from "solady/src/auth/Ownable.sol";
 import {IDealersExeCore} from "./IDealersExeCore.sol";
 import {IDealersExePVE} from "./IDealersExePVE.sol";
 import {IDealersExePVP} from "./IDealersExePVP.sol";
 import {IAreaRegistry} from "../utils/IAreaRegistry.sol";
 import {IDrugRegistry} from "../utils/IDrugRegistry.sol";
 
-contract DealersExeMulticall {
+contract DealersExeMulticall is Ownable {
     error ZeroAddress(string param);
     error DealerNotInitialized(uint256 tokenId);
+    error InvalidAddress();
 
     struct DrugBalance {
         uint256 drugId;
@@ -51,6 +53,7 @@ contract DealersExeMulticall {
         bool canBreakoutToday;
         uint8 attacksReceivedToday;
         uint8 maxAttacksPerDay;
+        uint256 infamy;
     }
 
     struct AreaDrug {
@@ -75,11 +78,11 @@ contract DealersExeMulticall {
         AreaDrug[] drugs;
     }
 
-    IDealersExeCore public immutable core;
-    IDealersExePVE public immutable pve;
-    IDealersExePVP public immutable pvp;
-    IAreaRegistry public immutable areaRegistry;
-    IDrugRegistry public immutable drugRegistry;
+    IDealersExeCore public core;
+    IDealersExePVE public pve;
+    IDealersExePVP public pvp;
+    IAreaRegistry public areaRegistry;
+    IDrugRegistry public drugRegistry;
 
     constructor(
         address _core,
@@ -94,6 +97,8 @@ contract DealersExeMulticall {
         if (_areaRegistry == address(0)) revert ZeroAddress("areaRegistry");
         if (_drugRegistry == address(0)) revert ZeroAddress("drugRegistry");
 
+        _initializeOwner(msg.sender);
+
         core = IDealersExeCore(_core);
         pve = IDealersExePVE(_pve);
         pvp = IDealersExePVP(_pvp);
@@ -101,57 +106,74 @@ contract DealersExeMulticall {
         drugRegistry = IDrugRegistry(_drugRegistry);
     }
 
+    function setCore(address _core) external onlyOwner {
+        if (_core == address(0)) revert InvalidAddress();
+        core = IDealersExeCore(_core);
+    }
+
+    function setPVE(address _pve) external onlyOwner {
+        if (_pve == address(0)) revert InvalidAddress();
+        pve = IDealersExePVE(_pve);
+    }
+
+    function setPVP(address _pvp) external onlyOwner {
+        if (_pvp == address(0)) revert InvalidAddress();
+        pvp = IDealersExePVP(_pvp);
+    }
+
+    function setAreaRegistry(address _areaRegistry) external onlyOwner {
+        if (_areaRegistry == address(0)) revert InvalidAddress();
+        areaRegistry = IAreaRegistry(_areaRegistry);
+    }
+
+    function setDrugRegistry(address _drugRegistry) external onlyOwner {
+        if (_drugRegistry == address(0)) revert InvalidAddress();
+        drugRegistry = IDrugRegistry(_drugRegistry);
+    }
+
     function getFullDealerState(uint256 tokenId) external view returns (FullDealerState memory state) {
-        (
-            uint8 currentArea,
-            uint256 reputation,
-            uint8 dailyAttemptsRemaining,
-            uint8 heatLevel,
-            ,
-            bool isInitialized
-        ) = core.getDealerData(tokenId);
+        IDealersExeCore.GameState memory gs = core.getGameState(tokenId);
 
-        if (!isInitialized) revert DealerNotInitialized(tokenId);
+        if (!gs.isInitialized) revert DealerNotInitialized(tokenId);
 
-        state.stashBonusRep = core.getStashBonus(tokenId);
-        state.reputation = reputation + state.stashBonusRep;
-        state.currentArea = currentArea;
-        state.heatLevel = heatLevel;
-        state.dailyAttemptsRemaining = dailyAttemptsRemaining;
-        state.maxAttempts = core.getMaxAttempts(tokenId);
+        state.reputation = gs.totalReputation;
+        state.stashBonusRep = gs.totalReputation - gs.reputation;
+        state.currentArea = gs.currentArea;
+        state.heatLevel = core.getEffectiveHeat(tokenId);
+        state.dailyAttemptsRemaining = gs.dailyAttemptsRemaining;
+        state.maxAttempts = core.BASE_MAX_ATTEMPTS() + (gs.boostActive ? gs.extraAttempts : 0);
         state.isInitialized = true;
-        state.isJailed = core.isInJail(tokenId);
-        state.isInSafeHouse = core.isInSafeHouse(tokenId);
-        state.jailChance = core.getJailChance(tokenId);
-        state.reputationTitle = core.getReputationTitle(state.reputation);
+        state.isJailed = gs.isJailed;
+        state.isInSafeHouse = gs.isInSafeHouse;
+        state.jailChance = gs.jailChance;
+        state.reputationTitle = core.getReputationTitle(gs.totalReputation);
 
-        (uint8 threat, uint8 armor) = core.getDealerStats(tokenId);
-        state.threat = threat;
-        state.armor = armor;
+        state.threat = gs.threat;
+        state.armor = gs.armor;
 
-        state.cashBalance = core.getCashBalance(tokenId);
+        state.cashBalance = gs.cashBalance;
 
         uint256[] memory drugIds = drugRegistry.getAllDrugIds();
+        uint256[] memory balances = core.getAreaDrugBalances(tokenId, drugIds);
         state.drugBalances = new DrugBalance[](drugIds.length);
         for (uint256 i = 0; i < drugIds.length;) {
             IDrugRegistry.DrugInfo memory info = drugRegistry.getDrugInfo(drugIds[i]);
             state.drugBalances[i] = DrugBalance({
                 drugId: drugIds[i],
                 name: info.name,
-                balance: core.getDrugBalance(tokenId, drugIds[i]),
+                balance: balances[i],
                 rarity: info.rarity
             });
             unchecked { ++i; }
         }
 
-        state.boostActive = core.hasActiveBoost(tokenId);
-        if (state.boostActive) {
-            IDealersExeCore.BoostData memory boost = core.getBoost(tokenId);
-            state.boostExpiry = boost.expiresAt;
-            state.drugMultiplier = boost.drugMultiplier;
-            state.cashMultiplier = boost.cashMultiplier;
-            state.repMultiplier = boost.repMultiplier;
-            state.freeAreaMovement = boost.freeAreaMovement;
+        state.boostActive = gs.boostActive;
+        if (gs.boostActive) {
+            state.boostExpiry = gs.boostExpiresAt;
+            state.drugMultiplier = gs.drugMultiplier;
+            state.cashMultiplier = gs.cashMultiplier;
+            state.repMultiplier = gs.repMultiplier;
+            state.freeAreaMovement = gs.freeAreaMovement;
         }
 
         IDealersExePVE.PveStats memory pveStats = pve.getDealerPveStats(tokenId);
@@ -165,17 +187,18 @@ contract DealersExeMulticall {
         state.pvpDefendWins = pvpStats.defendWins;
         state.pvpDefendLosses = pvpStats.defendLosses;
 
-        (,, uint32 lastBreakout,,,,,) = core.dealers(tokenId);
-        state.lastBreakoutAttempt = lastBreakout;
+        state.lastBreakoutAttempt = gs.lastBreakoutAttempt;
         uint256 dayStart = (block.timestamp / 1 days) * 1 days;
-        state.canBreakoutToday = lastBreakout == 0 || lastBreakout < uint32(dayStart);
+        state.canBreakoutToday = gs.lastBreakoutAttempt == 0 || gs.lastBreakoutAttempt < uint32(dayStart);
+
+        state.infamy = core.getInfamy(tokenId);
 
         uint256 currentDay = block.timestamp / 1 days;
         (,,,,uint8 maxAttacksPerDay,,,,,,,) = pvp.config();
         state.maxAttacksPerDay = maxAttacksPerDay;
         if (pvp.lastAttackDay(tokenId) == currentDay) {
             uint256 received = pvp.attacksReceivedToday(tokenId);
-            state.attacksReceivedToday = uint8(received);
+            state.attacksReceivedToday = received > type(uint8).max ? type(uint8).max : uint8(received);
         }
     }
 
@@ -185,14 +208,15 @@ contract DealersExeMulticall {
 
     function getAllAreas() external view returns (AreaEconomy[] memory economies) {
         uint8 totalAreas = areaRegistry.getTotalAreas();
-        economies = new AreaEconomy[](totalAreas + 2);
+        economies = new AreaEconomy[](totalAreas + 3);
 
         economies[0] = _buildAreaEconomy(0);
         for (uint8 i = 0; i < totalAreas;) {
             economies[i + 1] = _buildAreaEconomy(i + 1);
             unchecked { ++i; }
         }
-        economies[totalAreas + 1] = _buildAreaEconomy(255);
+        economies[totalAreas + 1] = _buildAreaEconomy(areaRegistry.BLACK_MARKET_AREA());
+        economies[totalAreas + 2] = _buildAreaEconomy(255);
     }
 
     function _buildAreaEconomy(uint8 areaId) internal view returns (AreaEconomy memory economy) {
