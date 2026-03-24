@@ -35,7 +35,9 @@ interface IDealersExeCore {
     function paymentHandler() external view returns (address);
     function randomness() external view returns (address);
     function authorizedContracts(address) external view returns (bool);
-    function getTierCount() external view returns (uint256);
+    function reputationTiers(uint256 index) external view returns (
+        uint256 minReputation, int16 winBonus, int16 tieBonus, int16 lossPenalty, int16 repCap, string memory tierName
+    );
 }
 
 interface IDealersExeNFT {
@@ -201,6 +203,8 @@ abstract contract DeployBase is Script {
     }
 
     function _saveAddresses() internal {
+        _mergeExistingAddresses();
+
         string memory obj = "deploy";
         vm.serializeAddress(obj, "drugRegistry", drugRegistry);
         vm.serializeAddress(obj, "areaRegistry", areaRegistry);
@@ -220,6 +224,34 @@ abstract contract DeployBase is Script {
         string memory path = _getDeploymentPath();
         vm.writeJson(json, path);
         console.log("Addresses saved to:", path);
+    }
+
+    function _mergeExistingAddresses() internal {
+        string memory path = _getDeploymentPath();
+        try vm.readFile(path) returns (string memory json) {
+            if (drugRegistry == address(0)) drugRegistry = _jsonAddr(json, ".drugRegistry");
+            if (areaRegistry == address(0)) areaRegistry = _jsonAddr(json, ".areaRegistry");
+            if (core == address(0)) core = _jsonAddr(json, ".core");
+            if (paymentHandler == address(0)) paymentHandler = _jsonAddr(json, ".paymentHandler");
+            if (randomness == address(0)) randomness = _jsonAddr(json, ".randomness");
+            if (nft == address(0)) nft = _jsonAddr(json, ".nft");
+            if (boosts == address(0)) boosts = _jsonAddr(json, ".boosts");
+            if (pve == address(0)) pve = _jsonAddr(json, ".pve");
+            if (pvp == address(0)) pvp = _jsonAddr(json, ".pvp");
+            if (claims == address(0)) claims = _jsonAddr(json, ".claims");
+            if (actions == address(0)) actions = _jsonAddr(json, ".actions");
+            if (rendererSvg == address(0)) rendererSvg = _jsonAddr(json, ".rendererSvg");
+            if (rendererHtml == address(0)) rendererHtml = _jsonAddr(json, ".rendererHtml");
+            if (multicall == address(0)) multicall = _jsonAddr(json, ".multicall");
+        } catch {}
+    }
+
+    function _jsonAddr(string memory json, string memory key) internal returns (address) {
+        try vm.parseJsonAddress(json, key) returns (address val) {
+            return val;
+        } catch {
+            return address(0);
+        }
     }
 
     // =========================================================================

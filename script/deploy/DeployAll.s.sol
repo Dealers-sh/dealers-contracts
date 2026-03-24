@@ -278,10 +278,10 @@ contract DeployAll is DeployBase {
 
     function _setupTiers() internal {
         IDealersExeCore c = IDealersExeCore(core);
-        if (c.getTierCount() > 0) {
+        try c.reputationTiers(0) returns (uint256, int16, int16, int16, int16, string memory) {
             console.log("Reputation tiers: already configured");
             return;
-        }
+        } catch {}
 
         console.log("Setting up 10-tier reputation system...");
 

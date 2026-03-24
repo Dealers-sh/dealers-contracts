@@ -20,7 +20,6 @@ contract SetupTiers is DeployBase {
         IDealersExeCore coreContract = IDealersExeCore(core);
 
         console.log("Core address:", core);
-        console.log("Current tier count:", coreContract.getTierCount());
 
         vm.startBroadcast();
 
