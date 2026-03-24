@@ -40,12 +40,11 @@ interface IBoostsPricing {
     function setTierPrice(uint256 tierId, uint256 newPrice) external;
     function boostTiers(uint256 tierId) external view returns (
         uint256 price,
-        uint256 duration,
+        uint64 duration,
         uint8 drugMultiplier,
         uint8 repMultiplier,
         uint8 extraAttempts,
         bool freeAreaMovement,
-        bool doubleHeistEntries,
         uint8 cashMultiplier,
         bool isActive
     );
@@ -140,7 +139,7 @@ contract SetupTestnetPricing is DeployBase {
         IBoostsPricing b = IBoostsPricing(boosts);
 
         for (uint256 tierId = 1; tierId <= 4; tierId++) {
-            (uint256 price, , , , , , , , bool isActive) = b.boostTiers(tierId);
+            (uint256 price, , , , , , , bool isActive) = b.boostTiers(tierId);
             if (!isActive) continue;
 
             uint256 newPrice = price / DIVISOR;
