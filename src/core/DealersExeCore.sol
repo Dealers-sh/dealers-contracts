@@ -52,6 +52,7 @@ contract DealersExeCore is IDealersExeCore, Ownable, ReentrancyGuard {
     // Infamy / heat decay constants
     uint256 public constant DECAY_GRACE_PERIOD = 7 days;
     uint256 public constant DECAY_RATE_PER_DAY = 1;
+    uint256 public constant INFAMY_DECAY_MULTIPLIER = 2;
 
     // =============================================================
     //                            STRUCTS
@@ -342,6 +343,7 @@ contract DealersExeCore is IDealersExeCore, Ownable, ReentrancyGuard {
         state.threat = dealerThreatStat[tokenId];
         state.armor = dealerArmorStat[tokenId];
         state.lastBreakoutAttempt = d.lastBreakoutAttempt;
+        state.infamy = _calcEffectiveInfamy(tokenId);
 
         if (d.isInitialized) {
             if (address(drugRegistry) != address(0)) {
@@ -1145,7 +1147,7 @@ contract DealersExeCore is IDealersExeCore, Ownable, ReentrancyGuard {
     function _calcEffectiveInfamy(uint256 tokenId) private view returns (uint256) {
         uint256 stored = dealerInfamy[tokenId];
         if (stored == 0) return 0;
-        uint256 decay = _pendingDecay(tokenId);
+        uint256 decay = _pendingDecay(tokenId) * INFAMY_DECAY_MULTIPLIER;
         return decay >= stored ? 0 : stored - decay;
     }
 

@@ -47,7 +47,7 @@ Contract addresses are managed via `script/data/deployments/testnet.json` — do
 
 ```bash
 forge build                                              # EVM (renderers)
-forge build --zksync --skip "DealerRenderer" --skip "DeployRenderers"  # zkSync (game)
+forge build --zksync --skip "RendererSVG"  # zkSync (game)
 ```
 
 ---
@@ -64,7 +64,7 @@ source .env && forge script script/deploy/DeployAll.s.sol:DeployAll \
   --account dealersKeystore \
   --broadcast \
   --zksync \
-  --skip "DealerRenderer" --skip "DeployRenderers"
+  --skip "RendererSVG"
 ```
 
 Contracts deployed: DEDrugRegistry, DEAreaRegistry, DealersExeCore, DEPaymentHandler, DERandomness, DealersExeNFT, DealersExeBoosts, DealersExePVE, DealersExePVP, DealersExeClaims, DealersExeActions, DealersExeMulticall.
@@ -175,7 +175,7 @@ source .env && forge script script/setup/SetupClaims.s.sol:SetupClaims \
   --account dealersKeystore \
   --broadcast \
   --zksync \
-  --skip "DealerRenderer" --skip "DeployRenderers"
+  --skip "RendererSVG"
 ```
 
 ---
@@ -190,7 +190,7 @@ source .env && forge script script/setup/SetupTestnetPricing.s.sol:SetupTestnetP
   --account dealersKeystore \
   --broadcast \
   --zksync \
-  --skip "DealerRenderer" --skip "DeployRenderers"
+  --skip "RendererSVG"
 ```
 
 ---
@@ -244,7 +244,7 @@ Read-only — confirms all cross-contract references and authorizations.
 ```bash
 forge script script/verify/VerifyConfig.s.sol:VerifyConfig \
   --rpc-url https://api.testnet.abs.xyz \
-  --skip "DealerRenderer" --skip "DeployRenderers"
+  --skip "RendererSVG"
 ```
 
 Reports `[OK]`, `[MISMATCH]`, or `[NEEDS CONFIG]` for every slot.
@@ -289,7 +289,7 @@ source .env && forge script script/deploy/Deploy<Contract>.s.sol:<Contract> \
   --account dealersKeystore \
   --broadcast \
   --zksync \
-  --skip "DealerRenderer" --skip "DeployRenderers"
+  --skip "RendererSVG"
 
 # 2. Re-wire (idempotent — only updates stale references)
 source .env && forge script script/setup/SetupWiring.s.sol:SetupWiring \
@@ -297,7 +297,7 @@ source .env && forge script script/setup/SetupWiring.s.sol:SetupWiring \
   --account dealersKeystore \
   --broadcast \
   --zksync \
-  --skip "DealerRenderer" --skip "DeployRenderers"
+  --skip "RendererSVG"
 ```
 
 ### Redeploying Core
@@ -313,7 +313,7 @@ source .env && forge script script/setup/SetupTiers.s.sol:SetupTiers \
   --account dealersKeystore \
   --broadcast \
   --zksync \
-  --skip "DealerRenderer" --skip "DeployRenderers"
+  --skip "RendererSVG"
 ```
 
 ---
@@ -323,6 +323,6 @@ source .env && forge script script/setup/SetupTiers.s.sol:SetupTiers \
 - **Address persistence**: all deploy scripts save to `script/data/deployments/testnet.json`. Scripts load from JSON first, falling back to `.env`.
 - **Idempotent**: DeployAll skips contracts with existing addresses. SetupWiring checks state before calling setters. Safe to re-run.
 - **Two build modes**: game contracts require `--zksync`, renderers must NOT use `--zksync` (SSTORE2/EXTCODECOPY).
-- **`--skip` flags**: always pass `--skip "DealerRenderer" --skip "DeployRenderers"` with `--zksync` to prevent compilation errors.
+- **`--skip` flags**: always pass `--skip "RendererSVG"` with `--zksync` to prevent compilation errors.
 - **FileStore**: `0xFe1411d6864592549AdE050215482e4385dFa0FB` — same on mainnet and testnet. Gzipped JS (`src1.min.js.gz`) already uploaded.
 - **Fresh deploy**: delete `script/data/deployments/testnet.json` before running DeployAll.

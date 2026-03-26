@@ -37,6 +37,7 @@ interface IDealersExePVP {
         uint256 winChance;
         uint256 lossChance;
         bool canAttackNow;
+        uint256 infamy;
     }
 
     // =============================================================

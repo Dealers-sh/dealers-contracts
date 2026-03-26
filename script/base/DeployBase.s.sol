@@ -35,6 +35,9 @@ interface IDealersExeCore {
     function paymentHandler() external view returns (address);
     function randomness() external view returns (address);
     function authorizedContracts(address) external view returns (bool);
+    function initializeDealer(uint256 tokenId) external;
+    function updateReputation(uint256 tokenId, int256 change) external;
+    function updateInfamy(uint256 tokenId, int256 delta) external;
     function reputationTiers(uint256 index) external view returns (
         uint256 minReputation, int16 winBonus, int16 tieBonus, int16 lossPenalty, int16 repCap, string memory tierName
     );

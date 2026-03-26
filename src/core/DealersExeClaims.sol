@@ -309,6 +309,13 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
         }
     }
 
+    function batchResetClaimed(uint256 achievementId, uint256[] calldata tokenIds) external onlyOwner {
+        for (uint256 i; i < tokenIds.length;) {
+            achievementClaimed[achievementId][tokenIds[i]] = false;
+            unchecked { ++i; }
+        }
+    }
+
     function removeAchievement(uint256 achievementId) external onlyOwner {
         delete achievements[achievementId];
         emit AchievementRemoved(achievementId);

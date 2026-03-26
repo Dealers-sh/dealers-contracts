@@ -8,7 +8,7 @@ import "../base/DeployBase.s.sol";
  * @dev Usage:
  *   source .env && forge script script/SetupTiers.s.sol:SetupTiers \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *     --skip "RendererSVG"
  *
  *   Requires DEALERS_CORE env var.
  */

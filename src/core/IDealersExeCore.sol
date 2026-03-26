@@ -69,6 +69,7 @@ interface IDealersExeCore {
         uint8 threat;
         uint8 armor;
         uint32 lastBreakoutAttempt;
+        uint256 infamy;
     }
 
     struct GameOutcome {

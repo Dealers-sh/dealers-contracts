@@ -905,12 +905,20 @@ contract DealersExePVPTest is BaseTest {
     }
 
     // =============================================================
-    //                     LOOT DROPS (4 tests)
+    //                     LOOT DROPS (5 tests)
     // =============================================================
 
-    function test_lootDrop_noDrop_when_rollBelow30() public {
+    function _setInfamy(uint256 tokenId, uint256 amount) internal {
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
+        core.updateInfamy(tokenId, int256(amount));
+        vm.prank(owner);
+        core.authorizeContract(address(this), false);
+    }
+
+    function test_lootDrop_noDrop_zeroInfamy() public {
         _setupDealersForPVP();
-        _mockRandomValues(50, 0, 10, 29); // roll=29, below 30 = no drop
+        _mockRandomValues(50, 0, 10, 39); // infamy 0: weights [40,60,0,0], roll 39 < 40 = no drop
 
         uint256 goodsBefore = core.getDrugBalance(attackerToken, 1);
 
@@ -918,12 +926,12 @@ contract DealersExePVPTest is BaseTest {
         _setDealerStats(defenderToken, 0, 0);
         _executeAttack();
 
-        assertEq(core.getDrugBalance(attackerToken, 1), goodsBefore, "No loot drop when roll < 30");
+        assertEq(core.getDrugBalance(attackerToken, 1), goodsBefore, "No drop when roll < 40 at infamy 0");
     }
 
-    function test_lootDrop_generalGoods_when_roll30to69() public {
+    function test_lootDrop_generalGoods_zeroInfamy() public {
         _setupDealersForPVP();
-        _mockRandomValues(50, 0, 10, 50); // roll=50, 30-69 = General Goods (ID=1)
+        _mockRandomValues(50, 0, 10, 50); // infamy 0: weights [40,60,0,0], roll 50 -> General Goods
 
         uint256 goodsBefore = core.getDrugBalance(attackerToken, 1);
 
@@ -931,12 +939,14 @@ contract DealersExePVPTest is BaseTest {
         _setDealerStats(defenderToken, 0, 0);
         _executeAttack();
 
-        assertEq(core.getDrugBalance(attackerToken, 1), goodsBefore + 1, "Should receive 1 General Goods on roll 50");
+        assertEq(core.getDrugBalance(attackerToken, 1), goodsBefore + 1, "General Goods at infamy 0");
     }
 
-    function test_lootDrop_contraband_when_roll70to89() public {
+    function test_lootDrop_contraband_withInfamy20() public {
         _setupDealersForPVP();
-        _mockRandomValues(50, 0, 10, 80); // roll=80, 70-89 = Contraband (ID=2)
+        _setInfamy(attackerToken, 20);
+        // infamy 20: weights [30,45,20,5], cumulative: 30,75,95,100
+        _mockRandomValues(50, 0, 10, 80); // roll 80 >= 75 and < 95 = Contraband
 
         uint256 contrabandBefore = core.getDrugBalance(attackerToken, 2);
 
@@ -944,12 +954,14 @@ contract DealersExePVPTest is BaseTest {
         _setDealerStats(defenderToken, 0, 0);
         _executeAttack();
 
-        assertEq(core.getDrugBalance(attackerToken, 2), contrabandBefore + 1, "Should receive 1 Contraband on roll 80");
+        assertEq(core.getDrugBalance(attackerToken, 2), contrabandBefore + 1, "Contraband at infamy 20");
     }
 
-    function test_lootDrop_jewels_when_roll90to99() public {
+    function test_lootDrop_jewels_withInfamy50() public {
         _setupDealersForPVP();
-        _mockRandomValues(50, 0, 10, 95); // roll=95, 90-99 = Jewels (ID=3)
+        _setInfamy(attackerToken, 50);
+        // infamy 50: weights [15,30,35,20], cumulative: 15,45,80,100
+        _mockRandomValues(50, 0, 10, 95); // roll 95 >= 80 and < 100 = Jewels
 
         uint256 jewelsBefore = core.getDrugBalance(attackerToken, 3);
 
@@ -957,7 +969,7 @@ contract DealersExePVPTest is BaseTest {
         _setDealerStats(defenderToken, 0, 0);
         _executeAttack();
 
-        assertEq(core.getDrugBalance(attackerToken, 3), jewelsBefore + 1, "Should receive 1 Jewels on roll 95");
+        assertEq(core.getDrugBalance(attackerToken, 3), jewelsBefore + 1, "Jewels at infamy 50");
     }
 
     function test_lootDrop_noDrop_onLoss() public {

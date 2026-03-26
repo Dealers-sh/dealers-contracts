@@ -10,27 +10,32 @@ Abstract uses zkSync VM natively, but also supports EVM bytecode via interpreter
 
 ```bash
 # Native zkSync build (game contracts) - skip renderer contracts and their deployment script
-forge build --zksync --skip "DealerRenderer" --skip "DeployRenderers"
+forge build --zksync --skip "RendererSVG"
 
 # Standard EVM build (renderer contracts use SSTORE2/FileStore with EXTCODECOPY)
 forge build
 
 # Tests
-forge test --zksync --skip "DealerRenderer" --skip "DeployRenderers"
+forge test --zksync --skip "RendererSVG"
 ```
 
 ### Two-Path Deployment Strategy
 
-**Renderer contracts** (DealerRendererSVG, DealerRendererHTML) use `EXTCODECOPY` via SSTORE2/FileStore, which is not supported natively on zkSync VM. These deploy as EVM bytecode via Abstract's EVM interpreter (150-400% higher gas, but functionally equivalent).
+**DealerRendererSVG** uses `EXTCODECOPY` via SSTORE2/FileStore — deploys as EVM bytecode (no `--zksync`).
 
-**Game contracts** (Core, NFT, PVE, PVP, Boosts, etc.) deploy as native zkSync bytecode for optimal gas efficiency.
+**DealerRendererHTML** no longer uses EXTCODECOPY (browser fetches from FileStore at runtime) — deploys as native zkSync bytecode.
+
+**Game contracts** (Core, NFT, PVE, PVP, Boosts, etc.) deploy as native zkSync bytecode.
 
 ```bash
-# Deploy renderers (EVM interpreter mode - no --zksync flag)
-forge script script/DeployRenderers.s.sol --rpc-url https://api.testnet.abs.xyz --broadcast
+# Deploy SVG renderer (EVM mode - no --zksync flag)
+forge script script/deploy/DeployRendererSVG.s.sol:DeployRendererSVG \
+  --rpc-url https://api.testnet.abs.xyz --account dealersKeystore --broadcast
 
-# Deploy game contracts (native zkSync mode)
-forge script script/DeployGame.s.sol --zksync --rpc-url https://api.testnet.abs.xyz --broadcast
+# Deploy HTML renderer (zkSync native - includes configuration)
+forge script script/deploy/DeployHtmlRenderer.s.sol:DeployHtmlRenderer \
+  --zksync --skip "RendererSVG" \
+  --rpc-url https://api.testnet.abs.xyz --account dealersKeystore --broadcast
 ```
 
 ### Chain Configuration

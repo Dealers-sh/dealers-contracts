@@ -2,51 +2,49 @@
 pragma solidity ^0.8.28;
 
 import {IDealerRendererHTML} from "./IDealerRendererHTML.sol";
-import {IFileStore} from "./IFileStore.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
-import {Base64} from "solady/src/utils/Base64.sol";
 import {LibString} from "solady/src/utils/LibString.sol";
 
 /**
- * @title DealerRendererHTML - On-Chain HTML Generator
+ * @title DealerRendererHTML - Lightweight Loader HTML Generator
  *
  * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
- * @dev Generates interactive HTML wrapper for dealer NFT SVGs using on-chain FileStore
+ * @dev Generates a lightweight HTML loader (~2-3KB) that fetches SVG and app JS
+ *      from chain at runtime via browser-side eth_call RPC requests.
+ *
+ *      Instead of assembling the full HTML on-chain (which exceeds gas limits
+ *      with large app JS bundles), the contract returns a small self-contained
+ *      HTML page with embedded JavaScript that:
+ *        1. Calls getSVG(tokenId) on the SVG renderer via eth_call
+ *        2. Calls getFile(filename) on FileStore to get SSTORE2 slice pointers
+ *        3. Reads bytecode from each pointer via eth_getCode
+ *        4. Reassembles and decompresses the gzipped app JS
+ *        5. Injects the SVG and executes the app JS in the browser
+ *
  * @author Dealers.Exe Team
  */
 contract DealerRendererHTML is IDealerRendererHTML, Ownable {
     using LibString for uint256;
-
-    // =============================================================
-    //                            ERRORS
-    // =============================================================
+    using LibString for address;
 
     error InvalidAddress();
-    error EmptyFilename();
-
-    // =============================================================
-    //                            EVENTS
-    // =============================================================
+    error EmptyString();
 
     event FileStoreUpdated(address indexed oldStore, address indexed newStore);
     event GzipFilenameUpdated(string oldFilename, string newFilename);
+    event RpcUrlUpdated(string oldUrl, string newUrl);
+    event SvgRendererUpdated(address indexed oldRenderer, address indexed newRenderer);
 
-    // =============================================================
-    //                            STORAGE
-    // =============================================================
-
-    string public dealerGzipFilename = "src1.min.js.gz";
-    IFileStore public fileStore;
-
-    // =============================================================
-    //                            CONSTRUCTOR
-    // =============================================================
+    string public dealerGzipFilename = "src0.min.js.gz";
+    address public fileStore;
+    string public rpcUrl;
+    address public svgRendererAddress;
 
     constructor(address _fileStore) {
         if (_fileStore == address(0)) revert InvalidAddress();
-        fileStore = IFileStore(_fileStore);
+        fileStore = _fileStore;
         _initializeOwner(msg.sender);
     }
 
@@ -54,60 +52,57 @@ contract DealerRendererHTML is IDealerRendererHTML, Ownable {
     //                        ADMIN FUNCTIONS
     // =============================================================
 
-    /**
-     * @notice Set the FileStore contract address
-     * @param fileStoreAddress The new FileStore address
-     */
-    function setFileStore(address fileStoreAddress) external onlyOwner {
-        if (fileStoreAddress == address(0)) revert InvalidAddress();
-        address oldStore = address(fileStore);
-        fileStore = IFileStore(fileStoreAddress);
-        emit FileStoreUpdated(oldStore, fileStoreAddress);
+    function setFileStore(address _fileStore) external onlyOwner {
+        if (_fileStore == address(0)) revert InvalidAddress();
+        address oldStore = fileStore;
+        fileStore = _fileStore;
+        emit FileStoreUpdated(oldStore, _fileStore);
     }
 
-    /**
-     * @notice Set the gzipped dealer UI script filename in FileStore
-     * @param _dealerGzipFilename The filename of the gzipped JS in FileStore
-     */
     function setDealerGzipFilename(string memory _dealerGzipFilename) external onlyOwner {
-        if (bytes(_dealerGzipFilename).length == 0) revert EmptyFilename();
+        if (bytes(_dealerGzipFilename).length == 0) revert EmptyString();
         string memory oldFilename = dealerGzipFilename;
         dealerGzipFilename = _dealerGzipFilename;
         emit GzipFilenameUpdated(oldFilename, _dealerGzipFilename);
+    }
+
+    function setRpcUrl(string memory _rpcUrl) external onlyOwner {
+        if (bytes(_rpcUrl).length == 0) revert EmptyString();
+        string memory oldUrl = rpcUrl;
+        rpcUrl = _rpcUrl;
+        emit RpcUrlUpdated(oldUrl, _rpcUrl);
+    }
+
+    function setSvgRendererAddress(address _svgRendererAddress) external onlyOwner {
+        if (_svgRendererAddress == address(0)) revert InvalidAddress();
+        address oldRenderer = svgRendererAddress;
+        svgRendererAddress = _svgRendererAddress;
+        emit SvgRendererUpdated(oldRenderer, _svgRendererAddress);
     }
 
     // =============================================================
     //                        VIEW FUNCTIONS
     // =============================================================
 
-    /**
-     * @notice Get the gzipped dealer UI script tag
-     * @return Script tag with base64-encoded gzipped JavaScript
-     */
-    function getScriptJs() public view returns (string memory) {
-        return string.concat(
-            "<script type=\"text/javascript+gzip\" src=\"data:text/javascript;base64,",
-            fileStore.getFile(dealerGzipFilename).read(),
-            "\"></script>"
-        );
-    }
+    function getHTML(uint256 tokenId, string memory) external view override returns (string memory) {
+        string memory id = tokenId.toString();
 
-    /**
-     * @notice Generate complete HTML document wrapping the dealer SVG
-     * @param tokenId The token ID for dynamic title/meta tags
-     * @param svg The SVG content to embed in the HTML
-     * @return Complete HTML document as a string
-     */
-    function getHTML(uint256 tokenId, string memory svg) external view override returns (string memory) {
-        string memory svgBase64 = Base64.encode(bytes(svg));
         return string(abi.encodePacked(
-            '<!DOCTYPE html><html lang="en"><head>',
-            _buildHead(tokenId, svgBase64),
-            getScriptJs(),
-            _decompressScript(),
-            '</head><body>',
-            svg,
-            '</body></html>'
+            '<!DOCTYPE html><html><head>'
+            '<meta charset="UTF-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>Dealer #', id, '</title>'
+            '<meta name="theme-color" content="#000000">'
+            '<style>*{margin:0;padding:0}html,body{height:100%;overflow:hidden}body{background:#000;color:#fff;font-family:monospace;'
+            'display:flex;align-items:center;justify-content:center}'
+            'body>svg{width:100%;height:100%;object-fit:contain}'
+            '#w{width:min(80vw,80vh);aspect-ratio:1;display:flex;align-items:flex-start;padding:12px 6px;box-sizing:border-box}'
+            '#l{font-size:13px;line-height:1.8}'
+            '#l .c{opacity:.4}#l .ok{color:#0f0}#l .err{color:#f44}'
+            '#l .cursor{animation:b .7s step-end infinite}@keyframes b{0%,100%{opacity:1}50%{opacity:0}}</style>'
+            '</head><body><div id="w"><div id="l"></div></div><script>',
+            _loaderScript(tokenId),
+            '</script></body></html>'
         ));
     }
 
@@ -115,59 +110,137 @@ contract DealerRendererHTML is IDealerRendererHTML, Ownable {
     //                      INTERNAL HELPERS
     // =============================================================
 
-    function _decompressScript() private pure returns (string memory) {
-        return '<script>'
-            '(function(){'
-            'document.querySelectorAll(\'script[type="text/javascript+gzip"]\').forEach(async function(s){'
-            'var b=atob(s.src.split(",")[1]),a=new Uint8Array(b.length);'
-            'for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);'
-            'var r=new Blob([a]).stream().pipeThrough(new DecompressionStream("gzip"));'
-            'var t=await new Response(r).text();'
-            'var e=document.createElement("script");'
-            'e.textContent=t;'
-            'document.head.appendChild(e);'
-            '});'
-            '})();'
-            '</script>';
+    function _loaderScript(uint256 tokenId) private view returns (bytes memory) {
+        return abi.encodePacked(
+            _configBlock(tokenId),
+            _rpcHelpers(),
+            _abiHelpers(),
+            _loadSvgFn(),
+            _loadAppJsFn(),
+            _mainFn()
+        );
     }
 
-    function _buildHead(uint256 tokenId, string memory svgBase64) private pure returns (string memory) {
-        string memory id = tokenId.toString();
-        string memory svgDataUri = string(abi.encodePacked("data:image/svg+xml;base64,", svgBase64));
-
-        bytes memory metaTags = abi.encodePacked(
-            '<meta charset="UTF-8">'
-            '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
-            '<title>Dealer #', id,
-            '</title><meta name="description" content="Dealer #', id,
-            unicode' \u2014 Dealers.exe: Fully on-chain. Permanently stored. Deal your way to the top and become a legend. Play now.">'
+    function _configBlock(uint256 tokenId) private view returns (bytes memory) {
+        return abi.encodePacked(
+            'var T=', tokenId.toString(),
+            ',R="', rpcUrl,
+            '",S="', svgRendererAddress.toHexStringChecksummed(),
+            '",F="', address(fileStore).toHexStringChecksummed(),
+            '",N="', dealerGzipFilename, '";'
         );
-
-        bytes memory ogTags = abi.encodePacked(
-            '<meta property="og:title" content="Dealer #', id,
-            unicode' \u2014 Dealers.exe">',
-            '<meta property="og:description" content="Fully on-chain. Permanently stored. Deal your way to the top and become a legend. Play now.">'
-            '<meta property="og:type" content="website">'
-            '<meta name="theme-color" content="#000000">'
-        );
-
-        bytes memory links = abi.encodePacked(
-            '<link rel="icon" type="image/svg+xml" href="', svgDataUri,
-            '"><link rel="apple-touch-icon" href="', svgDataUri,
-            '"><link rel="manifest" href="', _buildManifestDataUri(id, svgDataUri), '">'
-        );
-
-        return string(abi.encodePacked(metaTags, ogTags, links));
     }
 
-    function _buildManifestDataUri(string memory id, string memory svgDataUri) private pure returns (string memory) {
-        bytes memory manifestJson = abi.encodePacked(
-            '{"name":"Dealer #', id,
-            unicode' \u2014 Dealers.exe","short_name":"Dealer #', id,
-            '","icons":[{"src":"', svgDataUri,
-            '","sizes":"any","type":"image/svg+xml","purpose":"maskable"}],'
-            '"theme_color":"#000000","background_color":"#000000","display":"standalone"}'
+    function _rpcHelpers() private pure returns (bytes memory) {
+        return bytes(
+            'async function rpc(m,p){'
+                'var r=await fetch(R,{method:"POST",headers:{"Content-Type":"application/json"},'
+                'body:JSON.stringify({jsonrpc:"2.0",id:1,method:m,params:p})});'
+                'var j=await r.json();if(j.error)throw new Error(j.error.message);return j.result}'
+            'async function ec(t,d){return rpc("eth_call",[{to:t,data:d},"latest"])}'
         );
-        return string(abi.encodePacked("data:application/manifest+json;base64,", Base64.encode(manifestJson)));
+    }
+
+    function _abiHelpers() private pure returns (bytes memory) {
+        return bytes(
+            'function p64(n){return n.toString(16).padStart(64,"0")}'
+            'function hx(h){h=h.startsWith("0x")?h.slice(2):h;'
+                'var a=new Uint8Array(h.length/2);for(var i=0;i<a.length;i++)a[i]=parseInt(h.substr(i*2,2),16);return a}'
+            'function ds(h){h=h.startsWith("0x")?h.slice(2):h;'
+                'var o=parseInt(h.substr(0,64),16)*2,l=parseInt(h.substr(o,64),16)*2;'
+                'var b=h.substr(o+64,l);var r="";for(var i=0;i<b.length;i+=2)r+=String.fromCharCode(parseInt(b.substr(i,2),16));return r}'
+            'function es(s){var b=new TextEncoder().encode(s),l=b.length,'
+                'p=Math.ceil(l/32)*32,h="0000000000000000000000000000000000000000000000000000000000000020"+p64(l);'
+                'for(var i=0;i<p;i++)h+=i<l?b[i].toString(16).padStart(2,"0"):"00";return h}'
+        );
+    }
+
+    function _loadSvgFn() private pure returns (bytes memory) {
+        // getSVG(uint256) selector: 0xbe985ac9
+        return bytes(
+            'async function loadSVG(){'
+                'var d="0xbe985ac9"+p64(T);'
+                'var r=await ec(S,d);'
+                'return ds(r.slice(2))}'
+        );
+    }
+
+    function _loadAppJsFn() private pure returns (bytes memory) {
+        // getFile(string) selector: 0xe0876aa8
+        return bytes(
+            'async function loadAppJs(){'
+                'var d="0xe0876aa8"+es(N);'
+                'var r=await ec(F,d);'
+                'var h=r.startsWith("0x")?r.slice(2):r;'
+                // Skip outer offset (0x20). Parse: size at 0x20, slices offset at 0x40
+                // Slices array starts at: 0x20 + slicesOffset
+                'var base=64;'  // skip outer tuple offset (32 bytes = 64 hex chars)
+                'var so=parseInt(h.substr(base+64,64),16)*2;'
+                'var sa=base+so;'
+                'var sl=parseInt(h.substr(sa,64),16);'
+                'var chunks=[];'
+                'for(var i=0;i<sl;i++){'
+                    'var off=sa+64+i*192;'
+                    'var ptr="0x"+h.substr(off+24,40);'
+                    'var st=parseInt(h.substr(off+64,64),16);'
+                    'var en=parseInt(h.substr(off+128,64),16);'
+                    'var code=await rpc("eth_getCode",[ptr,"latest"]);'
+                    'var raw=hx(code);'
+                    'chunks.push(raw.slice(st,en))}'
+                'var total=chunks.reduce(function(a,c){return a+c.length},0);'
+                'var merged=new Uint8Array(total);'
+                'var pos=0;chunks.forEach(function(c){merged.set(c,pos);pos+=c.length});'
+                'var b64="";for(var i=0;i<merged.length;i++)b64+=String.fromCharCode(merged[i]);'
+                'var gz=atob(b64);'
+                'var ga=new Uint8Array(gz.length);'
+                'for(var i=0;i<gz.length;i++)ga[i]=gz.charCodeAt(i);'
+                'var stream=new Blob([ga]).stream().pipeThrough(new DecompressionStream("gzip"));'
+                'return await new Response(stream).text()}'
+        );
+    }
+
+    function _mainFn() private pure returns (bytes memory) {
+        return bytes(
+            'var L=document.getElementById("l"),'
+            'cur="<span class=\\"cursor\\">_</span>";'
+            'function log(t,c){var d=document.createElement("div");d.innerHTML=t;if(c)d.className=c;L.appendChild(d);'
+            'var p=L.querySelector(".cursor");if(p)p.remove();L.lastChild.insertAdjacentHTML("beforeend",cur)}'
+            '(async function(){'
+                'log("dealers.exe v1.0");'
+                'log("<span class=\\"c\\">---------------------</span>");'
+                'await new Promise(function(r){setTimeout(r,120)});'
+                'log("connecting to chain...");'
+                'var svg;'
+                'try{'
+                    'svg=await loadSVG();'
+                    'log("fetching dealer SVG... <span class=\\"ok\\">[OK]</span>")'
+                '}catch(e){'
+                    'console.error("SVG load failed:",e);'
+                    'log("fetching dealer SVG... <span class=\\"err\\">[FAIL]</span>","err")'
+                '}'
+                'var js;'
+                'try{'
+                    'js=await loadAppJs();'
+                    'log("loading app bundle... <span class=\\"ok\\">[OK]</span>")'
+                '}catch(e){'
+                    'console.error("App load failed:",e);'
+                    'log("loading app bundle... <span class=\\"err\\">[FAIL]</span>","err")'
+                '}'
+                'if(js){'
+                    'log("rendering dealer... <span class=\\"ok\\">[OK]</span>");'
+                    'await new Promise(function(r){setTimeout(r,300)});'
+                    'document.getElementById("w").remove();'
+                    'document.body.innerHTML=svg||"";'
+                    'var e=document.createElement("script");'
+                    'e.textContent=js;'
+                    'document.head.appendChild(e)'
+                '}else if(svg){'
+                    'log("rendering dealer... <span class=\\"ok\\">[OK]</span>");'
+                    'await new Promise(function(r){setTimeout(r,300)});'
+                    'document.getElementById("w").remove();'
+                    'document.body.innerHTML=svg'
+                '}'
+            '})()'
+        );
     }
 }

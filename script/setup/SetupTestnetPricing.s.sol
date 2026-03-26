@@ -64,10 +64,10 @@ interface IAreaPricing {
  * Usage:
  *   source .env && forge script script/setup/SetupTestnetPricing.s.sol:SetupTestnetPricing \
  *     --rpc-url $ABSTRACT_TESTNET_RPC --account dealersKeystore --broadcast --zksync \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *     --skip "RendererSVG"
  */
 contract SetupTestnetPricing is DeployBase {
-    uint256 constant DIVISOR = 10;
+    uint256 constant FACTOR = 10;
 
     function run() external {
         _loadAddresses();
@@ -75,14 +75,16 @@ contract SetupTestnetPricing is DeployBase {
         _requireAddress(boosts, "DEALERS_BOOSTS");
         _requireAddress(areaRegistry, "AREA_REGISTRY");
 
-        console.log("=== Testnet Pricing (1/%s of mainnet) ===", vm.toString(DIVISOR));
+        bool multiply = vm.envOr("MULTIPLY", false);
+        string memory mode = multiply ? "multiply" : "divide";
+        console.log("=== Testnet Pricing (%s by %s) ===", mode, vm.toString(FACTOR));
         console.log("");
 
         vm.startBroadcast();
 
-        _updateCoreConfig();
-        _updateBoostPrices();
-        _updateMovementFees();
+        _updateCoreConfig(multiply);
+        _updateBoostPrices(multiply);
+        _updateMovementFees(multiply);
 
         vm.stopBroadcast();
 
@@ -90,7 +92,14 @@ contract SetupTestnetPricing is DeployBase {
         console.log("Testnet pricing applied.");
     }
 
-    function _updateCoreConfig() internal {
+    function _applyFactor(uint256 value, bool multiply) internal pure returns (uint256) {
+        if (multiply) return value * FACTOR;
+        uint256 result = value / FACTOR;
+        if (result == 0) result = 1;
+        return result;
+    }
+
+    function _updateCoreConfig(bool multiply) internal {
         console.log("Core fees:");
 
         ICoreConfig c = ICoreConfig(core);
@@ -109,9 +118,9 @@ contract SetupTestnetPricing is DeployBase {
             uint16 jailChancePerHeat
         ) = c.config();
 
-        uint256 newAttemptResetFee = attemptResetFee / DIVISOR;
-        uint256 newBribeCopFee = bribeCopFee / DIVISOR;
-        uint256 newCashTopupPrice = cashTopupPrice / DIVISOR;
+        uint256 newAttemptResetFee = _applyFactor(attemptResetFee, multiply);
+        uint256 newBribeCopFee = _applyFactor(bribeCopFee, multiply);
+        uint256 newCashTopupPrice = _applyFactor(cashTopupPrice, multiply);
 
         c.setCoreConfig(CoreConfig({
             attemptResetFee: newAttemptResetFee,
@@ -133,7 +142,7 @@ contract SetupTestnetPricing is DeployBase {
         console.log("  cashTopupPrice:  %s wei", vm.toString(newCashTopupPrice));
     }
 
-    function _updateBoostPrices() internal {
+    function _updateBoostPrices(bool multiply) internal {
         console.log("Boost tier prices:");
 
         IBoostsPricing b = IBoostsPricing(boosts);
@@ -142,15 +151,13 @@ contract SetupTestnetPricing is DeployBase {
             (uint256 price, , , , , , , bool isActive) = b.boostTiers(tierId);
             if (!isActive) continue;
 
-            uint256 newPrice = price / DIVISOR;
-            if (newPrice == 0) newPrice = 1;
-
+            uint256 newPrice = _applyFactor(price, multiply);
             b.setTierPrice(tierId, newPrice);
             console.log("  Tier %s: %s wei", vm.toString(tierId), vm.toString(newPrice));
         }
     }
 
-    function _updateMovementFees() internal {
+    function _updateMovementFees(bool multiply) internal {
         console.log("Area movement fees:");
 
         IAreaPricing a = IAreaPricing(areaRegistry);
@@ -158,20 +165,18 @@ contract SetupTestnetPricing is DeployBase {
 
         // Regular areas (1 to areaCount)
         for (uint8 i = 1; i <= areaCount; i++) {
-            _updateAreaFee(a, i);
+            _updateAreaFee(a, i, multiply);
         }
 
         // Jail (area 255) has a movement fee used as bail
-        _updateAreaFee(a, 255);
+        _updateAreaFee(a, 255, multiply);
     }
 
-    function _updateAreaFee(IAreaPricing a, uint8 areaId) internal {
+    function _updateAreaFee(IAreaPricing a, uint8 areaId, bool multiply) internal {
         uint256 currentFee = a.getMovementFee(areaId);
         if (currentFee == 0) return;
 
-        uint256 newFee = currentFee / DIVISOR;
-        if (newFee == 0) newFee = 1;
-
+        uint256 newFee = _applyFactor(currentFee, multiply);
         a.updateMovementFee(areaId, newFee);
         console.log("  Area %s: %s wei", vm.toString(areaId), vm.toString(newFee));
     }

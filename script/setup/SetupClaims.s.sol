@@ -8,7 +8,7 @@ import "../base/DeployBase.s.sol";
  * @dev Usage:
  *   source .env && forge script script/setup/SetupClaims.s.sol:SetupClaims \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *     --skip "RendererSVG"
  */
 contract SetupClaims is DeployBase {
     uint8 constant PVE_WINS = 1;
@@ -27,11 +27,14 @@ contract SetupClaims is DeployBase {
     uint8 constant REWARD_CASH = 1;
     uint8 constant REWARD_DRUG = 2;
 
-    uint256 constant XTC = 2;
-    uint256 constant COCAINE = 3;
-    uint256 constant SHROOMS = 4;
-    uint256 constant HEROIN = 5;
-    uint256 constant WEED = 1;
+    uint256 constant GENERAL_GOODS = 1;
+    uint256 constant CONTRABAND = 2;
+    uint256 constant JEWELS = 3;
+    uint256 constant WEED = 4;
+    uint256 constant XTC = 5;
+    uint256 constant COCAINE = 6;
+    uint256 constant SHROOMS = 7;
+    uint256 constant HEROIN = 8;
 
     function run() external {
         _loadAddresses();
@@ -76,10 +79,10 @@ contract SetupClaims is DeployBase {
         c.setAchievement(8, _achievement(PVP_TOTAL_WINS, 0, 1, REWARD_REP, 0, 10));
 
         // #9: Aggressor - win 10 PVP attacks
-        c.setAchievement(9, _achievement(PVP_ATTACK_WINS, 0, 10, REWARD_DRUG, SHROOMS, 1));
+        c.setAchievement(9, _achievement(PVP_ATTACK_WINS, 0, 10, REWARD_DRUG, GENERAL_GOODS, 1));
 
         // #10: Fortress - win 10 PVP defenses
-        c.setAchievement(10, _achievement(PVP_DEFEND_WINS, 0, 10, REWARD_DRUG, SHROOMS, 1));
+        c.setAchievement(10, _achievement(PVP_DEFEND_WINS, 0, 10, REWARD_DRUG, GENERAL_GOODS, 1));
 
         // #11: Made Man - reach 100 rep
         c.setAchievement(11, _achievement(REPUTATION, 0, 100, REWARD_DRUG, WEED, 20));
@@ -100,9 +103,19 @@ contract SetupClaims is DeployBase {
         c.setAchievement(19, _achievement(REPUTATION, 0, 3500, REWARD_CASH, 0, 3500));
         c.setAchievement(20, _achievement(REPUTATION, 0, 5000, REWARD_CASH, 0, 5000));
 
+        // =================================================================
+        //                     PVP DRUG REWARDS (IDs 22-23)
+        // =================================================================
+
+        // #22: First Blood Loot - win a PVP fight (pairs with #8 REP reward)
+        c.setAchievement(22, _achievement(PVP_TOTAL_WINS, 0, 1, REWARD_DRUG, GENERAL_GOODS, 1));
+
+        // #23: Street Veteran - win 10 PVP fights
+        c.setAchievement(23, _achievement(PVP_TOTAL_WINS, 0, 10, REWARD_DRUG, CONTRABAND, 1));
+
         vm.stopBroadcast();
 
-        console.log("22 achievements configured:");
+        console.log("24 achievements configured:");
         console.log("  Early game (0-11):");
         console.log("    #0:  PVE_TOTAL    >= 1    -> 25 CASH");
         console.log("    #1:  PVE_TOTAL    >= 10   -> 50 CASH");
@@ -113,7 +126,7 @@ contract SetupClaims is DeployBase {
         console.log("    #6:  PVE_THREATEN >= 10   -> 1 Shrooms");
         console.log("    #7:  PVE_BAIL     >= 10   -> 1 Shrooms");
         console.log("    #8:  PVP_WINS     >= 1    -> 10 REP");
-        console.log("    #9:  PVP_ATTACK   >= 10   -> 1 Shrooms");
+        console.log("    #9:  PVP_ATTACK   >= 10   -> 1 General Goods");
         console.log("    #10: PVP_DEFEND   >= 10   -> 1 Shrooms");
         console.log("    #11: REP          >= 100  -> 20 Weed");
         console.log("  Tier milestones (12-20):");
@@ -128,6 +141,9 @@ contract SetupClaims is DeployBase {
         console.log("    #20: Legend       (5000)  -> 5000 CASH");
         console.log("  Drug milestones:");
         console.log("    #21: REP >= 250          -> 1 Heroin");
+        console.log("  PVP drug rewards (22-23):");
+        console.log("    #22: PVP_WINS     >= 1    -> 1 General Goods");
+        console.log("    #23: PVP_WINS     >= 10   -> 1 Contraband");
     }
 
     function _achievement(

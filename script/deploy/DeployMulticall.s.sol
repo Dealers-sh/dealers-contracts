@@ -11,7 +11,7 @@ import "../base/DeployBase.s.sol";
  * Usage:
  *   source .env && forge script script/deploy/DeployMulticall.s.sol:DeployMulticall \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *     --skip "RendererSVG"
  */
 contract DeployMulticall is DeployBase {
     function run() external {

@@ -28,8 +28,7 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     mapping(uint256 => uint256) public attacksReceivedToday;
     mapping(uint256 => PvpStats) public dealerPvpStats;
 
-    uint256[3] public dropDrugIds;   // [goodsId, contrabandId, jewelsId]
-    uint8[4] public dropWeights;     // [30, 40, 20, 10] — nothing, goods, contraband, jewels
+    uint256[3] public dropDrugIds;
 
     // =============================================================
     //                            EVENTS
@@ -74,7 +73,6 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     error InsufficientReputation();
     error OutOfRepRange();
     error NoAttemptsRemaining();
-    error InvalidDropConfig();
     error InvalidPVPConfig();
 
     // =============================================================
@@ -98,15 +96,14 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
             maxAttacksPerDay: 3,
             drugStealPercent: 2,
             cashStealPercent: 1,
-            rarityWeightCommon: 50,
-            rarityWeightUncommon: 30,
-            rarityWeightRare: 20,
+            rarityWeightCommon: 75,
+            rarityWeightUncommon: 20,
+            rarityWeightRare: 5,
             repRangePercent: 25,
             defenderRepBonus: 2
         });
 
         dropDrugIds = [uint256(1), 2, 3];
-        dropWeights = [uint8(30), 40, 20, 10];
     }
 
     // =============================================================
@@ -279,7 +276,8 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
                 attemptsRemaining: candState.dailyAttemptsRemaining,
                 winChance: winChancePct,
                 lossChance: 100 - winChancePct,
-                canAttackNow: attackable
+                canAttackNow: attackable,
+                infamy: candState.infamy
             });
 
             unchecked { ++matchCount; }
@@ -348,13 +346,6 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         PVPConfig memory oldConfig = config;
         config = _config;
         emit PVPConfigUpdated(oldConfig, _config);
-    }
-
-    function setDropConfig(uint256[3] calldata _dropDrugIds, uint8[4] calldata _dropWeights) external onlyOwner {
-        uint256 total = uint256(_dropWeights[0]) + _dropWeights[1] + _dropWeights[2] + _dropWeights[3];
-        if (total != 100) revert InvalidDropConfig();
-        dropDrugIds = _dropDrugIds;
-        dropWeights = _dropWeights;
     }
 
     function pause() external onlyOwner {
@@ -428,7 +419,7 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         atkOut.useAttempt = true;
         atkOut.incrementHeat = true;
 
-        if (core.rollJailCheck(attackerId, rng[0])) {
+        if (_rollPvpJailCheck(atkState, rng[0])) {
             atkOut.sendToJail = true;
             core.applyGameOutcome(attackerId, atkOut);
             emit DealerArrested(attackerId, atkState.jailChance);
@@ -493,7 +484,7 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
 
         if (attackerWon) {
             core.updateInfamy(attackerId, 3);
-            _applyDropReward(attackerId, rng[3]);
+            _applyDropReward(attackerId, rng[3], atkState.infamy);
         } else {
             core.updateInfamy(attackerId, -1);
         }
@@ -510,13 +501,35 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         );
     }
 
-    function _applyDropReward(uint256 attackerId, uint256 rng) private {
-        uint256 roll = rng % 100;
-        if (roll < dropWeights[0]) return;
+    function _rollPvpJailCheck(IDealersExeCore.GameState memory state, uint256 rng) private pure returns (bool) {
+        uint16 heatChance = state.jailChance;
+        uint16 infamyChance = _calcInfamyJailBonus(state.infamy);
+        uint16 totalChance = heatChance + infamyChance;
+        return uint16(rng % 1000) < totalChance;
+    }
 
-        uint256 cumulative = dropWeights[0];
+    function _calcInfamyJailBonus(uint256 infamy) private pure returns (uint16) {
+        uint256 bonus = (infamy / 10) * 5;
+        return bonus > 25 ? 25 : uint16(bonus);
+    }
+
+    function _getInfamyDropWeights(uint256 infamy) private pure returns (uint8[4] memory) {
+        if (infamy >= 50) return [uint8(15), 30, 35, 20];
+        if (infamy >= 40) return [uint8(20), 35, 30, 15];
+        if (infamy >= 30) return [uint8(25), 40, 25, 10];
+        if (infamy >= 20) return [uint8(30), 45, 20, 5];
+        if (infamy >= 10) return [uint8(35), 50, 15, 0];
+        return [uint8(40), 60, 0, 0];
+    }
+
+    function _applyDropReward(uint256 attackerId, uint256 rng, uint256 infamy) private {
+        uint8[4] memory weights = _getInfamyDropWeights(infamy);
+        uint256 roll = rng % 100;
+        if (roll < weights[0]) return;
+
+        uint256 cumulative = weights[0];
         for (uint256 i = 0; i < 3;) {
-            cumulative += dropWeights[i + 1];
+            cumulative += weights[i + 1];
             if (roll < cumulative) {
                 uint256 drugId = dropDrugIds[i];
                 if (drugId != 0) {

@@ -15,6 +15,8 @@ contract DealersExeActions is ReentrancyGuard, Ownable {
     //                            STORAGE
     // =============================================================
 
+    uint256 public constant BLACK_MARKET_MIN_INFAMY = 10;
+
     DealersExeCore public core;
     IERC721Minimal public nftContract;
     IDEPaymentHandler public paymentHandler;
@@ -55,6 +57,7 @@ contract DealersExeActions is ReentrancyGuard, Ownable {
     error NotSellableDrop();
     error InvalidAmount();
     error AlreadyInArea();
+    error InsufficientInfamy();
 
     // =============================================================
     //                          CONSTRUCTOR
@@ -185,6 +188,10 @@ contract DealersExeActions is ReentrancyGuard, Ownable {
         if (oldArea == destinationArea) revert AlreadyInArea();
 
         bool enteringBlackMarket = areaRegistry.isBlackMarket(destinationArea);
+        if (enteringBlackMarket) {
+            uint256 infamy = core.getInfamy(tokenId);
+            if (infamy < BLACK_MARKET_MIN_INFAMY) revert InsufficientInfamy();
+        }
         bool hasFreeMovement = gs.boostActive && gs.freeAreaMovement;
         bool enteringSafeHouse = areaRegistry.isSafeHouse(destinationArea);
         bool isFirstMove = oldArea == core.STARTING_AREA() && gs.previousArea == core.STARTING_AREA();

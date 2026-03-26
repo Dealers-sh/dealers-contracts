@@ -589,8 +589,8 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
     function _createBlackMarket() private {
         _areas[BLACK_MARKET_AREA] = IAreaRegistry.AreaInfo({
             name: "Black Market",
-            movementFee: 0.001 ether,
-            minReputation: 250,
+            movementFee: 0,
+            minReputation: 100,
             isActive: true,
             isSafeHouse: false,
             isJail: false

@@ -15,7 +15,7 @@ import "../base/DeployBase.s.sol";
  * Usage:
  *   source .env && forge script script/deploy/DeployNFT.s.sol:DeployNFT \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *     --skip "RendererSVG"
  */
 contract DeployNFT is DeployBase {
     function run() external {

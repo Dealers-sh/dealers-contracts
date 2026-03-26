@@ -11,7 +11,7 @@ import "../base/DeployBase.s.sol";
  * Usage:
  *   source .env && forge script script/deploy/DeployRandomness.s.sol:DeployRandomness \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *     --skip "RendererSVG"
  */
 contract DeployRandomness is DeployBase {
     function run() external {

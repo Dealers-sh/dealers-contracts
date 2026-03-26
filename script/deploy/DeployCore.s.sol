@@ -21,7 +21,7 @@ import "../base/DeployBase.s.sol";
  * Usage:
  *   source .env && forge script script/deploy/DeployCore.s.sol:DeployCore \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *     --skip "RendererSVG"
  */
 contract DeployCore is DeployBase {
     function run() external {

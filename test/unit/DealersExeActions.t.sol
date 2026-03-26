@@ -35,9 +35,10 @@ contract DealersExeActionsTest is BaseTest {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
         (, uint256 rep,,,,) = core.getDealerData(tokenId);
-        if (rep < 250) {
-            core.updateReputation(tokenId, int256(250) - int256(rep));
+        if (rep < 100) {
+            core.updateReputation(tokenId, int256(100) - int256(rep));
         }
+        core.updateInfamy(tokenId, 10);
         core.authorizeContract(address(this), false);
         vm.stopPrank();
 
@@ -127,7 +128,8 @@ contract DealersExeActionsTest is BaseTest {
     function test_travel_toBlackMarket_isFree() public {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
-        core.updateReputation(dealerToken, 250);
+        core.updateReputation(dealerToken, 100);
+        core.updateInfamy(dealerToken, 10);
         vm.prank(owner);
         core.authorizeContract(address(this), false);
 
