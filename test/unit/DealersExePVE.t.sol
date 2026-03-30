@@ -66,6 +66,7 @@ contract DealersExePVETest is Test, IERC721Receiver {
 
         drugRegistry = new DEDrugRegistry();
         areaRegistry = new DEAreaRegistry(address(drugRegistry));
+        _setupDrugsAndAreas();
         paymentHandler = new DEPaymentHandler(devWallet, bankVault);
         randomness = new DERandomness();
 
@@ -137,6 +138,59 @@ contract DealersExePVETest is Test, IERC721Receiver {
         });
 
         core.setReputationTiers(tiers);
+    }
+
+    function _setupDrugsAndAreas() internal {
+        drugRegistry.createDrug("Goods",      IDrugRegistry.DrugRarity.COMMON,   75);
+        drugRegistry.createDrug("Contraband", IDrugRegistry.DrugRarity.UNCOMMON, 500);
+        drugRegistry.createDrug("Jewels",     IDrugRegistry.DrugRarity.RARE,     2500);
+        drugRegistry.createDrug("Weed",       IDrugRegistry.DrugRarity.COMMON,   1);
+        drugRegistry.createDrug("XTC",        IDrugRegistry.DrugRarity.UNCOMMON, 10);
+        drugRegistry.createDrug("Cocaine",    IDrugRegistry.DrugRarity.RARE,     100);
+        drugRegistry.createDrug("Shrooms",    IDrugRegistry.DrugRarity.UNCOMMON, 12);
+        drugRegistry.createDrug("Heroin",     IDrugRegistry.DrugRarity.RARE,     150);
+        drugRegistry.createDrug("Opioids",    IDrugRegistry.DrugRarity.COMMON,   18);
+        drugRegistry.createDrug("Meth",       IDrugRegistry.DrugRarity.UNCOMMON, 25);
+        drugRegistry.createDrug("Fentanyl",   IDrugRegistry.DrugRarity.RARE,     200);
+
+        areaRegistry.createArea("Manhattan", 0.001 ether, 0, false, false);
+        uint256[] memory ids = new uint256[](3);
+        uint256[] memory buys = new uint256[](3);
+        uint256[] memory sells = new uint256[](3);
+        ids[0] = 4; ids[1] = 5; ids[2] = 6;
+        buys[0] = 1; buys[1] = 12; buys[2] = 120;
+        sells[0] = 1; sells[1] = 10; sells[2] = 100;
+        areaRegistry.batchConfigureAreaDrugs(1, ids, buys, sells);
+
+        areaRegistry.createArea("Amsterdam", 0.001 ether, 150, false, false);
+        ids[0] = 4; ids[1] = 7; ids[2] = 8;
+        buys[0] = 3; buys[1] = 15; buys[2] = 180;
+        sells[0] = 2; sells[1] = 12; sells[2] = 150;
+        areaRegistry.batchConfigureAreaDrugs(2, ids, buys, sells);
+
+        areaRegistry.createArea("Colombia", 0.001 ether, 250, false, false);
+        ids[0] = 4; ids[1] = 6; ids[2] = 8;
+        buys[0] = 1; buys[1] = 60; buys[2] = 90;
+        sells[0] = 1; sells[1] = 50; sells[2] = 75;
+        areaRegistry.batchConfigureAreaDrugs(3, ids, buys, sells);
+
+        areaRegistry.createArea("Hong Kong", 0.001 ether, 500, false, false);
+        ids[0] = 9; ids[1] = 10; ids[2] = 8;
+        buys[0] = 18; buys[1] = 28; buys[2] = 140;
+        sells[0] = 15; sells[1] = 22; sells[2] = 110;
+        areaRegistry.batchConfigureAreaDrugs(4, ids, buys, sells);
+
+        areaRegistry.createArea("Seoul", 0.001 ether, 1000, false, false);
+        ids[0] = 9; ids[1] = 10; ids[2] = 11;
+        buys[0] = 8; buys[1] = 14; buys[2] = 90;
+        sells[0] = 7; sells[1] = 12; sells[2] = 75;
+        areaRegistry.batchConfigureAreaDrugs(5, ids, buys, sells);
+
+        areaRegistry.createArea("Tokyo", 0.001 ether, 1500, false, false);
+        ids[0] = 9; ids[1] = 10; ids[2] = 11;
+        buys[0] = 24; buys[1] = 32; buys[2] = 200;
+        sells[0] = 20; sells[1] = 26; sells[2] = 160;
+        areaRegistry.batchConfigureAreaDrugs(6, ids, buys, sells);
     }
 
     function _moveDealerToArea(uint256 tokenId, uint8 areaId) internal {

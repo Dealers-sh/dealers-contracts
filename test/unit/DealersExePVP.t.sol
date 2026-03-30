@@ -671,7 +671,8 @@ contract DealersExePVPTest is BaseTest {
             rarityWeightUncommon: 30,
             rarityWeightRare: 20,
             repRangePercent: 100,
-            defenderRepBonus: 2
+            defenderRepBonus: 2,
+            repRangeThreshold: 0
         }));
 
         vm.prank(player1);
@@ -845,7 +846,8 @@ contract DealersExePVPTest is BaseTest {
             rarityWeightUncommon: 30,
             rarityWeightRare: 20,
             repRangePercent: 100,
-            defenderRepBonus: 2
+            defenderRepBonus: 2,
+            repRangeThreshold: 0
         }));
 
         (canFight, ) = pvp.canAttack(attackerToken, defenderToken);

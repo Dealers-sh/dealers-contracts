@@ -1075,7 +1075,7 @@ contract DealersExeCoreTest is BaseTest {
     }
 
     function test_drugRegistry_shroomsAndHeroin() public view {
-        assertEq(drugRegistry.getTotalDrugs(), 8);
+        assertEq(drugRegistry.getTotalDrugs(), 11);
         assertTrue(drugRegistry.isDrugActive(7));
         assertTrue(drugRegistry.isDrugActive(8));
 

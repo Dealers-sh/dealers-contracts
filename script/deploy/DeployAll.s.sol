@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import "../base/DeployBase.s.sol";
 
 /**
- * @title DeployAll - Deploy all game contracts + wire + setup tiers
+ * @title DeployAll - Deploy all game contracts + configure drugs/areas + wire + setup tiers
  * @dev Deploys in dependency order, skipping contracts that already have an address in .env.
  *      After deploying, runs SetupWiring logic and reputation tier setup.
  *
@@ -15,8 +15,8 @@ import "../base/DeployBase.s.sol";
  *
  * Usage:
  *   source .env && forge script script/DeployAll.s.sol:DeployAll \
- *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "RendererSVG"
+      --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
+      --skip "RendererSVG"
  */
 contract DeployAll is DeployBase {
     function run() external {
@@ -35,10 +35,14 @@ contract DeployAll is DeployBase {
         // 1. Deploy contracts in dependency order
         _deployIfNeeded();
 
-        // 2. Wire references + authorizations
+        // 2. Register drugs + create game areas (must run before wiring)
+        _setupDrugs();
+        _setupAreas();
+
+        // 3. Wire references + authorizations
         _wireAll();
 
-        // 3. Setup reputation tiers
+        // 4. Setup reputation tiers
         _setupTiers();
 
         vm.stopBroadcast();
@@ -59,6 +63,9 @@ contract DeployAll is DeployBase {
             console.log("DEDrugRegistry: skipped (exists)");
         }
 
+        // WARNING: Redeploying AreaRegistry resets the dealer-in-area reverse index.
+        // Dealer locations in Core are unaffected. Index re-populates as dealers move.
+        // On mainnet, prefer admin functions on the existing registry instead.
         if (areaRegistry == address(0)) {
             _requireAddress(drugRegistry, "DRUG_REGISTRY");
             areaRegistry = _zkCreate(abi.encodePacked(
@@ -270,6 +277,73 @@ contract DeployAll is DeployBase {
 
     function _authorizeIfNeeded(IDealersExeCore c, address module) internal {
         if (!c.authorizedContracts(module)) c.authorizeContract(module, true);
+    }
+
+    // =========================================================================
+    //                        DRUG & AREA SETUP
+    // =========================================================================
+
+    function _setupDrugs() internal {
+        IDrugRegistry reg = IDrugRegistry(drugRegistry);
+
+        if (reg.getTotalDrugs() > 0) {
+            console.log("Drugs: already configured");
+            return;
+        }
+
+        console.log("Registering 11 drugs...");
+        reg.createDrug("Goods",      0, 75);
+        reg.createDrug("Contraband", 1, 500);
+        reg.createDrug("Jewels",     2, 2500);
+        reg.createDrug("Weed",       0, 1);
+        reg.createDrug("XTC",        1, 10);
+        reg.createDrug("Cocaine",    2, 100);
+        reg.createDrug("Shrooms",    1, 12);
+        reg.createDrug("Heroin",     2, 150);
+        reg.createDrug("Opioids",    0, 18);
+        reg.createDrug("Meth",       1, 25);
+        reg.createDrug("Fentanyl",   2, 200);
+        console.log("  11 drugs registered");
+        console.log("");
+    }
+
+    function _setupAreas() internal {
+        IAreaRegistry reg = IAreaRegistry(areaRegistry);
+
+        if (reg.getTotalAreas() > 0) {
+            console.log("Areas: already configured");
+            return;
+        }
+
+        console.log("Creating 6 game areas...");
+
+        reg.createArea("Manhattan", 0.001 ether, 0, false, false);
+        reg.batchConfigureAreaDrugs(1, _d(4, 5, 6), _d(1, 12, 120), _d(1, 10, 100));
+
+        reg.createArea("Amsterdam", 0.001 ether, 150, false, false);
+        reg.batchConfigureAreaDrugs(2, _d(4, 7, 8), _d(3, 15, 180), _d(2, 12, 150));
+
+        reg.createArea("Colombia", 0.001 ether, 250, false, false);
+        reg.batchConfigureAreaDrugs(3, _d(4, 6, 8), _d(1, 60, 90), _d(1, 50, 75));
+
+        reg.createArea("Hong Kong", 0.001 ether, 500, false, false);
+        reg.batchConfigureAreaDrugs(4, _d(9, 10, 8), _d(18, 28, 140), _d(15, 22, 110));
+
+        reg.createArea("Seoul", 0.001 ether, 1000, false, false);
+        reg.batchConfigureAreaDrugs(5, _d(9, 10, 11), _d(8, 14, 90), _d(7, 12, 75));
+
+        reg.createArea("Tokyo", 0.001 ether, 1500, false, false);
+        reg.batchConfigureAreaDrugs(6, _d(9, 10, 11), _d(24, 32, 200), _d(20, 26, 160));
+
+        console.log("  6 areas created");
+        console.log("");
+    }
+
+    function _d(uint256 a, uint256 b, uint256 c) private pure returns (uint256[] memory arr) {
+        arr = new uint256[](3);
+        arr[0] = a;
+        arr[1] = b;
+        arr[2] = c;
     }
 
     // =========================================================================

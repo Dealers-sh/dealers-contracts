@@ -100,7 +100,8 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
             rarityWeightUncommon: 20,
             rarityWeightRare: 5,
             repRangePercent: 25,
-            defenderRepBonus: 2
+            defenderRepBonus: 2,
+            repRangeThreshold: 1500
         });
 
         dropDrugIds = [uint256(1), 2, 3];
@@ -371,9 +372,16 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     }
 
     function _isInRepRange(uint256 attackerRep, uint256 defenderRep) private view returns (bool) {
+        uint256 threshold = config.repRangeThreshold;
+        if (threshold > 0 && attackerRep >= threshold && defenderRep >= threshold) {
+            return true;
+        }
+
         uint256 range = attackerRep * config.repRangePercent / 100;
         uint256 minRep = attackerRep > range ? attackerRep - range : 0;
-        uint256 maxRep = attackerRep + range;
+        uint256 maxRep = (threshold > 0 && attackerRep >= threshold)
+            ? type(uint256).max
+            : attackerRep + range;
         return defenderRep >= minRep && defenderRep <= maxRep;
     }
 

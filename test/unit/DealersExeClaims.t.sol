@@ -81,6 +81,7 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
 
         drugRegistry = new DEDrugRegistry();
         areaRegistry = new DEAreaRegistry(address(drugRegistry));
+        _setupDrugsAndAreas();
         paymentHandler = new DEPaymentHandler(makeAddr("devWallet"), makeAddr("bankVault"));
         randomness = new DERandomness();
         mockPVE = new MockPVE();
@@ -125,6 +126,29 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
         });
         core.setReputationTiers(tiers);
         core.setMaxReputation(1000);
+    }
+
+    function _setupDrugsAndAreas() internal {
+        drugRegistry.createDrug("Goods",      IDrugRegistry.DrugRarity.COMMON,   75);
+        drugRegistry.createDrug("Contraband", IDrugRegistry.DrugRarity.UNCOMMON, 500);
+        drugRegistry.createDrug("Jewels",     IDrugRegistry.DrugRarity.RARE,     2500);
+        drugRegistry.createDrug("Weed",       IDrugRegistry.DrugRarity.COMMON,   1);
+        drugRegistry.createDrug("XTC",        IDrugRegistry.DrugRarity.UNCOMMON, 10);
+        drugRegistry.createDrug("Cocaine",    IDrugRegistry.DrugRarity.RARE,     100);
+        drugRegistry.createDrug("Shrooms",    IDrugRegistry.DrugRarity.UNCOMMON, 12);
+        drugRegistry.createDrug("Heroin",     IDrugRegistry.DrugRarity.RARE,     150);
+        drugRegistry.createDrug("Opioids",    IDrugRegistry.DrugRarity.COMMON,   18);
+        drugRegistry.createDrug("Meth",       IDrugRegistry.DrugRarity.UNCOMMON, 25);
+        drugRegistry.createDrug("Fentanyl",   IDrugRegistry.DrugRarity.RARE,     200);
+
+        areaRegistry.createArea("Manhattan", 0.001 ether, 0, false, false);
+        uint256[] memory ids = new uint256[](3);
+        uint256[] memory buys = new uint256[](3);
+        uint256[] memory sells = new uint256[](3);
+        ids[0] = 4; ids[1] = 5; ids[2] = 6;
+        buys[0] = 1; buys[1] = 12; buys[2] = 120;
+        sells[0] = 1; sells[1] = 10; sells[2] = 100;
+        areaRegistry.batchConfigureAreaDrugs(1, ids, buys, sells);
     }
 
     function _setAchievement(

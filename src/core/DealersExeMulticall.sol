@@ -24,6 +24,7 @@ contract DealersExeMulticall is Ownable {
         uint256 reputation;
         uint256 stashBonusRep;
         uint8 currentArea;
+        uint8 previousArea;
         uint8 heatLevel;
         uint8 dailyAttemptsRemaining;
         uint8 maxAttempts;
@@ -139,6 +140,7 @@ contract DealersExeMulticall is Ownable {
         state.reputation = gs.totalReputation;
         state.stashBonusRep = gs.totalReputation - gs.reputation;
         state.currentArea = gs.currentArea;
+        state.previousArea = gs.previousArea;
         state.heatLevel = core.getEffectiveHeat(tokenId);
         state.dailyAttemptsRemaining = gs.dailyAttemptsRemaining;
         state.maxAttempts = core.BASE_MAX_ATTEMPTS() + (gs.boostActive ? gs.extraAttempts : 0);
@@ -194,7 +196,7 @@ contract DealersExeMulticall is Ownable {
         state.infamy = core.getInfamy(tokenId);
 
         uint256 currentDay = block.timestamp / 1 days;
-        (,,,,uint8 maxAttacksPerDay,,,,,,,) = pvp.config();
+        (,,,,uint8 maxAttacksPerDay,,,,,,,,) = pvp.config();
         state.maxAttacksPerDay = maxAttacksPerDay;
         if (pvp.lastAttackDay(tokenId) == currentDay) {
             uint256 received = pvp.attacksReceivedToday(tokenId);

@@ -51,6 +51,8 @@ interface IDealersExeNFT {
 interface IDrugRegistry {
     function authorizeContract(address contractAddress, bool authorized) external;
     function authorizedContracts(address) external view returns (bool);
+    function createDrug(string calldata name, uint8 rarity, uint256 baseCashValue) external returns (uint256);
+    function getTotalDrugs() external view returns (uint256);
 }
 
 interface IPaymentHandler {
@@ -61,21 +63,28 @@ interface IPaymentHandler {
 interface IAreaRegistry {
     function setCoreContract(address _coreContract) external;
     function coreContract() external view returns (address);
+    function createArea(string calldata name, uint256 movementFee, uint256 minReputation, bool isSafeHouseArea, bool isJailArea) external returns (uint8);
+    function batchConfigureAreaDrugs(uint8 areaId, uint256[] calldata drugIds, uint256[] calldata buyPrices, uint256[] calldata sellPrices) external;
+    function getTotalAreas() external view returns (uint8);
 }
 
 interface IPVPContract {
     function setCore(address _core) external;
     function setDrugRegistry(address _drugRegistry) external;
+    function setAreaRegistry(address _areaRegistry) external;
     function setRandomness(address _randomness) external;
     function core() external view returns (address);
     function drugRegistry() external view returns (address);
+    function areaRegistry() external view returns (address);
     function randomness() external view returns (address);
 }
 
 interface IPVEContract {
     function setDealersExeCore(address _core) external;
+    function setAreaRegistry(address _areaRegistry) external;
     function setRandomness(address _randomness) external;
     function dealersExeCore() external view returns (address);
+    function areaRegistry() external view returns (address);
     function randomness() external view returns (address);
 }
 
@@ -118,8 +127,23 @@ interface IClaimsContract {
 interface IActionsContract {
     function setPaymentHandler(address _handler) external;
     function setRandomness(address _randomness) external;
+    function setAreaRegistry(address _areaRegistry) external;
     function paymentHandler() external view returns (address);
     function randomness() external view returns (address);
+    function areaRegistry() external view returns (address);
+}
+
+interface IMulticallContract {
+    function setCore(address _core) external;
+    function setPVE(address _pve) external;
+    function setPVP(address _pvp) external;
+    function setAreaRegistry(address _areaRegistry) external;
+    function setDrugRegistry(address _drugRegistry) external;
+    function core() external view returns (address);
+    function pve() external view returns (address);
+    function pvp() external view returns (address);
+    function areaRegistry() external view returns (address);
+    function drugRegistry() external view returns (address);
 }
 
 // =============================================================================

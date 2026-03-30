@@ -6,7 +6,13 @@ import "../base/DeployBase.s.sol";
 /**
  * @title DeployAreaRegistry
  * @dev Constructor deps: DRUG_REGISTRY
- *      Post-deploy: set Core in AreaRegistry
+ *      Post-deploy: set Core in AreaRegistry, then run SetupAreas.s.sol
+ *
+ * WARNING: Redeploying resets the dealer-in-area reverse index (getDealerCountInArea,
+ *          getDealersInArea). Dealer locations in Core are NOT affected — dealers keep
+ *          their currentArea. The reverse index re-populates as dealers move.
+ *          On mainnet with active players, prefer updating the existing registry via
+ *          admin functions (createArea, configureAreaDrug, updateMinReputation) instead.
  *
  * Usage:
  *   source .env && forge script script/deploy/DeployAreaRegistry.s.sol:DeployAreaRegistry \

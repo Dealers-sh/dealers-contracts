@@ -26,6 +26,7 @@ interface IDealersExePVP {
         uint8 rarityWeightRare;
         uint8 repRangePercent;
         uint8 defenderRepBonus;
+        uint256 repRangeThreshold;
     }
 
     struct PVPTarget {
@@ -66,7 +67,8 @@ interface IDealersExePVP {
         uint8 rarityWeightUncommon,
         uint8 rarityWeightRare,
         uint8 repRangePercent,
-        uint8 defenderRepBonus
+        uint8 defenderRepBonus,
+        uint256 repRangeThreshold
     );
 
     function getPotentialTargets(

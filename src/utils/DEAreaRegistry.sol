@@ -95,9 +95,6 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
 
         _createSafeHouse();
         _createJail();
-        _createManhattan();
-        _createAmsterdam();
-        _createColombia();
         _createBlackMarket();
     }
 
@@ -233,6 +230,26 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
         _dealerRegistered[tokenId] = true;
 
         emit DealerLocationUpdated(tokenId, oldArea, newArea);
+    }
+
+    /// @notice Seed the dealer-in-area reverse index after redeploying this contract.
+    ///         Call in batches (e.g. 500) to avoid gas limits. Skips already-registered dealers.
+    function seedDealerLocations(uint256[] calldata tokenIds, uint8[] calldata areas) external onlyOwner {
+        if (tokenIds.length != areas.length) revert ArrayLengthMismatch();
+
+        for (uint256 i = 0; i < tokenIds.length;) {
+            uint256 tokenId = tokenIds[i];
+            uint8 area = areas[i];
+
+            if (!_dealerRegistered[tokenId]) {
+                _dealersInArea[area].push(tokenId);
+                _dealerAreaIndex[tokenId] = _dealersInArea[area].length - 1;
+                _dealerCurrentArea[tokenId] = area;
+                _dealerRegistered[tokenId] = true;
+            }
+
+            unchecked { ++i; }
+        }
     }
 
     /// @inheritdoc IAreaRegistry
@@ -527,63 +544,6 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
         });
 
         emit AreaCreated(JAIL_AREA, "Jail", false, true);
-    }
-
-    function _createManhattan() private {
-        _totalAreas = 1;
-
-        _areas[1] = IAreaRegistry.AreaInfo({
-            name: "Manhattan",
-            movementFee: 0.001 ether,
-            minReputation: 0,
-            isActive: true,
-            isSafeHouse: false,
-            isJail: false
-        });
-
-        _configureAreaDrug(1, 4, 1, 1);
-        _configureAreaDrug(1, 5, 12, 10);
-        _configureAreaDrug(1, 6, 120, 100);
-
-        emit AreaCreated(1, "Manhattan", false, false);
-    }
-
-    function _createAmsterdam() private {
-        _totalAreas = 2;
-
-        _areas[2] = IAreaRegistry.AreaInfo({
-            name: "Amsterdam",
-            movementFee: 0.001 ether,
-            minReputation: 150,
-            isActive: true,
-            isSafeHouse: false,
-            isJail: false
-        });
-
-        _configureAreaDrug(2, 4, 3, 2);
-        _configureAreaDrug(2, 7, 15, 12);
-        _configureAreaDrug(2, 8, 180, 150);
-
-        emit AreaCreated(2, "Amsterdam", false, false);
-    }
-
-    function _createColombia() private {
-        _totalAreas = 3;
-
-        _areas[3] = IAreaRegistry.AreaInfo({
-            name: "Colombia",
-            movementFee: 0.001 ether,
-            minReputation: 250,
-            isActive: true,
-            isSafeHouse: false,
-            isJail: false
-        });
-
-        _configureAreaDrug(3, 4, 1, 1);
-        _configureAreaDrug(3, 6, 60, 50);
-        _configureAreaDrug(3, 8, 90, 75);
-
-        emit AreaCreated(3, "Colombia", false, false);
     }
 
     function _createBlackMarket() private {
