@@ -15,7 +15,7 @@ import "../utils/IDEPaymentHandler.sol";
  *
  * @dev Allows players to purchase temporary boosts for their dealers
  *      Boosts provide drug/rep multipliers, extra attempts, and special abilities
- * @author Dealers.Exe Team
+ * @author HeadmasterBerny
  */
 contract DealersExeBoosts is ReentrancyGuard, Ownable {
     // =============================================================

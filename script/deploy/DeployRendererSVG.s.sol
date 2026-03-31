@@ -15,7 +15,7 @@ import "../../src/nft/DealerRendererSVG.sol";
  *     --account dealersKeystore \
  *     --broadcast
  *
- * @author Dealers.Exe Team
+ * @author HeadmasterBerny
  */
 contract DeployRendererSVG is DeployBase {
     function run() external {

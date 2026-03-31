@@ -29,7 +29,7 @@ interface IDealerRendererHTML {
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev ERC721 with dynamic on-chain metadata and embedded HTML gameplay UI
- * @author Dealers.Exe Team
+ * @author HeadmasterBerny
  */
 contract DealersExeNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     using LibString for uint256;

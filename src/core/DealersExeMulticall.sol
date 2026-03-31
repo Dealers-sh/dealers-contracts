@@ -8,11 +8,22 @@ import {IDealersExePVP} from "./IDealersExePVP.sol";
 import {IAreaRegistry} from "../utils/IAreaRegistry.sol";
 import {IDrugRegistry} from "../utils/IDrugRegistry.sol";
 
+/**
+ * @title DealersExeMulticall - Read-Only Aggregator
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
+ * @dev Batches multiple read calls into single responses for the frontend.
+ *      Returns full dealer state, area economies, and drug balances in one call.
+ * @author HeadmasterBerny
+ */
 contract DealersExeMulticall is Ownable {
     error ZeroAddress(string param);
     error DealerNotInitialized(uint256 tokenId);
     error InvalidAddress();
 
+    /** @notice A dealer's balance for a single drug type */
     struct DrugBalance {
         uint256 drugId;
         string name;
@@ -20,6 +31,7 @@ contract DealersExeMulticall is Ownable {
         IDrugRegistry.DrugRarity rarity;
     }
 
+    /** @notice Complete snapshot of a dealer's game state, stats, and boost info */
     struct FullDealerState {
         uint256 reputation;
         uint256 stashBonusRep;
@@ -57,6 +69,7 @@ contract DealersExeMulticall is Ownable {
         uint256 infamy;
     }
 
+    /** @notice Drug availability and pricing within a specific area */
     struct AreaDrug {
         uint256 drugId;
         string name;
@@ -67,6 +80,7 @@ contract DealersExeMulticall is Ownable {
         bool isAvailable;
     }
 
+    /** @notice Full economic snapshot of an area including metadata, fees, and drug market */
     struct AreaEconomy {
         uint8 areaId;
         string areaName;
@@ -107,31 +121,56 @@ contract DealersExeMulticall is Ownable {
         drugRegistry = IDrugRegistry(_drugRegistry);
     }
 
+    /**
+     * @notice Set the core state contract
+     * @param _core Address of the DealersExeCore contract
+     */
     function setCore(address _core) external onlyOwner {
         if (_core == address(0)) revert InvalidAddress();
         core = IDealersExeCore(_core);
     }
 
+    /**
+     * @notice Set the PVE game module contract
+     * @param _pve Address of the DealersExePVE contract
+     */
     function setPVE(address _pve) external onlyOwner {
         if (_pve == address(0)) revert InvalidAddress();
         pve = IDealersExePVE(_pve);
     }
 
+    /**
+     * @notice Set the PVP battle module contract
+     * @param _pvp Address of the DealersExePVP contract
+     */
     function setPVP(address _pvp) external onlyOwner {
         if (_pvp == address(0)) revert InvalidAddress();
         pvp = IDealersExePVP(_pvp);
     }
 
+    /**
+     * @notice Set the area registry contract
+     * @param _areaRegistry Address of the DEAreaRegistry contract
+     */
     function setAreaRegistry(address _areaRegistry) external onlyOwner {
         if (_areaRegistry == address(0)) revert InvalidAddress();
         areaRegistry = IAreaRegistry(_areaRegistry);
     }
 
+    /**
+     * @notice Set the drug registry contract
+     * @param _drugRegistry Address of the DEDrugRegistry contract
+     */
     function setDrugRegistry(address _drugRegistry) external onlyOwner {
         if (_drugRegistry == address(0)) revert InvalidAddress();
         drugRegistry = IDrugRegistry(_drugRegistry);
     }
 
+    /**
+     * @notice Aggregate a dealer's full game state into a single call
+     * @param tokenId The dealer NFT token ID
+     * @return state Complete dealer state including stats, drugs, boosts, and PVE/PVP records
+     */
     function getFullDealerState(uint256 tokenId) external view returns (FullDealerState memory state) {
         IDealersExeCore.GameState memory gs = core.getGameState(tokenId);
 
@@ -204,10 +243,19 @@ contract DealersExeMulticall is Ownable {
         }
     }
 
+    /**
+     * @notice Get the full economic state of a single area
+     * @param areaId The area to query
+     * @return Economy snapshot including drug market and dealer count
+     */
     function getAreaEconomy(uint8 areaId) external view returns (AreaEconomy memory) {
         return _buildAreaEconomy(areaId);
     }
 
+    /**
+     * @notice Get economic snapshots for all areas (including safe house, jail, and black market)
+     * @return economies Array of area economies ordered by area ID
+     */
     function getAllAreas() external view returns (AreaEconomy[] memory economies) {
         uint8 totalAreas = areaRegistry.getTotalAreas();
         economies = new AreaEconomy[](totalAreas + 3);

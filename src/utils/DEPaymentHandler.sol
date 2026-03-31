@@ -11,7 +11,7 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Handles all monetary transactions and fee splitting for the game ecosystem
- * @author Dealers.Exe Team
+ * @author HeadmasterBerny
  */
 contract DEPaymentHandler is ReentrancyGuard, Ownable {
 

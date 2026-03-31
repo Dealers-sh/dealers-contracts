@@ -8,7 +8,7 @@ pragma solidity ^0.8.28;
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Interface for global drug definitions, supply tracking, and base values
- * @author Dealers.Exe Team
+ * @author HeadmasterBerny
  */
 interface IDrugRegistry {
     // =============================================================

@@ -9,6 +9,17 @@ import "../utils/IAreaRegistry.sol";
 import "../utils/IERC721Minimal.sol";
 import "../utils/IDERandomness.sol";
 
+/**
+ * @title DealersExePVE - Player vs Environment Game Module
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
+ * @dev Rock-paper-scissors style hustle game where dealers buy or sell drugs.
+ *      Outcomes (win/tie/loss) are determined by biased house odds, with jail
+ *      checks on every play. Reputation scales with stake value.
+ * @author HeadmasterBerny
+ */
 contract DealersExePVE is IDealersExePVE, ReentrancyGuard, Ownable {
     // =============================================================
     //                            STORAGE
@@ -131,6 +142,14 @@ contract DealersExePVE is IDealersExePVE, ReentrancyGuard, Ownable {
     //                        PVE GAME FUNCTION
     // =============================================================
 
+    /**
+     * @notice Play a hustle round — pick a move, buy or sell drugs, and face the house
+     * @param tokenId The dealer NFT token ID
+     * @param choice Player's move: 0 = DEAL, 1 = THREATEN, 2 = BAIL
+     * @param hustleType Whether the dealer is buying or selling drugs
+     * @param drugId The drug being traded
+     * @param amount Quantity of drugs to stake
+     */
     function playGame(
         uint256 tokenId,
         uint8 choice,
@@ -384,10 +403,21 @@ contract DealersExePVE is IDealersExePVE, ReentrancyGuard, Ownable {
     //                        VIEW FUNCTIONS
     // =============================================================
 
+    /**
+     * @notice Get a dealer's PVE win/loss/tie record and choice history
+     * @param tokenId The dealer NFT token ID
+     * @return PVE statistics for the dealer
+     */
     function getDealerPveStats(uint256 tokenId) external view returns (PveStats memory) {
         return dealerPveStats[tokenId];
     }
 
+    /**
+     * @notice Check whether a dealer can play a hustle round
+     * @param tokenId The dealer NFT token ID
+     * @return isPlayable True if the dealer can play
+     * @return reason 0 = playable, 1 = not initialized, 2 = jailed, 3 = safe house, 4 = no attempts
+     */
     function canPlay(uint256 tokenId) external view returns (bool isPlayable, uint8 reason) {
         IDealersExeCore.GameState memory state = dealersExeCore.getGameState(tokenId);
         if (!state.isInitialized) return (false, 1);
@@ -397,6 +427,17 @@ contract DealersExePVE is IDealersExePVE, ReentrancyGuard, Ownable {
         return (true, 0);
     }
 
+    /**
+     * @notice Preview reputation and cash outcomes for a potential hustle
+     * @param tokenId The dealer NFT token ID
+     * @param drugId The drug to preview
+     * @param amount Quantity to preview
+     * @return winRep Reputation gained on win
+     * @return tieRep Reputation gained on tie
+     * @return lossRep Reputation lost on loss (negative)
+     * @return cashValueOnSell Cash earned if selling this amount
+     * @return cashCostOnBuy Cash spent if buying this amount
+     */
     function previewHustle(uint256 tokenId, uint256 drugId, uint256 amount) external view returns (
         int16 winRep,
         int16 tieRep,
@@ -422,6 +463,10 @@ contract DealersExePVE is IDealersExePVE, ReentrancyGuard, Ownable {
     //                        ADMIN FUNCTIONS
     // =============================================================
 
+    /**
+     * @notice Set the core state contract
+     * @param _dealersExeCore Address of the DealersExeCore contract
+     */
     function setDealersExeCore(address _dealersExeCore) external onlyOwner {
         if (_dealersExeCore == address(0)) revert InvalidAddress();
         address old = address(dealersExeCore);
@@ -429,6 +474,10 @@ contract DealersExePVE is IDealersExePVE, ReentrancyGuard, Ownable {
         emit CoreContractUpdated(old, _dealersExeCore);
     }
 
+    /**
+     * @notice Set the NFT contract used for ownership checks
+     * @param _dealersExeNFT Address of the DealersExeNFT contract
+     */
     function setDealersExeNFT(address _dealersExeNFT) external onlyOwner {
         if (_dealersExeNFT == address(0)) revert InvalidAddress();
         address old = address(dealersExeNFT);
@@ -436,6 +485,10 @@ contract DealersExePVE is IDealersExePVE, ReentrancyGuard, Ownable {
         emit NFTContractUpdated(old, _dealersExeNFT);
     }
 
+    /**
+     * @notice Set the area registry contract
+     * @param _areaRegistry Address of the DEAreaRegistry contract
+     */
     function setAreaRegistry(address _areaRegistry) external onlyOwner {
         if (_areaRegistry == address(0)) revert InvalidAddress();
         address old = address(areaRegistry);
@@ -443,6 +496,10 @@ contract DealersExePVE is IDealersExePVE, ReentrancyGuard, Ownable {
         emit AreaRegistryUpdated(old, _areaRegistry);
     }
 
+    /**
+     * @notice Set the randomness provider contract
+     * @param _randomness Address of the DERandomness contract
+     */
     function setRandomness(address _randomness) external onlyOwner {
         if (_randomness == address(0)) revert InvalidAddress();
         address old = address(randomness);
@@ -450,6 +507,11 @@ contract DealersExePVE is IDealersExePVE, ReentrancyGuard, Ownable {
         emit RandomnessUpdated(old, _randomness);
     }
 
+    /**
+     * @notice Update the tie/win/loss probability distribution
+     * @param _tieChance Percentage chance of a tie (loss chance = 100 - tie - win)
+     * @param _winChance Percentage chance of a player win
+     */
     function setOutcomeOdds(uint8 _tieChance, uint8 _winChance) external onlyOwner {
         if (_tieChance + _winChance > 100) revert InvalidOdds();
         tieChance = _tieChance;
@@ -457,6 +519,10 @@ contract DealersExePVE is IDealersExePVE, ReentrancyGuard, Ownable {
         emit OutcomeOddsUpdated(_tieChance, _winChance);
     }
 
+    /**
+     * @notice Set the divisor that scales reputation gains relative to stake value
+     * @param _divisor New divisor (higher = less rep per unit staked)
+     */
     function setRepStakeDivisor(uint256 _divisor) external onlyOwner {
         if (_divisor == 0) revert InvalidDivisor();
         uint256 old = repStakeDivisor;
@@ -464,11 +530,13 @@ contract DealersExePVE is IDealersExePVE, ReentrancyGuard, Ownable {
         emit RepStakeDivisorUpdated(old, _divisor);
     }
 
+    /** @notice Pause all PVE gameplay */
     function pause() external onlyOwner {
         paused = true;
         emit Paused(msg.sender);
     }
 
+    /** @notice Unpause PVE gameplay */
     function unpause() external onlyOwner {
         paused = false;
         emit Unpaused(msg.sender);

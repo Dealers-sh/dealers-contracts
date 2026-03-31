@@ -18,7 +18,7 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
  *      Character type is packed in byte 13 (bits 96-103) of storedTraits.
  *      One-of-ones have their own complete SVG via oneOfOnes mapping.
  *      Uses SSTORE2 for gas-efficient on-chain SVG storage.
- * @author Dealers.Exe Team
+ * @author HeadmasterBerny
  */
 contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     using LibString for uint256;

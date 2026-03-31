@@ -10,6 +10,16 @@ import "../utils/IERC721Minimal.sol";
 import "../utils/IDEPaymentHandler.sol";
 import "../utils/IDERandomness.sol";
 
+/**
+ * @title DealersExeActions - Player Action Module
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
+ * @dev Handles non-combat player actions: jail bail/breakout, travel between areas,
+ *      heat reduction (bribe/wanted poster), attempt resets, cash purchases, and drug sales
+ * @author HeadmasterBerny
+ */
 contract DealersExeActions is ReentrancyGuard, Ownable {
     // =============================================================
     //                            STORAGE
@@ -93,6 +103,10 @@ contract DealersExeActions is ReentrancyGuard, Ownable {
     //                      PLAYER ACTIONS
     // =============================================================
 
+    /**
+     * @notice Pay bail to release a jailed dealer, resetting heat and returning to previous area
+     * @param tokenId The dealer NFT token ID
+     */
     function payBail(uint256 tokenId)
         external
         payable
@@ -124,6 +138,10 @@ contract DealersExeActions is ReentrancyGuard, Ownable {
         emit DealerBailed(tokenId, bail, returnArea);
     }
 
+    /**
+     * @notice Attempt a free jailbreak once per day with a random success chance
+     * @param tokenId The dealer NFT token ID
+     */
     function attemptBreakout(uint256 tokenId)
         external
         nonReentrant
@@ -157,6 +175,11 @@ contract DealersExeActions is ReentrancyGuard, Ownable {
         emit BreakoutAttempted(tokenId, success, success ? returnArea : core.JAIL_AREA());
     }
 
+    /**
+     * @notice Move a dealer to a different area, paying the movement fee unless exempt
+     * @param tokenId The dealer NFT token ID
+     * @param destinationArea The target area ID (ignored when exiting black market)
+     */
     function travel(uint256 tokenId, uint8 destinationArea)
         external
         payable
@@ -216,6 +239,10 @@ contract DealersExeActions is ReentrancyGuard, Ownable {
         emit DealerTraveled(tokenId, oldArea, destinationArea, movementFee, noFee);
     }
 
+    /**
+     * @notice Pay a fee to reset heat level to zero
+     * @param tokenId The dealer NFT token ID
+     */
     function bribeCop(uint256 tokenId)
         external
         payable
@@ -242,6 +269,10 @@ contract DealersExeActions is ReentrancyGuard, Ownable {
         emit CopBribed(tokenId, bribeCopFee);
     }
 
+    /**
+     * @notice Spend an attempt to randomly clear heat (no ETH cost)
+     * @param tokenId The dealer NFT token ID
+     */
     function removeWantedPoster(uint256 tokenId)
         external
         nonReentrant
@@ -268,6 +299,10 @@ contract DealersExeActions is ReentrancyGuard, Ownable {
         }
     }
 
+    /**
+     * @notice Purchase a daily attempt reset for a dealer (free for contract owner)
+     * @param tokenId The dealer NFT token ID
+     */
     function purchaseAttemptReset(uint256 tokenId)
         external
         payable
@@ -292,6 +327,10 @@ contract DealersExeActions is ReentrancyGuard, Ownable {
         }
     }
 
+    /**
+     * @notice Purchase $CASH for a dealer with ETH (free for contract owner, capped by threshold)
+     * @param tokenId The dealer NFT token ID
+     */
     function purchaseCash(uint256 tokenId)
         external
         payable
@@ -320,6 +359,12 @@ contract DealersExeActions is ReentrancyGuard, Ownable {
         }
     }
 
+    /**
+     * @notice Sell drugs for $CASH at the black market
+     * @param tokenId The dealer NFT token ID
+     * @param drugId The drug to sell
+     * @param amount Quantity to sell
+     */
     function sellDrop(uint256 tokenId, uint256 drugId, uint256 amount)
         external
         nonReentrant
@@ -344,21 +389,37 @@ contract DealersExeActions is ReentrancyGuard, Ownable {
     //                      ADMIN SETTERS
     // =============================================================
 
+    /**
+     * @notice Set the payment handler contract
+     * @param _paymentHandler Address of the DEPaymentHandler
+     */
     function setPaymentHandler(address _paymentHandler) external onlyOwner {
         if (_paymentHandler == address(0)) revert InvalidAddress();
         paymentHandler = IDEPaymentHandler(_paymentHandler);
     }
 
+    /**
+     * @notice Set the randomness provider contract
+     * @param _randomness Address of the DERandomness contract
+     */
     function setRandomness(address _randomness) external onlyOwner {
         if (_randomness == address(0)) revert InvalidAddress();
         randomness = IDERandomness(_randomness);
     }
 
+    /**
+     * @notice Set the NFT contract used for ownership checks
+     * @param _nftContract Address of the DealersExeNFT contract
+     */
     function setNFTContract(address _nftContract) external onlyOwner {
         if (_nftContract == address(0)) revert InvalidAddress();
         nftContract = IERC721Minimal(_nftContract);
     }
 
+    /**
+     * @notice Set the area registry contract
+     * @param _areaRegistry Address of the DEAreaRegistry contract
+     */
     function setAreaRegistry(address _areaRegistry) external onlyOwner {
         if (_areaRegistry == address(0)) revert InvalidAddress();
         areaRegistry = IAreaRegistry(_areaRegistry);

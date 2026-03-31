@@ -246,10 +246,12 @@ contract DeployAll is DeployBase {
 
         IPVEContract pveC = IPVEContract(pve);
         _setIfDifferent(pveC.dealersExeCore(), core, pveC.setDealersExeCore);
+        _setIfDifferent(pveC.areaRegistry(), areaRegistry, pveC.setAreaRegistry);
         _setIfDifferent(pveC.randomness(), randomness, pveC.setRandomness);
 
         IPVPContract pvpC = IPVPContract(pvp);
         _setIfDifferent(pvpC.core(), core, pvpC.setCore);
+        _setIfDifferent(pvpC.areaRegistry(), areaRegistry, pvpC.setAreaRegistry);
         _setIfDifferent(pvpC.drugRegistry(), drugRegistry, pvpC.setDrugRegistry);
         _setIfDifferent(pvpC.randomness(), randomness, pvpC.setRandomness);
 
@@ -264,7 +266,17 @@ contract DeployAll is DeployBase {
         if (actions != address(0)) {
             IActionsContract actionsC = IActionsContract(actions);
             _setIfDifferent(actionsC.paymentHandler(), paymentHandler, actionsC.setPaymentHandler);
+            _setIfDifferent(actionsC.areaRegistry(), areaRegistry, actionsC.setAreaRegistry);
             _setIfDifferent(actionsC.randomness(), randomness, actionsC.setRandomness);
+        }
+
+        if (multicall != address(0)) {
+            IMulticallContract mc = IMulticallContract(multicall);
+            _setIfDifferent(mc.core(), core, mc.setCore);
+            _setIfDifferent(mc.pve(), pve, mc.setPVE);
+            _setIfDifferent(mc.pvp(), pvp, mc.setPVP);
+            _setIfDifferent(mc.areaRegistry(), areaRegistry, mc.setAreaRegistry);
+            _setIfDifferent(mc.drugRegistry(), drugRegistry, mc.setDrugRegistry);
         }
 
         console.log("  Done.");

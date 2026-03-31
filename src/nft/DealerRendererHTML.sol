@@ -23,7 +23,7 @@ import {LibString} from "solady/src/utils/LibString.sol";
  *        4. Reassembles and decompresses the gzipped app JS
  *        5. Injects the SVG and executes the app JS in the browser
  *
- * @author Dealers.Exe Team
+ * @author HeadmasterBerny
  */
 contract DealerRendererHTML is IDealerRendererHTML, Ownable {
     using LibString for uint256;

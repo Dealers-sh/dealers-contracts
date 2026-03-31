@@ -10,6 +10,17 @@ import {IDrugRegistry} from "../utils/IDrugRegistry.sol";
 import {IERC721Minimal} from "../utils/IERC721Minimal.sol";
 import {IDERandomness} from "../utils/IDERandomness.sol";
 
+/**
+ * @title DealersExePVP - Player vs Player Battle Module
+ *
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ *
+ * @dev Same-area PVP battles where dealers steal drugs and cash from each other.
+ *      Win chance is 50% + (threat - armor), capped between 25-75%.
+ *      Defenders have daily attack limits. Winners earn infamy and loot drops.
+ * @author HeadmasterBerny
+ */
 contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     // =============================================================
     //                            STORAGE
@@ -138,6 +149,11 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     //                        MAIN ATTACK FUNCTION
     // =============================================================
 
+    /**
+     * @notice Initiate a PVP attack against another dealer in the same area
+     * @param attackerId The attacker's dealer NFT token ID
+     * @param defenderId The target dealer's NFT token ID
+     */
     function attack(uint256 attackerId, uint256 defenderId)
         external
         nonReentrant
@@ -179,10 +195,21 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     //                        VIEW FUNCTIONS
     // =============================================================
 
+    /**
+     * @notice Get a dealer's PVP attack/defend win/loss record
+     * @param tokenId The dealer NFT token ID
+     * @return PVP statistics for the dealer
+     */
     function getDealerPvpStats(uint256 tokenId) external view returns (PvpStats memory) {
         return dealerPvpStats[tokenId];
     }
 
+    /**
+     * @notice Calculate the attacker's win probability against a defender
+     * @param attackerId The attacker's dealer NFT token ID
+     * @param defenderId The defender's dealer NFT token ID
+     * @return Win chance as a percentage (25-75)
+     */
     function calculateWinChance(uint256 attackerId, uint256 defenderId) public view returns (uint256) {
         (uint8 attackerThreat, ) = core.getDealerStats(attackerId);
         (, uint8 defenderArmor) = core.getDealerStats(defenderId);
@@ -190,6 +217,13 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         return _calcWinChance(attackerThreat, defenderArmor);
     }
 
+    /**
+     * @notice Check whether an attack is possible between two dealers
+     * @param attackerId The attacker's dealer NFT token ID
+     * @param defenderId The defender's dealer NFT token ID
+     * @return canFight True if the attack can proceed
+     * @return reason 0 = can attack, 1-12 = specific blocker (same dealer, not init, jailed, etc.)
+     */
     function canAttack(uint256 attackerId, uint256 defenderId) external view returns (bool canFight, uint8 reason) {
         if (attackerId == defenderId) return (false, 1);
 
@@ -224,6 +258,14 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         return (true, 0);
     }
 
+    /**
+     * @notice Get paginated list of valid PVP targets in the attacker's current area
+     * @param attackerId The attacker's dealer NFT token ID
+     * @param offset Number of matches to skip (for pagination)
+     * @param limit Maximum number of targets to return
+     * @return targets Array of attackable dealers with stats and win chances
+     * @return totalInArea Total dealers in the area (before filtering)
+     */
     function getPotentialTargets(
         uint256 attackerId,
         uint256 offset,
@@ -306,6 +348,10 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     //                        ADMIN FUNCTIONS
     // =============================================================
 
+    /**
+     * @notice Set the core state contract
+     * @param _core Address of the DealersExeCore contract
+     */
     function setCore(address _core) external onlyOwner {
         if (_core == address(0)) revert ContractNotSet();
         address old = address(core);
@@ -313,6 +359,10 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         emit CoreContractUpdated(old, _core);
     }
 
+    /**
+     * @notice Set the NFT contract used for ownership checks
+     * @param _nftContract Address of the DealersExeNFT contract
+     */
     function setNFTContract(address _nftContract) external onlyOwner {
         if (_nftContract == address(0)) revert ContractNotSet();
         address old = address(nftContract);
@@ -320,6 +370,10 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         emit NFTContractUpdated(old, _nftContract);
     }
 
+    /**
+     * @notice Set the area registry contract
+     * @param _areaRegistry Address of the DEAreaRegistry contract
+     */
     function setAreaRegistry(address _areaRegistry) external onlyOwner {
         if (_areaRegistry == address(0)) revert ContractNotSet();
         address old = address(areaRegistry);
@@ -327,6 +381,10 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         emit AreaRegistryUpdated(old, _areaRegistry);
     }
 
+    /**
+     * @notice Set the drug registry contract
+     * @param _drugRegistry Address of the DEDrugRegistry contract
+     */
     function setDrugRegistry(address _drugRegistry) external onlyOwner {
         if (_drugRegistry == address(0)) revert ContractNotSet();
         address old = address(drugRegistry);
@@ -334,6 +392,10 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         emit DrugRegistryUpdated(old, _drugRegistry);
     }
 
+    /**
+     * @notice Set the randomness provider contract
+     * @param _randomness Address of the DERandomness contract
+     */
     function setRandomness(address _randomness) external onlyOwner {
         if (_randomness == address(0)) revert ContractNotSet();
         address old = address(randomness);
@@ -341,6 +403,10 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         emit RandomnessUpdated(old, _randomness);
     }
 
+    /**
+     * @notice Update the full PVP configuration (win chances, steal rates, rep range, etc.)
+     * @param _config New PVP config struct
+     */
     function setPVPConfig(PVPConfig calldata _config) external onlyOwner {
         if (_config.maxWinChance > 100) revert InvalidPVPConfig();
 
@@ -349,11 +415,13 @@ contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
         emit PVPConfigUpdated(oldConfig, _config);
     }
 
+    /** @notice Pause all PVP battles */
     function pause() external onlyOwner {
         paused = true;
         emit Paused(msg.sender);
     }
 
+    /** @notice Unpause PVP battles */
     function unpause() external onlyOwner {
         paused = false;
         emit Unpaused(msg.sender);
