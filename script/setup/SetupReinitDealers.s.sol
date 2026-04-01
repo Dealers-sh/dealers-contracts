@@ -10,9 +10,10 @@ import "../base/DeployBase.s.sol";
  *
  * Usage:
  *   source .env && forge script script/setup/SetupReinitDealers.s.sol:SetupReinitDealers \
- *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "RendererSVG"
+      --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
+      --skip "RendererSVG"
  */
+
 interface INFT {
     function currentTokenId() external view returns (uint256);
 }
@@ -31,7 +32,7 @@ contract SetupReinitDealers is DeployBase {
 
         vm.startBroadcast();
 
-        for (uint256 id = 1; id <= totalSupply; id++) {
+        for (uint256 id = 1; id < totalSupply; id++) {
             coreContract.initializeDealer(id);
         }
         console.log("Initialized dealers 1-%s", vm.toString(totalSupply));

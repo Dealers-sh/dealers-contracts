@@ -21,8 +21,8 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
 
     /// @notice Safe House area ID
     uint8 public constant SAFE_HOUSE_AREA = 0;
+    /// @notice Black Market ID
     uint8 public constant BLACK_MARKET_AREA = 254;
-
     /// @notice Jail area ID
     uint8 public constant JAIL_AREA = 255;
 
