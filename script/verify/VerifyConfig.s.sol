@@ -10,9 +10,9 @@ import "../base/DeployBase.s.sol";
  *      Loads addresses from testnet.json via DeployBase.
  *
  * Usage:
- *   forge script script/verify/VerifyConfig.s.sol:VerifyConfig \
+ *   source .env && forge script script/verify/VerifyConfig.s.sol:VerifyConfig \
       --rpc-url https://api.testnet.abs.xyz \
-      --skip "RendererSVG"
+      --skip "RendererSVG" --zksync
  */
 
 interface IVerifyCore {

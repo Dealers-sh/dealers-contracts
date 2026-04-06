@@ -166,6 +166,7 @@ abstract contract DeployBase is Script {
     address public rendererSvg;
     address public rendererHtml;
     address public multicall;
+    address public chatFactory;
 
     // Wallet addresses
     address public devWallet;
@@ -200,6 +201,7 @@ abstract contract DeployBase is Script {
             rendererSvg = _jsonAddrOr(json, ".rendererSvg", "RENDERER_SVG");
             rendererHtml = _jsonAddrOr(json, ".rendererHtml", "RENDERER_HTML");
             multicall = _jsonAddrOr(json, ".multicall", "DEALER_MULTICALL");
+            chatFactory = _jsonAddrOr(json, ".chatFactory", "CHAT_FACTORY");
         } catch {
             drugRegistry = vm.envOr("DRUG_REGISTRY", address(0));
             areaRegistry = vm.envOr("AREA_REGISTRY", address(0));
@@ -215,6 +217,7 @@ abstract contract DeployBase is Script {
             rendererSvg = vm.envOr("RENDERER_SVG", address(0));
             rendererHtml = vm.envOr("RENDERER_HTML", address(0));
             multicall = vm.envOr("DEALER_MULTICALL", address(0));
+            chatFactory = vm.envOr("CHAT_FACTORY", address(0));
         }
 
         devWallet = vm.envOr("DEV_WALLET", address(0));
@@ -246,7 +249,8 @@ abstract contract DeployBase is Script {
         vm.serializeAddress(obj, "actions", actions);
         vm.serializeAddress(obj, "rendererSvg", rendererSvg);
         vm.serializeAddress(obj, "rendererHtml", rendererHtml);
-        string memory json = vm.serializeAddress(obj, "multicall", multicall);
+        vm.serializeAddress(obj, "multicall", multicall);
+        string memory json = vm.serializeAddress(obj, "chatFactory", chatFactory);
 
         string memory path = _getDeploymentPath();
         vm.writeJson(json, path);
@@ -270,6 +274,7 @@ abstract contract DeployBase is Script {
             if (rendererSvg == address(0)) rendererSvg = _jsonAddr(json, ".rendererSvg");
             if (rendererHtml == address(0)) rendererHtml = _jsonAddr(json, ".rendererHtml");
             if (multicall == address(0)) multicall = _jsonAddr(json, ".multicall");
+            if (chatFactory == address(0)) chatFactory = _jsonAddr(json, ".chatFactory");
         } catch {}
     }
 

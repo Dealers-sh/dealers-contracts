@@ -1,0 +1,2 @@
+# mint for someone
+cast send 0xaDC4d4277390C54DB3847662895535aa013BC15a "reserveTo(uint256,address)" 1 0x3D4F78Cf4eF3016ed5AAb17A8d5a5Bd26393861E --rpc-url https://api.testnet.abs.xyz --account dealersKeystore
