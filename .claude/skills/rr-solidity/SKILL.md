@@ -233,13 +233,13 @@ This project targets Abstract Chain (zkSync-based L2). Abstract supports two exe
 
 ```bash
 # Native zkSync build (game contracts)
-forge build --zksync --skip "DealerRenderer" --skip "DeployRenderers"
+forge build --zksync --skip "RendererSVG"
 
 # Standard EVM build (renderer contracts)
 forge build
 
 # Run tests in zkSync mode
-forge test --zksync --skip "DealerRenderer" --skip "DeployRenderers"
+forge test --zksync --skip "RendererSVG"
 ```
 
 ### Deployment Strategy

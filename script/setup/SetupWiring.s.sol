@@ -16,18 +16,19 @@ import "../base/DeployBase.s.sol";
  *     AreaRegistry ← core
  *     PVP ← drugRegistry, randomness
  *     PVE ← randomness
- *     Claims ← core, nft (optional)
+ *     Claims ← core, nft, pve, pvp (optional)
+ *     Actions ← paymentHandler, randomness (optional)
  *
  *   AUTHORIZATIONS:
- *     Core.authorizeContract:           PVE, PVP, Boosts, NFT, Claims (optional)
+ *     Core.authorizeContract:           PVE, PVP, Boosts, NFT, Claims (optional), Actions (optional)
  *     DrugRegistry.authorizeContract:   Core
- *     PaymentHandler.authorizeContract: Core, Boosts
- *     Randomness.authorizeResolver:     Core, PVE, PVP
+ *     PaymentHandler.authorizeContract: Core, Boosts, Actions (optional)
+ *     Randomness.authorizeResolver:     Core, PVE, PVP, Actions (optional)
  *
  * Usage:
  *   source .env && forge script script/SetupWiring.s.sol:SetupWiring \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *     --skip "RendererSVG"
  */
 contract SetupWiring is DeployBase {
     function run() external {
@@ -112,6 +113,7 @@ contract SetupWiring is DeployBase {
         _authorizeIfNeeded(c, boosts, "Boosts");
         _authorizeIfNeeded(c, nft, "NFT");
         if (claims != address(0)) _authorizeIfNeeded(c, claims, "Claims");
+        if (actions != address(0)) _authorizeIfNeeded(c, actions, "Actions");
         console.log("");
     }
 
@@ -152,6 +154,14 @@ contract SetupWiring is DeployBase {
         } else {
             console.log("  PaymentHandler -> Boosts: ok");
         }
+        if (actions != address(0)) {
+            if (!payHandler.authorizedContracts(actions)) {
+                payHandler.authorizeContract(actions, true);
+                console.log("  PaymentHandler -> Actions: AUTHORIZED");
+            } else {
+                console.log("  PaymentHandler -> Actions: ok");
+            }
+        }
 
         IAreaRegistry areaReg = IAreaRegistry(areaRegistry);
         if (areaReg.coreContract() != core) {
@@ -165,6 +175,7 @@ contract SetupWiring is DeployBase {
         _authorizeResolverIfNeeded(rng, core, "Randomness -> Core");
         _authorizeResolverIfNeeded(rng, pve, "Randomness -> PVE");
         _authorizeResolverIfNeeded(rng, pvp, "Randomness -> PVP");
+        if (actions != address(0)) _authorizeResolverIfNeeded(rng, actions, "Randomness -> Actions");
 
         console.log("");
     }
@@ -199,6 +210,12 @@ contract SetupWiring is DeployBase {
             _setIfNeeded(claimsContract.dealersExeNFT(), nft, "Claims -> NFT", claimsContract.setDealersExeNFT);
             _setIfNeeded(address(claimsContract.pveContract()), pve, "Claims -> PVE", claimsContract.setPVE);
             _setIfNeeded(address(claimsContract.pvpContract()), pvp, "Claims -> PVP", claimsContract.setPVP);
+        }
+
+        if (actions != address(0)) {
+            IActionsContract actionsContract = IActionsContract(actions);
+            _setIfNeeded(actionsContract.paymentHandler(), paymentHandler, "Actions -> PaymentHandler", actionsContract.setPaymentHandler);
+            _setIfNeeded(actionsContract.randomness(), randomness, "Actions -> Randomness", actionsContract.setRandomness);
         }
 
         console.log("");

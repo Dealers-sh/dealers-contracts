@@ -15,7 +15,7 @@ import "../utils/IDEPaymentHandler.sol";
  *
  * @dev Allows players to purchase temporary boosts for their dealers
  *      Boosts provide drug/rep multipliers, extra attempts, and special abilities
- * @author Dealers.Exe Team
+ * @author Berny0x
  */
 contract DealersExeBoosts is ReentrancyGuard, Ownable {
     // =============================================================
@@ -36,18 +36,6 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
     //                            STRUCTS
     // =============================================================
 
-    /**
-     * @dev Boost tier configuration
-     * @param price Price in wei to purchase
-     * @param duration Duration in seconds
-     * @param drugMultiplier Drug reward multiplier (100 = 1x, 200 = 2x)
-     * @param repMultiplier Rep reward multiplier (100 = 1x, 150 = 1.5x, 200 = 2x)
-     * @param extraAttempts Added to BASE_MAX_ATTEMPTS (5)
-     * @param freeAreaMovement Whether to skip movement fees
-     * @param doubleHeistEntries Whether to get 2x heist entries
-     * @param cashMultiplier Cash reward multiplier (100 = 1x, 150 = 1.5x, 200 = 2x)
-     * @param isActive Whether this tier is available for purchase
-     */
     struct BoostTier {
         uint256 price;
         uint64 duration;
@@ -55,7 +43,6 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
         uint8 repMultiplier;
         uint8 extraAttempts;
         bool freeAreaMovement;
-        bool doubleHeistEntries;
         uint8 cashMultiplier;
         bool isActive;
     }
@@ -72,6 +59,9 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
     // Boost tier configuration
     mapping(uint256 => BoostTier) public boostTiers;
     uint256 public totalTiers;
+
+    // Active tier per dealer (for upgrade comparison)
+    mapping(uint256 => uint256) public activeTierId;
 
     // Pause state
     bool public paused;
@@ -118,7 +108,7 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
     error InvalidAddress();
     error TransferFailed();
     error EmptyBatch();
-    error BoostAlreadyActive();
+    error BoostTierTooLow();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -175,8 +165,7 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
     }
 
     modifier dealerExists(uint256 dealerId) {
-        (, , , , , bool isInitialized) = dealersExeCore.getDealerData(dealerId);
-        if (!isInitialized) revert DealerNotInitialized();
+        if (!dealersExeCore.isInitialized(dealerId)) revert DealerNotInitialized();
         _;
     }
 
@@ -199,10 +188,9 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
             price: 0.0025 ether,
             duration: DURATION_3_DAYS,
             drugMultiplier: 125,     // 1.25x drugs
-            repMultiplier: 125,      // 1.25x rep
-            extraAttempts: 3,        // 5 base + 3 = 8 max
+            repMultiplier: 110,      // 1.1x rep
+            extraAttempts: 2,        // 5 base + 2 = 7 max
             freeAreaMovement: false,
-            doubleHeistEntries: false,
             cashMultiplier: 125,     // 1.25x cash
             isActive: true
         });
@@ -212,23 +200,21 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
             price: 0.005 ether,
             duration: DURATION_7_DAYS,
             drugMultiplier: 150,     // 1.5x drugs
-            repMultiplier: 150,      // 1.5x rep
-            extraAttempts: 5,        // 5 base + 5 = 10 max
+            repMultiplier: 115,      // 1.15x rep
+            extraAttempts: 3,        // 5 base + 3 = 8 max
             freeAreaMovement: false,
-            doubleHeistEntries: false,
             cashMultiplier: 150,     // 1.5x cash
             isActive: true
         });
 
-        // Tier 3: Kingpin - 0.01 ETH, 10 days
+        // Tier 3: Kingpin - 0.01 ETH, 14 days
         boostTiers[3] = BoostTier({
             price: 0.01 ether,
             duration: DURATION_14_DAYS,
             drugMultiplier: 175,     // 1.75x drugs
-            repMultiplier: 200,      // 2x rep
-            extraAttempts: 10,       // 5 base + 10 = 15 max
+            repMultiplier: 120,      // 1.2x rep
+            extraAttempts: 5,        // 5 base + 5 = 10 max
             freeAreaMovement: true,
-            doubleHeistEntries: true,
             cashMultiplier: 175,     // 1.75x cash
             isActive: true
         });
@@ -238,10 +224,9 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
             price: 0.023 ether,
             duration: DURATION_30_DAYS,
             drugMultiplier: 200,     // 2x drugs
-            repMultiplier: 200,      // 2x rep
-            extraAttempts: 10,       // 5 base + 10 = 15 max
+            repMultiplier: 125,      // 1.25x rep
+            extraAttempts: 7,        // 5 base + 7 = 12 max
             freeAreaMovement: true,
-            doubleHeistEntries: true,
             cashMultiplier: 200,     // 2x cash
             isActive: true
         });
@@ -288,7 +273,10 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
     {
         bool isAdmin = msg.sender == owner();
 
-        if (dealersExeCore.hasActiveBoost(dealerId)) revert BoostAlreadyActive();
+        if (dealersExeCore.hasActiveBoost(dealerId)) {
+            BoostTier memory activeTier = boostTiers[activeTierId[dealerId]];
+            if (boostTiers[tierId].price <= activeTier.price) revert BoostTierTooLow();
+        }
 
         BoostTier memory tier = boostTiers[tierId];
 
@@ -296,21 +284,19 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
             if (msg.value < tier.price) revert InsufficientPayment();
         }
 
-        dealersExeCore.applyBoost(
+        uint64 expiresAt = dealersExeCore.applyBoost(
             dealerId,
             tier.duration,
             tier.drugMultiplier,
             tier.repMultiplier,
             tier.extraAttempts,
             tier.freeAreaMovement,
-            tier.doubleHeistEntries,
-            tier.cashMultiplier,
-            uint8(tierId)
+            tier.cashMultiplier
         );
 
-        IDealersExeCore.BoostData memory boost = dealersExeCore.getBoost(dealerId);
+        activeTierId[dealerId] = tierId;
 
-        emit BoostPurchased(dealerId, tierId, msg.sender, boost.expiresAt);
+        emit BoostPurchased(dealerId, tierId, msg.sender, expiresAt);
 
         if (!isAdmin) {
             paymentHandler.processMarketplaceFee{value: tier.price}(msg.sender, tier.price);
@@ -341,7 +327,6 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
         BoostTier memory tier = boostTiers[tierId];
         uint256 totalCost = tier.price * len;
 
-        // Check total payment upfront
         if (msg.value < totalCost) revert InsufficientPayment();
 
         uint256 successfulPurchases = 0;
@@ -349,45 +334,36 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
         for (uint256 i = 0; i < len; ) {
             uint256 dealerId = dealerIds[i];
 
-            // Skip if not owner (don't revert for batch operations)
-            if (dealersExeNFT.ownerOf(dealerId) != msg.sender) {
+            if (!dealersExeCore.isInitialized(dealerId)) {
                 unchecked { ++i; }
                 continue;
             }
 
-            // Skip if dealer not initialized
-            (, , , , , bool isInitialized) = dealersExeCore.getDealerData(dealerId);
-            if (!isInitialized) {
-                unchecked { ++i; }
-                continue;
-            }
-
-            // Skip if dealer already has an active boost
             if (dealersExeCore.hasActiveBoost(dealerId)) {
-                unchecked { ++i; }
-                continue;
+                BoostTier memory activeTier = boostTiers[activeTierId[dealerId]];
+                if (tier.price <= activeTier.price) {
+                    unchecked { ++i; }
+                    continue;
+                }
             }
 
-            // Apply boost
-            dealersExeCore.applyBoost(
+            uint64 expiresAt = dealersExeCore.applyBoost(
                 dealerId,
                 tier.duration,
                 tier.drugMultiplier,
                 tier.repMultiplier,
                 tier.extraAttempts,
                 tier.freeAreaMovement,
-                tier.doubleHeistEntries,
-                tier.cashMultiplier,
-                uint8(tierId)
+                tier.cashMultiplier
             );
+
+            activeTierId[dealerId] = tierId;
 
             unchecked {
                 ++successfulPurchases;
             }
 
-            // Get the new expiry for the event
-            IDealersExeCore.BoostData memory boost = dealersExeCore.getBoost(dealerId);
-            emit BoostPurchased(dealerId, tierId, msg.sender, boost.expiresAt);
+            emit BoostPurchased(dealerId, tierId, msg.sender, expiresAt);
 
             unchecked { ++i; }
         }

@@ -40,7 +40,7 @@ import "../base/DeployBase.s.sol";
  *     --account dealersKeystore \
  *     --broadcast
  *
- * @author Dealers.Exe Team
+ * @author Berny0x
  */
 contract UploadTraits is DeployBase {
     IFileStore constant FILE_STORE = IFileStore(0xFe1411d6864592549AdE050215482e4385dFa0FB);

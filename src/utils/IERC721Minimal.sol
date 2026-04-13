@@ -8,7 +8,7 @@ pragma solidity ^0.8.28;
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Minimal ERC721 interface for ownership checks
- * @author Dealers.Exe Team
+ * @author Berny0x
  */
 interface IERC721Minimal {
     // =============================================================

@@ -17,7 +17,7 @@ import "../utils/IERC721Minimal.sol";
  * @dev Two claim paths:
  *      1. On-chain achievements: contract reads PVE/PVP/Core stats, verifies threshold
  *      2. Admin grants: owner distributes rewards for off-chain events via script
- * @author Dealers.Exe Team
+ * @author Berny0x
  */
 contract DealersExeClaims is ReentrancyGuard, Ownable {
     // =============================================================
@@ -55,6 +55,21 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
         uint256 rewardId;
         uint256 rewardAmount;
         bool active;
+    }
+
+    struct CachedStats {
+        uint32 pveWins;
+        uint32 pveLosses;
+        uint32 pveTies;
+        uint32 dealChoices;
+        uint32 threatenChoices;
+        uint32 bailChoices;
+        uint32 pvpAttackWins;
+        uint32 pvpAttackLosses;
+        uint32 pvpDefendWins;
+        uint32 pvpDefendLosses;
+        uint256 totalReputation;
+        uint256 cashBalance;
     }
 
     // =============================================================
@@ -121,31 +136,17 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
 
     function claimAchievement(uint256 tokenId, uint256 achievementId) external nonReentrant {
         if (dealersExeNFT.ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
-        _claimAchievement(tokenId, achievementId);
+        CachedStats memory cached = _buildCachedStats(tokenId);
+        _claimAchievement(tokenId, achievementId, cached);
     }
 
     function claimAchievements(uint256 tokenId, uint256[] calldata achievementIds) external nonReentrant {
         if (dealersExeNFT.ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
+        CachedStats memory cached = _buildCachedStats(tokenId);
         for (uint256 i; i < achievementIds.length;) {
-            _claimAchievement(tokenId, achievementIds[i]);
+            _claimAchievement(tokenId, achievementIds[i], cached);
             unchecked { ++i; }
         }
-    }
-
-    function _claimAchievement(uint256 tokenId, uint256 achievementId) internal {
-        if (achievementClaimed[achievementId][tokenId]) revert AlreadyClaimed();
-
-        Achievement storage a = achievements[achievementId];
-        if (!a.active) revert AchievementNotActive();
-        if (a.conditionType == uint8(ConditionType.NONE)) revert InvalidConditionForAchievement();
-
-        uint256 statValue = _getStatValue(tokenId, a.conditionType, a.conditionValue);
-        if (statValue < a.threshold) revert ThresholdNotMet();
-
-        achievementClaimed[achievementId][tokenId] = true;
-        _grantReward(tokenId, a.rewardType, a.rewardId, a.rewardAmount);
-
-        emit AchievementClaimed(tokenId, achievementId, a.rewardType, a.rewardAmount);
     }
 
     // =============================================================
@@ -207,7 +208,8 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
         Achievement storage a = achievements[achievementId];
         if (!a.active || a.conditionType == uint8(ConditionType.NONE)) return false;
         if (achievementClaimed[achievementId][tokenId]) return false;
-        uint256 statValue = _getStatValue(tokenId, a.conditionType, a.conditionValue);
+        CachedStats memory cached = _buildCachedStats(tokenId);
+        uint256 statValue = _getStatValue(tokenId, a.conditionType, a.conditionValue, cached);
         return statValue >= a.threshold;
     }
 
@@ -215,44 +217,59 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
     //                     INTERNAL FUNCTIONS
     // =============================================================
 
-    function _getStatValue(uint256 tokenId, uint8 conditionType, uint256 conditionValue) internal view returns (uint256) {
-        if (conditionType == uint8(ConditionType.PVE_WINS)) {
-            (uint32 wins,,,,,) = pveContract.dealerPveStats(tokenId);
-            return wins;
-        } else if (conditionType == uint8(ConditionType.PVE_LOSSES)) {
-            (, uint32 losses,,,,) = pveContract.dealerPveStats(tokenId);
-            return losses;
-        } else if (conditionType == uint8(ConditionType.PVE_TIES)) {
-            (,, uint32 ties,,,) = pveContract.dealerPveStats(tokenId);
-            return ties;
-        } else if (conditionType == uint8(ConditionType.PVE_TOTAL)) {
-            (uint32 wins, uint32 losses, uint32 ties,,,) = pveContract.dealerPveStats(tokenId);
-            return uint256(wins) + uint256(losses) + uint256(ties);
-        } else if (conditionType == uint8(ConditionType.PVP_ATTACK_WINS)) {
-            (uint32 attackWins,,,) = pvpContract.dealerPvpStats(tokenId);
-            return attackWins;
-        } else if (conditionType == uint8(ConditionType.PVP_DEFEND_WINS)) {
-            (,, uint32 defendWins,) = pvpContract.dealerPvpStats(tokenId);
-            return defendWins;
-        } else if (conditionType == uint8(ConditionType.PVP_TOTAL_WINS)) {
-            (uint32 attackWins,, uint32 defendWins,) = pvpContract.dealerPvpStats(tokenId);
-            return uint256(attackWins) + uint256(defendWins);
-        } else if (conditionType == uint8(ConditionType.REPUTATION)) {
-            return dealersExeCore.getTotalReputation(tokenId);
-        } else if (conditionType == uint8(ConditionType.CASH_BALANCE)) {
-            return dealersExeCore.getCashBalance(tokenId);
-        } else if (conditionType == uint8(ConditionType.DRUG_BALANCE)) {
-            return dealersExeCore.getDrugBalance(tokenId, conditionValue);
-        } else if (conditionType == uint8(ConditionType.PVE_DEAL_CHOICES)) {
-            (,,, uint32 dealChoices,,) = pveContract.dealerPveStats(tokenId);
-            return dealChoices;
-        } else if (conditionType == uint8(ConditionType.PVE_THREATEN_CHOICES)) {
-            (,,,, uint32 threatenChoices,) = pveContract.dealerPveStats(tokenId);
-            return threatenChoices;
-        } else if (conditionType == uint8(ConditionType.PVE_BAIL_CHOICES)) {
-            (,,,,, uint32 bailChoices) = pveContract.dealerPveStats(tokenId);
-            return bailChoices;
-        }
+    function _claimAchievement(uint256 tokenId, uint256 achievementId, CachedStats memory cached) internal {
+        if (achievementClaimed[achievementId][tokenId]) revert AlreadyClaimed();
+
+        Achievement storage a = achievements[achievementId];
+        if (!a.active) revert AchievementNotActive();
+        if (a.conditionType == uint8(ConditionType.NONE)) revert InvalidConditionForAchievement();
+
+        uint256 statValue = _getStatValue(tokenId, a.conditionType, a.conditionValue, cached);
+        if (statValue < a.threshold) revert ThresholdNotMet();
+
+        achievementClaimed[achievementId][tokenId] = true;
+        _grantReward(tokenId, a.rewardType, a.rewardId, a.rewardAmount);
+
+        emit AchievementClaimed(tokenId, achievementId, a.rewardType, a.rewardAmount);
+    }
+
+    function _buildCachedStats(uint256 tokenId) internal view returns (CachedStats memory cached) {
+        (uint32 pveWins, uint32 pveLosses, uint32 pveTies, uint32 dealChoices, uint32 threatenChoices, uint32 bailChoices) =
+            pveContract.dealerPveStats(tokenId);
+        (uint32 pvpAttackWins, uint32 pvpAttackLosses, uint32 pvpDefendWins, uint32 pvpDefendLosses) =
+            pvpContract.dealerPvpStats(tokenId);
+        IDealersExeCore.GameState memory gameState = dealersExeCore.getGameState(tokenId);
+
+        cached = CachedStats({
+            pveWins: pveWins,
+            pveLosses: pveLosses,
+            pveTies: pveTies,
+            dealChoices: dealChoices,
+            threatenChoices: threatenChoices,
+            bailChoices: bailChoices,
+            pvpAttackWins: pvpAttackWins,
+            pvpAttackLosses: pvpAttackLosses,
+            pvpDefendWins: pvpDefendWins,
+            pvpDefendLosses: pvpDefendLosses,
+            totalReputation: gameState.totalReputation,
+            cashBalance: gameState.cashBalance
+        });
+    }
+
+    function _getStatValue(uint256 tokenId, uint8 conditionType, uint256 conditionValue, CachedStats memory cached) internal view returns (uint256) {
+        if (conditionType == uint8(ConditionType.PVE_WINS)) return cached.pveWins;
+        if (conditionType == uint8(ConditionType.PVE_LOSSES)) return cached.pveLosses;
+        if (conditionType == uint8(ConditionType.PVE_TIES)) return cached.pveTies;
+        if (conditionType == uint8(ConditionType.PVE_TOTAL)) return uint256(cached.pveWins) + uint256(cached.pveLosses) + uint256(cached.pveTies);
+        if (conditionType == uint8(ConditionType.PVP_ATTACK_WINS)) return cached.pvpAttackWins;
+        if (conditionType == uint8(ConditionType.PVP_DEFEND_WINS)) return cached.pvpDefendWins;
+        if (conditionType == uint8(ConditionType.PVP_TOTAL_WINS)) return uint256(cached.pvpAttackWins) + uint256(cached.pvpDefendWins);
+        if (conditionType == uint8(ConditionType.REPUTATION)) return cached.totalReputation;
+        if (conditionType == uint8(ConditionType.CASH_BALANCE)) return cached.cashBalance;
+        if (conditionType == uint8(ConditionType.DRUG_BALANCE)) return dealersExeCore.getDrugBalance(tokenId, conditionValue);
+        if (conditionType == uint8(ConditionType.PVE_DEAL_CHOICES)) return cached.dealChoices;
+        if (conditionType == uint8(ConditionType.PVE_THREATEN_CHOICES)) return cached.threatenChoices;
+        if (conditionType == uint8(ConditionType.PVE_BAIL_CHOICES)) return cached.bailChoices;
         revert InvalidConditionForAchievement();
     }
 
@@ -288,6 +305,13 @@ contract DealersExeClaims is ReentrancyGuard, Ownable {
     function batchMarkClaimed(uint256 achievementId, uint256[] calldata tokenIds) external onlyOwner {
         for (uint256 i; i < tokenIds.length;) {
             achievementClaimed[achievementId][tokenIds[i]] = true;
+            unchecked { ++i; }
+        }
+    }
+
+    function batchResetClaimed(uint256 achievementId, uint256[] calldata tokenIds) external onlyOwner {
+        for (uint256 i; i < tokenIds.length;) {
+            achievementClaimed[achievementId][tokenIds[i]] = false;
             unchecked { ++i; }
         }
     }

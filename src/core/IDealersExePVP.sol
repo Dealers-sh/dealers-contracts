@@ -24,6 +24,9 @@ interface IDealersExePVP {
         uint8 rarityWeightCommon;
         uint8 rarityWeightUncommon;
         uint8 rarityWeightRare;
+        uint8 repRangePercent;
+        uint8 defenderRepBonus;
+        uint256 repRangeThreshold;
     }
 
     struct PVPTarget {
@@ -35,6 +38,7 @@ interface IDealersExePVP {
         uint256 winChance;
         uint256 lossChance;
         bool canAttackNow;
+        uint256 infamy;
     }
 
     // =============================================================
@@ -47,10 +51,28 @@ interface IDealersExePVP {
 
     function canAttack(uint256 attackerId, uint256 defenderId) external view returns (bool canFight, uint8 reason);
 
+    function attacksReceivedToday(uint256 tokenId) external view returns (uint256);
+
+    function lastAttackDay(uint256 tokenId) external view returns (uint256);
+
+    function config() external view returns (
+        uint256 minReputation,
+        uint8 baseWinChance,
+        uint8 minWinChance,
+        uint8 maxWinChance,
+        uint8 maxAttacksPerDay,
+        uint8 drugStealPercent,
+        uint8 cashStealPercent,
+        uint8 rarityWeightCommon,
+        uint8 rarityWeightUncommon,
+        uint8 rarityWeightRare,
+        uint8 repRangePercent,
+        uint8 defenderRepBonus,
+        uint256 repRangeThreshold
+    );
+
     function getPotentialTargets(
         uint256 attackerId,
-        uint256 minReputation,
-        uint256 maxReputation,
         uint256 offset,
         uint256 limit
     ) external view returns (PVPTarget[] memory targets, uint256 totalInArea);

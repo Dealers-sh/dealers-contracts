@@ -13,7 +13,7 @@ import "../base/DeployBase.s.sol";
  * Usage:
  *   source .env && forge script script/deploy/DeployPVE.s.sol:DeployPVE \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *     --skip "RendererSVG"
  */
 contract DeployPVE is DeployBase {
     function run() external {
@@ -29,8 +29,10 @@ contract DeployPVE is DeployBase {
         ));
         vm.stopBroadcast();
 
+        _saveAddresses();
+
         console.log("DealersExePVE deployed:", pve);
         console.log("");
-        console.log("Next: update DEALERS_PVE in .env, then run SetupWiring.s.sol");
+        console.log("Next: run SetupWiring.s.sol");
     }
 }

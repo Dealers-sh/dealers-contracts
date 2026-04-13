@@ -21,7 +21,7 @@ import "../base/DeployBase.s.sol";
  * Usage:
  *   source .env && forge script script/deploy/DeployCore.s.sol:DeployCore \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *     --skip "RendererSVG"
  */
 contract DeployCore is DeployBase {
     function run() external {
@@ -31,11 +31,12 @@ contract DeployCore is DeployBase {
         core = _zkCreate(vm.getCode("DealersExeCore.sol:DealersExeCore"));
         vm.stopBroadcast();
 
+        _saveAddresses();
+
         console.log("DealersExeCore deployed:", core);
         console.log("");
         console.log("Next steps:");
-        console.log("  1. Update DEALERS_CORE in .env");
-        console.log("  2. Run SetupWiring.s.sol");
-        console.log("  3. Run SetupTiers.s.sol");
+        console.log("  1. Run SetupWiring.s.sol");
+        console.log("  2. Run SetupTiers.s.sol");
     }
 }

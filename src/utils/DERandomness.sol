@@ -10,7 +10,7 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Provides synchronous randomness using prevrandao for gaming applications
- * @author Dealers.Exe Team
+ * @author Berny0x
  */
 contract DERandomness is Ownable {
 
@@ -69,6 +69,24 @@ contract DERandomness is Ownable {
             nonce,
             address(this)
         )));
+    }
+
+    function getRandomValues(bytes32 seed, uint8 count) external returns (uint256[] memory values) {
+        if (!authorizedResolvers[msg.sender]) revert NotAuthorized();
+        unchecked { ++nonce; }
+
+        values = new uint256[](count);
+        if (count == 0) return values;
+
+        uint256 base = uint256(keccak256(abi.encodePacked(
+            block.prevrandao, block.timestamp, block.number, seed, nonce, address(this)
+        )));
+
+        values[0] = base;
+        for (uint8 i = 1; i < count;) {
+            values[i] = uint256(keccak256(abi.encodePacked(base, i)));
+            unchecked { ++i; }
+        }
     }
 
     // =============================================================

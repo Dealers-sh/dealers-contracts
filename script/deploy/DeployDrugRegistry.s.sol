@@ -11,7 +11,7 @@ import "../base/DeployBase.s.sol";
  * Usage:
  *   source .env && forge script script/deploy/DeployDrugRegistry.s.sol:DeployDrugRegistry \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *     --skip "RendererSVG"
  */
 contract DeployDrugRegistry is DeployBase {
     function run() external {
@@ -21,8 +21,10 @@ contract DeployDrugRegistry is DeployBase {
         drugRegistry = _zkCreate(vm.getCode("DEDrugRegistry.sol:DEDrugRegistry"));
         vm.stopBroadcast();
 
+        _saveAddresses();
+
         console.log("DEDrugRegistry deployed:", drugRegistry);
         console.log("");
-        console.log("Next: update DRUG_REGISTRY in .env, then run SetupWiring.s.sol");
+        console.log("Next: run SetupWiring.s.sol");
     }
 }

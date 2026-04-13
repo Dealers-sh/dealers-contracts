@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import "../base/DeployBase.s.sol";
 
 /**
- * @title DeployAll - Deploy all game contracts + wire + setup tiers
+ * @title DeployAll - Deploy all game contracts + configure drugs/areas + wire + setup tiers
  * @dev Deploys in dependency order, skipping contracts that already have an address in .env.
  *      After deploying, runs SetupWiring logic and reputation tier setup.
  *
@@ -14,9 +14,9 @@ import "../base/DeployBase.s.sol";
  *                    DEALERS_CLAIMS (set these to skip deployment of already-deployed contracts)
  *
  * Usage:
- *   source .env && forge script script/DeployAll.s.sol:DeployAll \
- *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *   source .env && forge script script/deploy/DeployAll.s.sol:DeployAll \
+      --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
+      --skip "RendererSVG"
  */
 contract DeployAll is DeployBase {
     function run() external {
@@ -35,10 +35,14 @@ contract DeployAll is DeployBase {
         // 1. Deploy contracts in dependency order
         _deployIfNeeded();
 
-        // 2. Wire references + authorizations
+        // 2. Register drugs + create game areas (must run before wiring)
+        _setupDrugs();
+        _setupAreas();
+
+        // 3. Wire references + authorizations
         _wireAll();
 
-        // 3. Setup reputation tiers
+        // 4. Setup reputation tiers
         _setupTiers();
 
         vm.stopBroadcast();
@@ -59,6 +63,9 @@ contract DeployAll is DeployBase {
             console.log("DEDrugRegistry: skipped (exists)");
         }
 
+        // WARNING: Redeploying AreaRegistry resets the dealer-in-area reverse index.
+        // Dealer locations in Core are unaffected. Index re-populates as dealers move.
+        // On mainnet, prefer admin functions on the existing registry instead.
         if (areaRegistry == address(0)) {
             _requireAddress(drugRegistry, "DRUG_REGISTRY");
             areaRegistry = _zkCreate(abi.encodePacked(
@@ -157,6 +164,19 @@ contract DeployAll is DeployBase {
             console.log("DealersExeClaims: skipped (exists)");
         }
 
+        if (actions == address(0)) {
+            _requireAddress(core, "DEALERS_CORE");
+            _requireAddress(nft, "DEALERS_NFT");
+            _requireAddress(areaRegistry, "AREA_REGISTRY");
+            actions = _zkCreate(abi.encodePacked(
+                vm.getCode("DealersExeActions.sol:DealersExeActions"),
+                abi.encode(core, nft, areaRegistry)
+            ));
+            console.log("DealersExeActions deployed:", actions);
+        } else {
+            console.log("DealersExeActions: skipped (exists)");
+        }
+
         if (multicall == address(0)) {
             multicall = _zkCreate(abi.encodePacked(
                 vm.getCode("DealersExeMulticall.sol:DealersExeMulticall"),
@@ -192,6 +212,7 @@ contract DeployAll is DeployBase {
         _authorizeIfNeeded(c, boosts);
         _authorizeIfNeeded(c, nft);
         if (claims != address(0)) _authorizeIfNeeded(c, claims);
+        if (actions != address(0)) _authorizeIfNeeded(c, actions);
 
         // DrugRegistry auth
         IDrugRegistry drugReg = IDrugRegistry(drugRegistry);
@@ -201,6 +222,7 @@ contract DeployAll is DeployBase {
         IPaymentHandler payHandler = IPaymentHandler(paymentHandler);
         if (!payHandler.authorizedContracts(core)) payHandler.authorizeContract(core, true);
         if (!payHandler.authorizedContracts(boosts)) payHandler.authorizeContract(boosts, true);
+        if (actions != address(0) && !payHandler.authorizedContracts(actions)) payHandler.authorizeContract(actions, true);
 
         // AreaRegistry -> Core
         IAreaRegistry areaReg = IAreaRegistry(areaRegistry);
@@ -211,6 +233,7 @@ contract DeployAll is DeployBase {
         if (!rng.isAuthorizedResolver(core)) rng.authorizeResolver(core, true);
         if (!rng.isAuthorizedResolver(pve)) rng.authorizeResolver(pve, true);
         if (!rng.isAuthorizedResolver(pvp)) rng.authorizeResolver(pvp, true);
+        if (actions != address(0) && !rng.isAuthorizedResolver(actions)) rng.authorizeResolver(actions, true);
 
         // Module references
         IDealersExeNFT nftC = IDealersExeNFT(nft);
@@ -223,10 +246,12 @@ contract DeployAll is DeployBase {
 
         IPVEContract pveC = IPVEContract(pve);
         _setIfDifferent(pveC.dealersExeCore(), core, pveC.setDealersExeCore);
+        _setIfDifferent(pveC.areaRegistry(), areaRegistry, pveC.setAreaRegistry);
         _setIfDifferent(pveC.randomness(), randomness, pveC.setRandomness);
 
         IPVPContract pvpC = IPVPContract(pvp);
         _setIfDifferent(pvpC.core(), core, pvpC.setCore);
+        _setIfDifferent(pvpC.areaRegistry(), areaRegistry, pvpC.setAreaRegistry);
         _setIfDifferent(pvpC.drugRegistry(), drugRegistry, pvpC.setDrugRegistry);
         _setIfDifferent(pvpC.randomness(), randomness, pvpC.setRandomness);
 
@@ -236,6 +261,22 @@ contract DeployAll is DeployBase {
             _setIfDifferent(claimsC.dealersExeNFT(), nft, claimsC.setDealersExeNFT);
             _setIfDifferent(address(claimsC.pveContract()), pve, claimsC.setPVE);
             _setIfDifferent(address(claimsC.pvpContract()), pvp, claimsC.setPVP);
+        }
+
+        if (actions != address(0)) {
+            IActionsContract actionsC = IActionsContract(actions);
+            _setIfDifferent(actionsC.paymentHandler(), paymentHandler, actionsC.setPaymentHandler);
+            _setIfDifferent(actionsC.areaRegistry(), areaRegistry, actionsC.setAreaRegistry);
+            _setIfDifferent(actionsC.randomness(), randomness, actionsC.setRandomness);
+        }
+
+        if (multicall != address(0)) {
+            IMulticallContract mc = IMulticallContract(multicall);
+            _setIfDifferent(mc.core(), core, mc.setCore);
+            _setIfDifferent(mc.pve(), pve, mc.setPVE);
+            _setIfDifferent(mc.pvp(), pvp, mc.setPVP);
+            _setIfDifferent(mc.areaRegistry(), areaRegistry, mc.setAreaRegistry);
+            _setIfDifferent(mc.drugRegistry(), drugRegistry, mc.setDrugRegistry);
         }
 
         console.log("  Done.");
@@ -251,15 +292,82 @@ contract DeployAll is DeployBase {
     }
 
     // =========================================================================
+    //                        DRUG & AREA SETUP
+    // =========================================================================
+
+    function _setupDrugs() internal {
+        IDrugRegistry reg = IDrugRegistry(drugRegistry);
+
+        if (reg.getTotalDrugs() > 0) {
+            console.log("Drugs: already configured");
+            return;
+        }
+
+        console.log("Registering 11 drugs...");
+        reg.createDrug("Goods",      0, 75);
+        reg.createDrug("Contraband", 1, 500);
+        reg.createDrug("Jewels",     2, 2500);
+        reg.createDrug("Weed",       0, 1);
+        reg.createDrug("XTC",        1, 10);
+        reg.createDrug("Cocaine",    2, 100);
+        reg.createDrug("Shrooms",    1, 12);
+        reg.createDrug("Heroin",     2, 150);
+        reg.createDrug("Opioids",    0, 18);
+        reg.createDrug("Meth",       1, 25);
+        reg.createDrug("Fentanyl",   2, 200);
+        console.log("  11 drugs registered");
+        console.log("");
+    }
+
+    function _setupAreas() internal {
+        IAreaRegistry reg = IAreaRegistry(areaRegistry);
+
+        if (reg.getTotalAreas() > 0) {
+            console.log("Areas: already configured");
+            return;
+        }
+
+        console.log("Creating 6 game areas...");
+
+        reg.createArea("Manhattan", 0.001 ether, 0, false, false);
+        reg.batchConfigureAreaDrugs(1, _d(4, 5, 6), _d(1, 12, 120), _d(1, 10, 100));
+
+        reg.createArea("Amsterdam", 0.001 ether, 150, false, false);
+        reg.batchConfigureAreaDrugs(2, _d(4, 7, 8), _d(3, 15, 180), _d(2, 12, 150));
+
+        reg.createArea("Colombia", 0.001 ether, 250, false, false);
+        reg.batchConfigureAreaDrugs(3, _d(4, 6, 8), _d(1, 60, 90), _d(1, 50, 75));
+
+        reg.createArea("Hong Kong", 0.001 ether, 500, false, false);
+        reg.batchConfigureAreaDrugs(4, _d(9, 10, 8), _d(18, 28, 140), _d(15, 22, 110));
+
+        reg.createArea("Seoul", 0.001 ether, 1000, false, false);
+        reg.batchConfigureAreaDrugs(5, _d(9, 10, 11), _d(8, 14, 90), _d(7, 12, 75));
+
+        reg.createArea("Tokyo", 0.001 ether, 1500, false, false);
+        reg.batchConfigureAreaDrugs(6, _d(9, 10, 11), _d(24, 32, 200), _d(20, 26, 160));
+
+        console.log("  6 areas created");
+        console.log("");
+    }
+
+    function _d(uint256 a, uint256 b, uint256 c) private pure returns (uint256[] memory arr) {
+        arr = new uint256[](3);
+        arr[0] = a;
+        arr[1] = b;
+        arr[2] = c;
+    }
+
+    // =========================================================================
     //                        REPUTATION TIERS
     // =========================================================================
 
     function _setupTiers() internal {
         IDealersExeCore c = IDealersExeCore(core);
-        if (c.getTierCount() > 0) {
+        try c.reputationTiers(0) returns (uint256, int16, int16, int16, int16, string memory) {
             console.log("Reputation tiers: already configured");
             return;
-        }
+        } catch {}
 
         console.log("Setting up 10-tier reputation system...");
 
@@ -268,12 +376,12 @@ contract DeployAll is DeployBase {
         tiers[1] = ReputationTier({minReputation: 50, winBonus: 40, tieBonus: 20, lossPenalty: -3, repCap: 22, tierName: "Associate"});
         tiers[2] = ReputationTier({minReputation: 150, winBonus: 15, tieBonus: 8, lossPenalty: -3, repCap: 18, tierName: "Dealer"});
         tiers[3] = ReputationTier({minReputation: 300, winBonus: 9, tieBonus: 3, lossPenalty: -4, repCap: 17, tierName: "Soldier"});
-        tiers[4] = ReputationTier({minReputation: 700, winBonus: 8, tieBonus: 3, lossPenalty: -4, repCap: 16, tierName: "Capo"});
-        tiers[5] = ReputationTier({minReputation: 1250, winBonus: 7, tieBonus: 3, lossPenalty: -5, repCap: 14, tierName: "Consigliere"});
-        tiers[6] = ReputationTier({minReputation: 1900, winBonus: 6, tieBonus: 2, lossPenalty: -5, repCap: 12, tierName: "Underboss"});
-        tiers[7] = ReputationTier({minReputation: 2600, winBonus: 5, tieBonus: 2, lossPenalty: -6, repCap: 12, tierName: "Don"});
-        tiers[8] = ReputationTier({minReputation: 3500, winBonus: 4, tieBonus: 2, lossPenalty: -6, repCap: 10, tierName: "Godfather"});
-        tiers[9] = ReputationTier({minReputation: 5000, winBonus: 3, tieBonus: 1, lossPenalty: -7, repCap: 8, tierName: "Legend"});
+        tiers[4] = ReputationTier({minReputation: 700, winBonus: 8, tieBonus: 3, lossPenalty: -4, repCap: 21, tierName: "Capo"});
+        tiers[5] = ReputationTier({minReputation: 1250, winBonus: 7, tieBonus: 3, lossPenalty: -5, repCap: 24, tierName: "Consigliere"});
+        tiers[6] = ReputationTier({minReputation: 1900, winBonus: 6, tieBonus: 2, lossPenalty: -5, repCap: 25, tierName: "Underboss"});
+        tiers[7] = ReputationTier({minReputation: 2600, winBonus: 5, tieBonus: 2, lossPenalty: -6, repCap: 28, tierName: "Don"});
+        tiers[8] = ReputationTier({minReputation: 3500, winBonus: 4, tieBonus: 2, lossPenalty: -6, repCap: 30, tierName: "Godfather"});
+        tiers[9] = ReputationTier({minReputation: 5000, winBonus: 3, tieBonus: 1, lossPenalty: -7, repCap: 24, tierName: "Legend"});
 
         c.setReputationTiers(tiers);
         c.setMaxReputation(6000);
@@ -300,6 +408,7 @@ contract DeployAll is DeployBase {
         console.log("DEALERS_PVE=", pve);
         console.log("DEALERS_PVP=", pvp);
         console.log("DEALERS_CLAIMS=", claims);
+        console.log("DEALERS_ACTIONS=", actions);
         console.log("DEALER_MULTICALL=", multicall);
         console.log("");
         console.log("Remaining:");

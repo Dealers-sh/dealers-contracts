@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import "../base/BaseTest.sol";
 
 contract DEPaymentHandlerTest is BaseTest {
-    uint256 public constant BANK_FEE_PERCENT = 2000;  // 20%
+    uint256 public constant BANK_FEE_PERCENT = 6000;  // 60%
 
     address public authorizedCaller;
 
@@ -20,22 +20,22 @@ contract DEPaymentHandlerTest is BaseTest {
     //                     FEE CALCULATION TESTS
     // =============================================================
 
-    function test_calculateFees_20PercentBank() public view {
+    function test_calculateFees_60PercentBank() public view {
         uint256 amount = 1 ether;
         (uint256 bankFee,) = paymentHandler.calculateFees(amount);
 
         uint256 expectedBankFee = (amount * BANK_FEE_PERCENT) / 10000;
         assertEq(bankFee, expectedBankFee);
-        assertEq(bankFee, 0.2 ether);
+        assertEq(bankFee, 0.6 ether);
     }
 
-    function test_calculateFees_80PercentDev() public view {
+    function test_calculateFees_40PercentDev() public view {
         uint256 amount = 1 ether;
         (, uint256 devFee) = paymentHandler.calculateFees(amount);
 
         uint256 expectedDevFee = amount - (amount * BANK_FEE_PERCENT) / 10000;
         assertEq(devFee, expectedDevFee);
-        assertEq(devFee, 0.8 ether);
+        assertEq(devFee, 0.4 ether);
     }
 
     function test_calculateFees_sumsToTotal() public view {
@@ -76,14 +76,14 @@ contract DEPaymentHandlerTest is BaseTest {
         assertEq(bankVault.balance, bankBalanceBefore + expectedBankFee);
     }
 
-    function test_processMovementFee_accruesDevFee() public {
+    function test_processMovementFee_retainsDevFee() public {
         uint256 amount = 0.001 ether;
         uint256 expectedDevFee = amount - (amount * BANK_FEE_PERCENT) / 10000;
 
         vm.prank(authorizedCaller);
         paymentHandler.processMovementFee{value: amount}(player1, amount);
 
-        assertEq(paymentHandler.pendingDevWithdrawal(), expectedDevFee);
+        assertEq(address(paymentHandler).balance, expectedDevFee);
         assertEq(paymentHandler.getPendingDevFees(), expectedDevFee);
     }
 
@@ -127,7 +127,7 @@ contract DEPaymentHandlerTest is BaseTest {
         assertEq(paymentHandler.totalDevFees(), expectedDevFee);
         assertEq(paymentHandler.totalBankFees(), expectedBankFee);
         assertEq(bankVault.balance, bankBalanceBefore + expectedBankFee);
-        assertEq(paymentHandler.pendingDevWithdrawal(), expectedDevFee);
+        assertEq(address(paymentHandler).balance, expectedDevFee);
     }
 
     // =============================================================
@@ -149,18 +149,18 @@ contract DEPaymentHandlerTest is BaseTest {
         assertEq(devWallet.balance, devBalanceBefore + expectedDevFee);
     }
 
-    function test_withdrawDevFees_resetsPending() public {
+    function test_withdrawDevFees_drainsBalance() public {
         uint256 amount = 0.001 ether;
 
         vm.prank(authorizedCaller);
         paymentHandler.processMovementFee{value: amount}(player1, amount);
 
-        assertTrue(paymentHandler.pendingDevWithdrawal() > 0);
+        assertTrue(address(paymentHandler).balance > 0);
 
         vm.prank(devWallet);
         paymentHandler.withdrawDevFees();
 
-        assertEq(paymentHandler.pendingDevWithdrawal(), 0);
+        assertEq(address(paymentHandler).balance, 0);
     }
 
     function test_withdrawDevFees_revertNoFees() public {

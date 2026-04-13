@@ -15,7 +15,7 @@ import "../base/DeployBase.s.sol";
  * Usage:
  *   source .env && forge script script/deploy/DeployNFT.s.sol:DeployNFT \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *     --skip "RendererSVG"
  */
 contract DeployNFT is DeployBase {
     function run() external {
@@ -29,13 +29,14 @@ contract DeployNFT is DeployBase {
         ));
         vm.stopBroadcast();
 
+        _saveAddresses();
+
         console.log("DealersExeNFT deployed:", nft);
         console.log("  Royalty Receiver:", royaltyReceiver);
         console.log("");
         console.log("Next:");
-        console.log("  1. Update DEALERS_NFT in .env");
-        console.log("  2. Run SetupWiring.s.sol");
-        console.log("  3. Deploy renderers (EVM mode, no --zksync)");
-        console.log("  4. Set renderers on NFT");
+        console.log("  1. Run SetupWiring.s.sol");
+        console.log("  2. Deploy renderers (EVM mode, no --zksync)");
+        console.log("  3. Set renderers on NFT");
     }
 }

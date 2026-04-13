@@ -13,7 +13,7 @@ import "../base/DeployBase.s.sol";
  * Usage:
  *   source .env && forge script script/deploy/DeployBoosts.s.sol:DeployBoosts \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *     --skip "RendererSVG"
  */
 contract DeployBoosts is DeployBase {
     function run() external {
@@ -29,8 +29,10 @@ contract DeployBoosts is DeployBase {
         ));
         vm.stopBroadcast();
 
+        _saveAddresses();
+
         console.log("DealersExeBoosts deployed:", boosts);
         console.log("");
-        console.log("Next: update DEALERS_BOOSTS in .env, then run SetupWiring.s.sol");
+        console.log("Next: run SetupWiring.s.sol");
     }
 }

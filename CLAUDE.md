@@ -78,7 +78,7 @@ The project follows a **modular architecture** where a central data contract (`D
 **DealersExePVP** ([src/DealersExePVP.sol](src/DealersExePVP.sol))
 - Same-area PVP requirement
 - Win chance: 50% + (threat - armor), capped 25-75%
-- 1-hour cooldown, 10% drug steal on win
+- 1-hour cooldown, 2% drug steal on win
 
 **DEPaymentHandler** ([src/DEPaymentHandler.sol](src/DEPaymentHandler.sol))
 - Centralized ETH management and fee distribution
@@ -122,7 +122,7 @@ Drug supply is capped per rarity:
 ### Heat & Jail System
 - Heat level 0-5 determines jail chance percentage
 - Jail: Pay bail to exit, 10% reputation penalty (capped at 50)
-- Safe House: Starting area, no farming, one-way exit
+- Safe House: Free to enter, costs movement fee to leave. No farming allowed. Manhattan is the starting area.
 
 ### Gas Optimization
 - Optimizer: 200 runs with via-ir enabled

@@ -7,9 +7,9 @@ contract DealersExePVPTest is BaseTest {
     uint256 attackerToken;
     uint256 defenderToken;
 
-    uint256 constant DRUG_WEED = 1;
-    uint256 constant DRUG_XTC = 2;
-    uint256 constant DRUG_COCAINE = 3;
+    uint256 constant DRUG_WEED = 4;
+    uint256 constant DRUG_XTC = 5;
+    uint256 constant DRUG_COCAINE = 6;
 
     uint8 constant AREA_SAFE_HOUSE = 0;
     uint8 constant AREA_MANHATTAN = 1;
@@ -80,12 +80,12 @@ contract DealersExePVPTest is BaseTest {
         uint8 repMultiplier,
         uint8 extraAttempts,
         bool freeAreaMovement,
-        bool doubleHeistEntries,
+        bool,
         uint8 cashMultiplier
     ) internal {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
-        core.applyBoost(tokenId, duration, drugMultiplier, repMultiplier, extraAttempts, freeAreaMovement, doubleHeistEntries, cashMultiplier, 1);
+        core.applyBoost(tokenId, duration, drugMultiplier, repMultiplier, extraAttempts, freeAreaMovement, cashMultiplier);
         vm.prank(owner);
         core.authorizeContract(address(this), false);
     }
@@ -109,49 +109,43 @@ contract DealersExePVPTest is BaseTest {
         _addDrugsToDealer(defenderToken, DRUG_WEED, 1000);
     }
 
-    function _mockJailChance(uint256 tokenId, uint16 chance) internal {
-        vm.mockCall(
-            address(core),
-            abi.encodeWithSelector(core.getJailChance.selector, tokenId),
-            abi.encode(chance)
-        );
+    function _mockJailChance(uint256 tokenId, uint16) internal {
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
+        core.setHeatLevel(tokenId, 0);
+        vm.prank(owner);
+        core.authorizeContract(address(this), false);
     }
 
-    function _clearJailChanceMock() internal {
-        vm.clearMockedCalls();
-    }
-
-    function _mockRandomness(uint256 value) internal {
+    function _mockRandomValues(uint256 jailRng, uint256 winRng, uint256 drugRng, uint256 dropRng) internal {
+        uint256[] memory values = new uint256[](4);
+        values[0] = jailRng;
+        values[1] = winRng;
+        values[2] = drugRng;
+        values[3] = dropRng;
         vm.mockCall(
             address(randomness),
-            abi.encodeWithSignature("getRandomness(bytes32)"),
-            abi.encode(value)
+            abi.encodeWithSignature("getRandomValues(bytes32,uint8)"),
+            abi.encode(values)
         );
-    }
-
-    function _buildRng(uint8 jailRoll, uint8 winRoll, uint8 rarityRoll) internal pure returns (uint256) {
-        return uint256(jailRoll)
-            | (uint256(winRoll) << 8)
-            | (uint256(rarityRoll) << 16);
     }
 
     function _setupForWin() internal {
         _mockJailChance(attackerToken, 0);
         _setDealerStats(attackerToken, 25, 0);
         _setDealerStats(defenderToken, 0, 0);
-        _mockRandomness(_buildRng(50, 0, 10));
+        _mockRandomValues(50, 0, 10, 0); // dropRng=0 → no drop (< 30)
     }
 
     function _setupForLoss() internal {
         _mockJailChance(attackerToken, 0);
         _setDealerStats(attackerToken, 0, 0);
         _setDealerStats(defenderToken, 0, 25);
-        _mockRandomness(_buildRng(50, 99, 10));
+        _mockRandomValues(50, 99, 10, 0);
     }
 
     function _setupForArrest() internal {
-        _mockJailChance(attackerToken, 1000);
-        _mockRandomness(_buildRng(0, 0, 10));
+        _mockRandomValues(0, 0, 0, 0);
     }
 
     function _executeAttack() internal {
@@ -231,10 +225,10 @@ contract DealersExePVPTest is BaseTest {
         _moveDealerToArea(defenderToken, AREA_MANHATTAN);
 
         vm.prank(owner);
-        areaRegistry.createArea("Brooklyn", 0.001 ether, 0, false, false);
-        areaRegistry.configureAreaDrug(2, DRUG_WEED, 1, 1);
+        uint8 brooklynId = areaRegistry.createArea("Brooklyn", 0.001 ether, 0, false, false);
+        areaRegistry.configureAreaDrug(brooklynId, DRUG_WEED, 1, 1);
 
-        _moveDealerToArea(defenderToken, 2);
+        _moveDealerToArea(defenderToken, brooklynId);
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVP.DifferentArea.selector);
@@ -264,7 +258,7 @@ contract DealersExePVPTest is BaseTest {
     function test_attack_revertAttackerInSafeHouse() public {
         // Dealers now start in Manhattan, move attacker to Safe House
         vm.prank(player1);
-        core.travel{value: 0}(attackerToken, AREA_SAFE_HOUSE);
+        actions.travel{value: 0}(attackerToken, AREA_SAFE_HOUSE);
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVP.DealerInSafeHouse.selector);
@@ -274,7 +268,7 @@ contract DealersExePVPTest is BaseTest {
     function test_attack_revertDefenderInSafeHouse() public {
         // Dealers now start in Manhattan, move defender to Safe House
         vm.prank(player2);
-        core.travel{value: 0}(defenderToken, AREA_SAFE_HOUSE);
+        actions.travel{value: 0}(defenderToken, AREA_SAFE_HOUSE);
 
         vm.prank(player1);
         vm.expectRevert(DealersExePVP.DealerInSafeHouse.selector);
@@ -312,21 +306,36 @@ contract DealersExePVPTest is BaseTest {
         uint256 expected = _ceilDiv(defenderWeedBefore * 2, 100);
         assertEq(stolen, expected, "Defender should lose 2% of weed");
 
-        uint256 transferred = stolen / 2;
-        assertEq(attackerWeedAfter, attackerWeedBefore + transferred, "Attacker gains half of stolen");
+        assertEq(attackerWeedAfter, attackerWeedBefore + stolen, "Attacker gains all stolen drugs");
     }
 
-    function test_attack_attackerLoses_defenderSteals() public {
+    function test_attack_attackerLoses_noStealFromAttacker() public {
         _setupDealersForPVP();
 
         uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
+        uint256 defenderWeedBefore = core.getDrugBalance(defenderToken, DRUG_WEED);
 
         _setupForLoss();
         _executeAttack();
 
         uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
+        uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
 
-        assertLt(attackerWeedAfter, attackerWeedBefore, "Attacker should lose drugs");
+        assertEq(attackerWeedAfter, attackerWeedBefore, "Attacker drugs unchanged on loss");
+        assertEq(defenderWeedAfter, defenderWeedBefore, "Defender drugs unchanged on attacker loss");
+    }
+
+    function test_attack_attackerLoses_defenderGetsFlat2Rep() public {
+        _setupDealersForPVP();
+
+        (, uint256 defenderRepBefore,,,,) = core.getDealerData(defenderToken);
+
+        _setupForLoss();
+        _executeAttack();
+
+        (, uint256 defenderRepAfter,,,,) = core.getDealerData(defenderToken);
+
+        assertEq(defenderRepAfter, defenderRepBefore + 2, "Defender should gain flat +2 rep");
     }
 
     function test_attack_winnerGetsRepBoost() public {
@@ -361,6 +370,8 @@ contract DealersExePVPTest is BaseTest {
 
     function test_attack_steals2PercentOfOneWeightedDrug() public {
         _setupDealersForPVP();
+        _addDrugsToDealer(attackerToken, DRUG_XTC, 500);
+        _addDrugsToDealer(attackerToken, DRUG_COCAINE, 100);
         _addDrugsToDealer(defenderToken, DRUG_XTC, 500);
         _addDrugsToDealer(defenderToken, DRUG_COCAINE, 100);
 
@@ -429,14 +440,16 @@ contract DealersExePVPTest is BaseTest {
         uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
         uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
 
-        // stolen = ceilDiv(10 * 2, 100) = 1, transferred = 1/2 = 0 (burned entirely)
-        assertEq(attackerWeedAfter, attackerWeedBefore, "stolen=1, transferred=1/2=0, winner gets nothing");
+        // stolen = ceilDiv(10 * 2, 100) = 1, winner gets all
+        assertEq(attackerWeedAfter, attackerWeedBefore + 1, "stolen=1, winner gets all");
         assertEq(defenderWeedAfter, 9, "Defender loses 1 (rounded up from 0.2)");
     }
 
     function test_attack_onlyOneDrugTypeStolen() public {
         _moveDealerToArea(attackerToken, AREA_MANHATTAN);
         _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _addDrugsToDealer(attackerToken, DRUG_XTC, 200);
+        _addDrugsToDealer(attackerToken, DRUG_COCAINE, 500);
         _addDrugsToDealer(defenderToken, DRUG_XTC, 200);
         _addDrugsToDealer(defenderToken, DRUG_COCAINE, 500);
 
@@ -472,7 +485,7 @@ contract DealersExePVPTest is BaseTest {
         _setupForArrest();
         _executeAttack();
 
-        assertTrue(core.isInJail(attackerToken), "Attacker should be in jail");
+        assertTrue(_isInJail(attackerToken), "Attacker should be in jail");
         assertEq(
             core.getDrugBalance(defenderToken, DRUG_WEED),
             defenderDrugsBefore,
@@ -487,8 +500,8 @@ contract DealersExePVPTest is BaseTest {
         _setupForArrest();
         _executeAttack();
 
-        assertTrue(core.isInJail(attackerToken), "Attacker should be in jail");
-        assertFalse(core.isInJail(defenderToken), "Defender should not be in jail");
+        assertTrue(_isInJail(attackerToken), "Attacker should be in jail");
+        assertFalse(_isInJail(defenderToken), "Defender should not be in jail");
     }
 
     // =============================================================
@@ -656,28 +669,31 @@ contract DealersExePVPTest is BaseTest {
             cashStealPercent: 1,
             rarityWeightCommon: 50,
             rarityWeightUncommon: 30,
-            rarityWeightRare: 20
+            rarityWeightRare: 20,
+            repRangePercent: 100,
+            defenderRepBonus: 2,
+            repRangeThreshold: 0
         }));
 
         vm.prank(player1);
         pvp.attack(attackerToken, defenderToken);
     }
 
-    function test_canAttack_returnsReason11ForLowAttackerRep() public {
+    function test_canAttack_returnsReason11ForOutOfRepRange() public {
         _moveDealerToArea(attackerToken, AREA_MANHATTAN);
         _moveDealerToArea(defenderToken, AREA_MANHATTAN);
-        _setReputation(attackerToken, 50);
-        _setReputation(defenderToken, 200);
+        _setReputation(attackerToken, 1000);
+        _setReputation(defenderToken, 2000);
 
         (bool canFight, uint8 reason) = pvp.canAttack(attackerToken, defenderToken);
         assertFalse(canFight);
         assertEq(reason, 11);
     }
 
-    function test_canAttack_returnsReason12ForLowDefenderRep() public {
+    function test_canAttack_returnsReason12ForBelowMinReputation() public {
         _moveDealerToArea(attackerToken, AREA_MANHATTAN);
         _moveDealerToArea(defenderToken, AREA_MANHATTAN);
-        _setReputation(attackerToken, 200);
+        _setReputation(attackerToken, 50);
         _setReputation(defenderToken, 50);
 
         (bool canFight, uint8 reason) = pvp.canAttack(attackerToken, defenderToken);
@@ -711,5 +727,263 @@ contract DealersExePVPTest is BaseTest {
         assertEq(attackerStats.attackWins, 0);
         assertEq(defenderStats.defendWins, 1);
         assertEq(defenderStats.defendLosses, 0);
+    }
+
+    // =============================================================
+    //                     REP RANGE (6 tests)
+    // =============================================================
+
+    function test_canAttack_failsForOutOfRepRange() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 1000);
+        _setReputation(defenderToken, 2000);
+
+        (bool canFight, uint8 reason) = pvp.canAttack(attackerToken, defenderToken);
+        assertFalse(canFight, "Should not be able to attack out of rep range");
+        assertEq(reason, 11, "Reason should be 11 (out of rep range)");
+    }
+
+    function test_canAttack_succeedsWithinRepRange() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 1000);
+        _setReputation(defenderToken, 1200);
+
+        (bool canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        assertTrue(canFight, "Should be able to attack within rep range");
+    }
+
+    function test_canAttack_repRangeEdgeCases() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 1000);
+
+        // Exactly at upper boundary: 1000 + 25% = 1250
+        _setReputation(defenderToken, 1250);
+        (bool canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        assertTrue(canFight, "Exactly at upper boundary should succeed");
+
+        // One above upper boundary
+        _setReputation(defenderToken, 1251);
+        (canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        assertFalse(canFight, "One above upper boundary should fail");
+
+        // Exactly at lower boundary: 1000 - 25% = 750
+        _setReputation(defenderToken, 750);
+        (canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        assertTrue(canFight, "Exactly at lower boundary should succeed");
+
+        // One below lower boundary
+        _setReputation(defenderToken, 749);
+        (canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        assertFalse(canFight, "One below lower boundary should fail");
+    }
+
+    function test_getPotentialTargets_filtersOnRepRange() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 1000);
+
+        uint256 inRangeToken = _mintAndInitialize(address(uint160(500)));
+        _moveDealerToArea(inRangeToken, AREA_MANHATTAN);
+        _setReputation(inRangeToken, 1200);
+
+        uint256 outOfRangeToken = _mintAndInitialize(address(uint160(501)));
+        _moveDealerToArea(outOfRangeToken, AREA_MANHATTAN);
+        _setReputation(outOfRangeToken, 2000);
+
+        _setReputation(defenderToken, 900);
+
+        (IDealersExePVP.PVPTarget[] memory targets, ) = pvp.getPotentialTargets(attackerToken, 0, 100);
+
+        bool foundInRange = false;
+        bool foundDefender = false;
+        bool foundOutOfRange = false;
+        for (uint256 i = 0; i < targets.length; i++) {
+            if (targets[i].tokenId == inRangeToken) foundInRange = true;
+            if (targets[i].tokenId == defenderToken) foundDefender = true;
+            if (targets[i].tokenId == outOfRangeToken) foundOutOfRange = true;
+        }
+
+        assertTrue(foundInRange, "In-range target should be included");
+        assertTrue(foundDefender, "Defender within range should be included");
+        assertFalse(foundOutOfRange, "Out-of-range target should be excluded");
+    }
+
+    function test_attack_revertsOutOfRepRange() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 1000);
+        _setReputation(defenderToken, 2000);
+        _addDrugsToDealer(attackerToken, DRUG_WEED, 1000);
+        _addDrugsToDealer(defenderToken, DRUG_WEED, 1000);
+
+        vm.prank(player1);
+        vm.expectRevert(DealersExePVP.OutOfRepRange.selector);
+        pvp.attack(attackerToken, defenderToken);
+    }
+
+    function test_repRangePercent_updatable() public {
+        _moveDealerToArea(attackerToken, AREA_MANHATTAN);
+        _moveDealerToArea(defenderToken, AREA_MANHATTAN);
+        _setReputation(attackerToken, 1000);
+        _setReputation(defenderToken, 2000);
+
+        (bool canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        assertFalse(canFight, "Should fail with default 25% range");
+
+        vm.prank(owner);
+        pvp.setPVPConfig(IDealersExePVP.PVPConfig({
+            minReputation: 100,
+            baseWinChance: 50,
+            minWinChance: 25,
+            maxWinChance: 75,
+            maxAttacksPerDay: 3,
+            drugStealPercent: 2,
+            cashStealPercent: 1,
+            rarityWeightCommon: 50,
+            rarityWeightUncommon: 30,
+            rarityWeightRare: 20,
+            repRangePercent: 100,
+            defenderRepBonus: 2,
+            repRangeThreshold: 0
+        }));
+
+        (canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        assertTrue(canFight, "Should succeed with 100% range");
+    }
+
+    // =============================================================
+    //                     INFAMY (4 tests)
+    // =============================================================
+
+    function test_infamy_increasesOnWin() public {
+        _setupDealersForPVP();
+
+        uint256 infamyBefore = core.getInfamy(attackerToken);
+
+        _setupForWin();
+        _executeAttack();
+
+        uint256 infamyAfter = core.getInfamy(attackerToken);
+        assertEq(infamyAfter, infamyBefore + 3, "Attacker infamy should increase by 3 on win");
+    }
+
+    function test_infamy_decreasesOnLoss() public {
+        _setupDealersForPVP();
+
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
+        core.updateInfamy(attackerToken, 5);
+        vm.prank(owner);
+        core.authorizeContract(address(this), false);
+
+        _setupForLoss();
+        _executeAttack();
+
+        uint256 infamyAfter = core.getInfamy(attackerToken);
+        assertEq(infamyAfter, 4, "Attacker infamy should decrease by 1 on loss");
+    }
+
+    function test_infamy_floorAtZeroOnLoss() public {
+        _setupDealersForPVP();
+
+        assertEq(core.getInfamy(attackerToken), 0, "Attacker starts with 0 infamy");
+
+        _setupForLoss();
+        _executeAttack();
+
+        assertEq(core.getInfamy(attackerToken), 0, "Infamy cannot go below 0");
+    }
+
+    function test_infamy_defenderUnchanged() public {
+        _setupDealersForPVP();
+
+        _setupForWin();
+        _executeAttack();
+
+        assertEq(core.getInfamy(defenderToken), 0, "Defender infamy unchanged after being attacked");
+    }
+
+    // =============================================================
+    //                     LOOT DROPS (5 tests)
+    // =============================================================
+
+    function _setInfamy(uint256 tokenId, uint256 amount) internal {
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
+        core.updateInfamy(tokenId, int256(amount));
+        vm.prank(owner);
+        core.authorizeContract(address(this), false);
+    }
+
+    function test_lootDrop_noDrop_zeroInfamy() public {
+        _setupDealersForPVP();
+        _mockRandomValues(50, 0, 10, 39); // infamy 0: weights [40,60,0,0], roll 39 < 40 = no drop
+
+        uint256 goodsBefore = core.getDrugBalance(attackerToken, 1);
+
+        _setDealerStats(attackerToken, 25, 0);
+        _setDealerStats(defenderToken, 0, 0);
+        _executeAttack();
+
+        assertEq(core.getDrugBalance(attackerToken, 1), goodsBefore, "No drop when roll < 40 at infamy 0");
+    }
+
+    function test_lootDrop_generalGoods_zeroInfamy() public {
+        _setupDealersForPVP();
+        _mockRandomValues(50, 0, 10, 50); // infamy 0: weights [40,60,0,0], roll 50 -> General Goods
+
+        uint256 goodsBefore = core.getDrugBalance(attackerToken, 1);
+
+        _setDealerStats(attackerToken, 25, 0);
+        _setDealerStats(defenderToken, 0, 0);
+        _executeAttack();
+
+        assertEq(core.getDrugBalance(attackerToken, 1), goodsBefore + 1, "General Goods at infamy 0");
+    }
+
+    function test_lootDrop_contraband_withInfamy20() public {
+        _setupDealersForPVP();
+        _setInfamy(attackerToken, 20);
+        // infamy 20: weights [30,45,20,5], cumulative: 30,75,95,100
+        _mockRandomValues(50, 0, 10, 80); // roll 80 >= 75 and < 95 = Contraband
+
+        uint256 contrabandBefore = core.getDrugBalance(attackerToken, 2);
+
+        _setDealerStats(attackerToken, 25, 0);
+        _setDealerStats(defenderToken, 0, 0);
+        _executeAttack();
+
+        assertEq(core.getDrugBalance(attackerToken, 2), contrabandBefore + 1, "Contraband at infamy 20");
+    }
+
+    function test_lootDrop_jewels_withInfamy50() public {
+        _setupDealersForPVP();
+        _setInfamy(attackerToken, 50);
+        // infamy 50: weights [15,30,35,20], cumulative: 15,45,80,100
+        _mockRandomValues(50, 0, 10, 95); // roll 95 >= 80 and < 100 = Jewels
+
+        uint256 jewelsBefore = core.getDrugBalance(attackerToken, 3);
+
+        _setDealerStats(attackerToken, 25, 0);
+        _setDealerStats(defenderToken, 0, 0);
+        _executeAttack();
+
+        assertEq(core.getDrugBalance(attackerToken, 3), jewelsBefore + 1, "Jewels at infamy 50");
+    }
+
+    function test_lootDrop_noDrop_onLoss() public {
+        _setupDealersForPVP();
+        _mockRandomValues(50, 99, 10, 50); // loss, dropRng=50 would trigger goods if won
+
+        uint256 goodsBefore = core.getDrugBalance(attackerToken, 1);
+
+        _setDealerStats(attackerToken, 0, 0);
+        _setDealerStats(defenderToken, 0, 25);
+        _executeAttack();
+
+        assertEq(core.getDrugBalance(attackerToken, 1), goodsBefore, "No loot drop on loss");
     }
 }

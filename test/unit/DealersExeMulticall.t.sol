@@ -24,7 +24,7 @@ contract DealersExeMulticallTest is BaseTest {
     function test_getFullDealerState_starterValues() public view {
         DealersExeMulticall.FullDealerState memory state = multicall.getFullDealerState(tokenId1);
 
-        assertEq(state.reputation, core.getTotalReputation(tokenId1));
+        assertEq(state.reputation, core.getGameState(tokenId1).totalReputation);
         assertEq(state.currentArea, core.STARTING_AREA());
         assertEq(state.heatLevel, 0);
         assertEq(state.dailyAttemptsRemaining, core.BASE_MAX_ATTEMPTS());
@@ -53,16 +53,22 @@ contract DealersExeMulticallTest is BaseTest {
         assertEq(state.drugBalances.length, allDrugs.length);
 
         assertEq(state.drugBalances[0].drugId, 1);
-        assertEq(state.drugBalances[0].balance, core.STARTER_WEED());
+        assertEq(state.drugBalances[0].balance, 0);
 
         assertEq(state.drugBalances[1].drugId, 2);
-        assertEq(state.drugBalances[1].balance, core.STARTER_XTC());
+        assertEq(state.drugBalances[1].balance, 0);
 
         assertEq(state.drugBalances[2].drugId, 3);
-        assertEq(state.drugBalances[2].balance, core.STARTER_COCAINE());
+        assertEq(state.drugBalances[2].balance, 0);
 
-        assertEq(state.drugBalances[3].balance, 0);
-        assertEq(state.drugBalances[4].balance, 0);
+        assertEq(state.drugBalances[3].drugId, 4);
+        assertEq(state.drugBalances[3].balance, core.STARTER_WEED());
+
+        assertEq(state.drugBalances[4].drugId, 5);
+        assertEq(state.drugBalances[4].balance, core.STARTER_XTC());
+
+        assertEq(state.drugBalances[5].drugId, 6);
+        assertEq(state.drugBalances[5].balance, core.STARTER_COCAINE());
     }
 
     function test_getFullDealerState_withBoost() public {
@@ -75,8 +81,8 @@ contract DealersExeMulticallTest is BaseTest {
         assertGt(state.boostExpiry, block.timestamp);
         assertEq(state.drugMultiplier, 125);
         assertEq(state.cashMultiplier, 125);
-        assertEq(state.repMultiplier, 125);
-        assertEq(state.maxAttempts, 8);
+        assertEq(state.repMultiplier, 110);
+        assertEq(state.maxAttempts, 7);
     }
 
     function test_getFullDealerState_reputationTitle() public view {
@@ -111,16 +117,24 @@ contract DealersExeMulticallTest is BaseTest {
         assertFalse(jail.isSafeHouse);
     }
 
-    function test_getAllAreasEconomy() public view {
-        DealersExeMulticall.AreaEconomy[] memory economies = multicall.getAllAreasEconomy();
+    function test_getAllAreas() public view {
+        DealersExeMulticall.AreaEconomy[] memory economies = multicall.getAllAreas();
 
         uint8 totalAreas = areaRegistry.getTotalAreas();
-        assertEq(economies.length, totalAreas);
+        assertEq(economies.length, totalAreas + 3);
 
-        for (uint256 i = 0; i < economies.length; i++) {
-            assertEq(economies[i].areaId, i + 1);
+        assertEq(economies[0].areaId, 0);
+        assertTrue(economies[0].isSafeHouse);
+
+        for (uint256 i = 1; i <= totalAreas; i++) {
+            assertEq(economies[i].areaId, i);
             assertTrue(bytes(economies[i].areaName).length > 0);
         }
+
+        assertEq(economies[totalAreas + 1].areaId, 254);
+
+        assertEq(economies[totalAreas + 2].areaId, 255);
+        assertTrue(economies[totalAreas + 2].isJail);
     }
 
     function test_getFullDealerState_revertUninitialized() public {
@@ -149,8 +163,8 @@ contract DealersExeMulticallTest is BaseTest {
     function test_getFullDealerState_drugRarityTyped() public view {
         DealersExeMulticall.FullDealerState memory state = multicall.getFullDealerState(tokenId1);
 
-        assertEq(uint8(state.drugBalances[0].rarity), uint8(IDrugRegistry.DrugRarity.COMMON));
-        assertEq(uint8(state.drugBalances[1].rarity), uint8(IDrugRegistry.DrugRarity.UNCOMMON));
-        assertEq(uint8(state.drugBalances[2].rarity), uint8(IDrugRegistry.DrugRarity.RARE));
+        assertEq(uint8(state.drugBalances[0].rarity), uint8(IDrugRegistry.DrugRarity.COMMON));    // General Goods
+        assertEq(uint8(state.drugBalances[1].rarity), uint8(IDrugRegistry.DrugRarity.UNCOMMON)); // Contraband
+        assertEq(uint8(state.drugBalances[2].rarity), uint8(IDrugRegistry.DrugRarity.RARE));     // Jewels
     }
 }

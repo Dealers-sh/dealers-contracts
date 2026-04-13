@@ -11,7 +11,7 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Handles all monetary transactions and fee splitting for the game ecosystem
- * @author Dealers.Exe Team
+ * @author Berny0x
  */
 contract DEPaymentHandler is ReentrancyGuard, Ownable {
 
@@ -20,11 +20,14 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     // =============================================================
 
     uint256 public constant MIN_AMOUNT = 0.0001 ether;
-    uint256 public constant BANK_FEE_PERCENT = 2000;  // 20% to bank vault, 80% to dev
+    uint256 public constant MAX_FEE_PERCENT = 10000;
 
     // =============================================================
     //                            STORAGE
     // =============================================================
+
+    // Fee split (basis points, e.g. 2000 = 20% to bank, 80% to dev)
+    uint256 public bankFeePercent = 6000;
 
     // Authorized game contracts
     mapping(address => bool) public authorizedContracts;
@@ -39,9 +42,6 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     uint256 public totalBankFees;
     uint256 public totalDirectDeposits;
 
-    // Pending withdrawals for dev wallet
-    uint256 public pendingDevWithdrawal;
-
     // =============================================================
     //                            EVENTS
     // =============================================================
@@ -53,6 +53,7 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     event BankVaultUpdated(address indexed oldVault, address indexed newVault);
     event EmergencyWithdrawal(address indexed to, uint256 amount);
     event DirectDeposit(address indexed sender, uint256 amount);
+    event FeeSplitUpdated(uint256 oldBankPercent, uint256 newBankPercent);
 
     // =============================================================
     //                            ERRORS
@@ -65,6 +66,7 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     error TransferFailed();
     error InsufficientBalance();
     error NoFeesToWithdraw();
+    error InvalidFeePercent();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -107,13 +109,12 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     // =============================================================
 
     function _processFee(address player, uint256 amount) private {
-        uint256 bankFee = (amount * BANK_FEE_PERCENT) / 10000;
+        uint256 bankFee = (amount * bankFeePercent) / 10000;
         uint256 devFee = amount - bankFee;
 
         totalProcessed += amount;
         totalDevFees += devFee;
         totalBankFees += bankFee;
-        pendingDevWithdrawal += devFee;
 
         if (bankFee > 0) {
             _safeTransferETH(bankVault, bankFee);
@@ -150,10 +151,9 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
 
     function withdrawDevFees() external nonReentrant {
         if (msg.sender != devWallet && msg.sender != owner()) revert NotAuthorized();
-        if (pendingDevWithdrawal == 0) revert NoFeesToWithdraw();
 
-        uint256 amount = pendingDevWithdrawal;
-        pendingDevWithdrawal = 0;
+        uint256 amount = address(this).balance;
+        if (amount == 0) revert NoFeesToWithdraw();
 
         _safeTransferETH(devWallet, amount);
 
@@ -182,7 +182,7 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
     }
 
     function getPendingDevFees() external view returns (uint256) {
-        return pendingDevWithdrawal;
+        return address(this).balance;
     }
 
     function getFinancialStats() external view returns (
@@ -196,16 +196,16 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
         processed = totalProcessed;
         devFees = totalDevFees;
         bankFees = totalBankFees;
-        pendingDev = pendingDevWithdrawal;
+        pendingDev = address(this).balance;
         contractBalance = address(this).balance;
         bankBalance = bankVault.balance;
     }
 
-    function calculateFees(uint256 amount) external pure returns (
+    function calculateFees(uint256 amount) external view returns (
         uint256 bankFee,
         uint256 devFee
     ) {
-        bankFee = (amount * BANK_FEE_PERCENT) / 10000;
+        bankFee = (amount * bankFeePercent) / 10000;
         devFee = amount - bankFee;
     }
 
@@ -231,6 +231,13 @@ contract DEPaymentHandler is ReentrancyGuard, Ownable {
         address oldVault = bankVault;
         bankVault = _bankVault;
         emit BankVaultUpdated(oldVault, _bankVault);
+    }
+
+    function setFeeSplit(uint256 _bankFeePercent) external onlyOwner {
+        if (_bankFeePercent < 2500 || _bankFeePercent > MAX_FEE_PERCENT) revert InvalidFeePercent();
+        uint256 oldPercent = bankFeePercent;
+        bankFeePercent = _bankFeePercent;
+        emit FeeSplitUpdated(oldPercent, _bankFeePercent);
     }
 
     // =============================================================

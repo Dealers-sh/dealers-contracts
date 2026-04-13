@@ -35,7 +35,12 @@ interface IDealersExeCore {
     function paymentHandler() external view returns (address);
     function randomness() external view returns (address);
     function authorizedContracts(address) external view returns (bool);
-    function getTierCount() external view returns (uint256);
+    function initializeDealer(uint256 tokenId) external;
+    function updateReputation(uint256 tokenId, int256 change) external;
+    function updateInfamy(uint256 tokenId, int256 delta) external;
+    function reputationTiers(uint256 index) external view returns (
+        uint256 minReputation, int16 winBonus, int16 tieBonus, int16 lossPenalty, int16 repCap, string memory tierName
+    );
 }
 
 interface IDealersExeNFT {
@@ -46,6 +51,8 @@ interface IDealersExeNFT {
 interface IDrugRegistry {
     function authorizeContract(address contractAddress, bool authorized) external;
     function authorizedContracts(address) external view returns (bool);
+    function createDrug(string calldata name, uint8 rarity, uint256 baseCashValue) external returns (uint256);
+    function getTotalDrugs() external view returns (uint256);
 }
 
 interface IPaymentHandler {
@@ -56,21 +63,28 @@ interface IPaymentHandler {
 interface IAreaRegistry {
     function setCoreContract(address _coreContract) external;
     function coreContract() external view returns (address);
+    function createArea(string calldata name, uint256 movementFee, uint256 minReputation, bool isSafeHouseArea, bool isJailArea) external returns (uint8);
+    function batchConfigureAreaDrugs(uint8 areaId, uint256[] calldata drugIds, uint256[] calldata buyPrices, uint256[] calldata sellPrices) external;
+    function getTotalAreas() external view returns (uint8);
 }
 
 interface IPVPContract {
     function setCore(address _core) external;
     function setDrugRegistry(address _drugRegistry) external;
+    function setAreaRegistry(address _areaRegistry) external;
     function setRandomness(address _randomness) external;
     function core() external view returns (address);
     function drugRegistry() external view returns (address);
+    function areaRegistry() external view returns (address);
     function randomness() external view returns (address);
 }
 
 interface IPVEContract {
     function setDealersExeCore(address _core) external;
+    function setAreaRegistry(address _areaRegistry) external;
     function setRandomness(address _randomness) external;
     function dealersExeCore() external view returns (address);
+    function areaRegistry() external view returns (address);
     function randomness() external view returns (address);
 }
 
@@ -110,6 +124,28 @@ interface IClaimsContract {
     function achievementCount() external view returns (uint256);
 }
 
+interface IActionsContract {
+    function setPaymentHandler(address _handler) external;
+    function setRandomness(address _randomness) external;
+    function setAreaRegistry(address _areaRegistry) external;
+    function paymentHandler() external view returns (address);
+    function randomness() external view returns (address);
+    function areaRegistry() external view returns (address);
+}
+
+interface IMulticallContract {
+    function setCore(address _core) external;
+    function setPVE(address _pve) external;
+    function setPVP(address _pvp) external;
+    function setAreaRegistry(address _areaRegistry) external;
+    function setDrugRegistry(address _drugRegistry) external;
+    function core() external view returns (address);
+    function pve() external view returns (address);
+    function pvp() external view returns (address);
+    function areaRegistry() external view returns (address);
+    function drugRegistry() external view returns (address);
+}
+
 // =============================================================================
 //                              BASE CONTRACT
 // =============================================================================
@@ -126,9 +162,11 @@ abstract contract DeployBase is Script {
     address public pve;
     address public pvp;
     address public claims;
+    address public actions;
     address public rendererSvg;
     address public rendererHtml;
     address public multicall;
+    address public chatFactory;
 
     // Wallet addresses
     address public devWallet;
@@ -159,9 +197,11 @@ abstract contract DeployBase is Script {
             pve = _jsonAddrOr(json, ".pve", "DEALERS_PVE");
             pvp = _jsonAddrOr(json, ".pvp", "DEALERS_PVP");
             claims = _jsonAddrOr(json, ".claims", "DEALERS_CLAIMS");
+            actions = _jsonAddrOr(json, ".actions", "DEALERS_ACTIONS");
             rendererSvg = _jsonAddrOr(json, ".rendererSvg", "RENDERER_SVG");
             rendererHtml = _jsonAddrOr(json, ".rendererHtml", "RENDERER_HTML");
             multicall = _jsonAddrOr(json, ".multicall", "DEALER_MULTICALL");
+            chatFactory = _jsonAddrOr(json, ".chatFactory", "CHAT_FACTORY");
         } catch {
             drugRegistry = vm.envOr("DRUG_REGISTRY", address(0));
             areaRegistry = vm.envOr("AREA_REGISTRY", address(0));
@@ -173,9 +213,11 @@ abstract contract DeployBase is Script {
             pve = vm.envOr("DEALERS_PVE", address(0));
             pvp = vm.envOr("DEALERS_PVP", address(0));
             claims = vm.envOr("DEALERS_CLAIMS", address(0));
+            actions = vm.envOr("DEALERS_ACTIONS", address(0));
             rendererSvg = vm.envOr("RENDERER_SVG", address(0));
             rendererHtml = vm.envOr("RENDERER_HTML", address(0));
             multicall = vm.envOr("DEALER_MULTICALL", address(0));
+            chatFactory = vm.envOr("CHAT_FACTORY", address(0));
         }
 
         devWallet = vm.envOr("DEV_WALLET", address(0));
@@ -191,6 +233,8 @@ abstract contract DeployBase is Script {
     }
 
     function _saveAddresses() internal {
+        _mergeExistingAddresses();
+
         string memory obj = "deploy";
         vm.serializeAddress(obj, "drugRegistry", drugRegistry);
         vm.serializeAddress(obj, "areaRegistry", areaRegistry);
@@ -202,13 +246,44 @@ abstract contract DeployBase is Script {
         vm.serializeAddress(obj, "pve", pve);
         vm.serializeAddress(obj, "pvp", pvp);
         vm.serializeAddress(obj, "claims", claims);
+        vm.serializeAddress(obj, "actions", actions);
         vm.serializeAddress(obj, "rendererSvg", rendererSvg);
         vm.serializeAddress(obj, "rendererHtml", rendererHtml);
-        string memory json = vm.serializeAddress(obj, "multicall", multicall);
+        vm.serializeAddress(obj, "multicall", multicall);
+        string memory json = vm.serializeAddress(obj, "chatFactory", chatFactory);
 
         string memory path = _getDeploymentPath();
         vm.writeJson(json, path);
         console.log("Addresses saved to:", path);
+    }
+
+    function _mergeExistingAddresses() internal {
+        string memory path = _getDeploymentPath();
+        try vm.readFile(path) returns (string memory json) {
+            if (drugRegistry == address(0)) drugRegistry = _jsonAddr(json, ".drugRegistry");
+            if (areaRegistry == address(0)) areaRegistry = _jsonAddr(json, ".areaRegistry");
+            if (core == address(0)) core = _jsonAddr(json, ".core");
+            if (paymentHandler == address(0)) paymentHandler = _jsonAddr(json, ".paymentHandler");
+            if (randomness == address(0)) randomness = _jsonAddr(json, ".randomness");
+            if (nft == address(0)) nft = _jsonAddr(json, ".nft");
+            if (boosts == address(0)) boosts = _jsonAddr(json, ".boosts");
+            if (pve == address(0)) pve = _jsonAddr(json, ".pve");
+            if (pvp == address(0)) pvp = _jsonAddr(json, ".pvp");
+            if (claims == address(0)) claims = _jsonAddr(json, ".claims");
+            if (actions == address(0)) actions = _jsonAddr(json, ".actions");
+            if (rendererSvg == address(0)) rendererSvg = _jsonAddr(json, ".rendererSvg");
+            if (rendererHtml == address(0)) rendererHtml = _jsonAddr(json, ".rendererHtml");
+            if (multicall == address(0)) multicall = _jsonAddr(json, ".multicall");
+            if (chatFactory == address(0)) chatFactory = _jsonAddr(json, ".chatFactory");
+        } catch {}
+    }
+
+    function _jsonAddr(string memory json, string memory key) internal returns (address) {
+        try vm.parseJsonAddress(json, key) returns (address val) {
+            return val;
+        } catch {
+            return address(0);
+        }
     }
 
     // =========================================================================

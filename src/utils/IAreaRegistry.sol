@@ -8,7 +8,7 @@ pragma solidity ^0.8.28;
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Interface for area definitions, drug availability per area, and pricing
- * @author Dealers.Exe Team
+ * @author Berny0x
  */
 interface IAreaRegistry {
     // =============================================================
@@ -71,6 +71,9 @@ interface IAreaRegistry {
     /// @notice Check if an area is jail
     function isJail(uint8 areaId) external view returns (bool);
 
+    /// @notice Check if an area is the Black Market
+    function isBlackMarket(uint8 areaId) external view returns (bool);
+
     /// @notice Get total number of areas (excluding special areas)
     function getTotalAreas() external view returns (uint8);
 
@@ -118,4 +121,7 @@ interface IAreaRegistry {
 
     /// @notice Jail area ID (always 255)
     function JAIL_AREA() external view returns (uint8);
+
+    /// @notice Black Market area ID (always 254)
+    function BLACK_MARKET_AREA() external view returns (uint8);
 }

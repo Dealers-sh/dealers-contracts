@@ -12,7 +12,7 @@ import "../base/DeployBase.s.sol";
  * Usage:
  *   source .env && forge script script/deploy/DeployClaims.s.sol:DeployClaims \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *     --skip "RendererSVG"
  */
 contract DeployClaims is DeployBase {
     function run() external {
@@ -28,8 +28,10 @@ contract DeployClaims is DeployBase {
         ));
         vm.stopBroadcast();
 
+        _saveAddresses();
+
         console.log("DealersExeClaims deployed:", claims);
         console.log("");
-        console.log("Next: update DEALERS_CLAIMS in .env, then run SetupWiring.s.sol");
+        console.log("Next: run SetupWiring.s.sol");
     }
 }

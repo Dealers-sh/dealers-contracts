@@ -47,6 +47,9 @@ DEALERS_NFT="${DEALERS_NFT:-$(_addr nft)}"
 DEALERS_BOOSTS="${DEALERS_BOOSTS:-$(_addr boosts)}"
 DEALERS_PVE="${DEALERS_PVE:-$(_addr pve)}"
 DEALERS_PVP="${DEALERS_PVP:-$(_addr pvp)}"
+DEALERS_CLAIMS="${DEALERS_CLAIMS:-$(_addr claims)}"
+DEALERS_ACTIONS="${DEALERS_ACTIONS:-$(_addr actions)}"
+DEALERS_MULTICALL="${DEALERS_MULTICALL:-$(_addr multicall)}"
 RENDERER_SVG="${RENDERER_SVG:-$(_addr rendererSvg)}"
 RENDERER_HTML="${RENDERER_HTML:-$(_addr rendererHtml)}"
 
@@ -173,6 +176,24 @@ verify_pvp() {
         "src/core/DealersExePVP.sol:DealersExePVP" "$args" "true"
 }
 
+verify_claims() {
+    local args=$(cast abi-encode "constructor(address,address,address,address)" "$DEALERS_CORE" "$DEALERS_NFT" "$DEALERS_PVE" "$DEALERS_PVP")
+    verify_contract "$DEALERS_CLAIMS" \
+        "src/core/DealersExeClaims.sol:DealersExeClaims" "$args" "true"
+}
+
+verify_actions() {
+    local args=$(cast abi-encode "constructor(address,address,address)" "$DEALERS_CORE" "$DEALERS_NFT" "$AREA_REGISTRY")
+    verify_contract "$DEALERS_ACTIONS" \
+        "src/core/DealersExeActions.sol:DealersExeActions" "$args" "true"
+}
+
+verify_multicall() {
+    local args=$(cast abi-encode "constructor(address,address,address,address,address)" "$DEALERS_CORE" "$DEALERS_PVE" "$DEALERS_PVP" "$AREA_REGISTRY" "$DRUG_REGISTRY")
+    verify_contract "$DEALERS_MULTICALL" \
+        "src/core/DealersExeMulticall.sol:DealersExeMulticall" "$args" "true"
+}
+
 verify_renderer_svg() {
     verify_contract "$RENDERER_SVG" \
         "src/nft/DealerRendererSVG.sol:DealerRendererSVG" "" "false"
@@ -193,7 +214,7 @@ echo "  Chain ID: $CHAIN_ID"
 echo "=============================================="
 echo ""
 
-ALL_GAME=(drug_registry area_registry core payment_handler randomness nft boosts pve pvp)
+ALL_GAME=(drug_registry area_registry core payment_handler randomness nft boosts pve pvp claims actions multicall)
 ALL_RENDERERS=(renderer_svg renderer_html)
 
 if [ $# -eq 0 ]; then
@@ -214,6 +235,9 @@ else
             boost*|BO*)  targets+=(boosts) ;;
             pve|PVE*)    targets+=(pve) ;;
             pvp|PVP*)    targets+=(pvp) ;;
+            claim*|CL*)  targets+=(claims) ;;
+            action*|AC*) targets+=(actions) ;;
+            multi*|MC*)  targets+=(multicall) ;;
             svg)         targets+=(renderer_svg) ;;
             html)        targets+=(renderer_html) ;;
             *)           echo -e "${RED}Unknown target: $arg${NC}"; exit 1 ;;
@@ -235,6 +259,9 @@ for target in "${targets[@]}"; do
         boosts)          verify_boosts ;;
         pve)             verify_pve ;;
         pvp)             verify_pvp ;;
+        claims)          verify_claims ;;
+        actions)         verify_actions ;;
+        multicall)       verify_multicall ;;
         renderer_svg)    verify_renderer_svg ;;
         renderer_html)   verify_renderer_html ;;
     esac

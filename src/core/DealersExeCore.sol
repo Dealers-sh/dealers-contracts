@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "./IDealersExeCore.sol";
 import "../utils/IDrugRegistry.sol";
 import "../utils/IAreaRegistry.sol";
 import "../utils/IERC721Minimal.sol";
@@ -17,9 +18,9 @@ import "../utils/IDERandomness.sol";
  *
  * @dev Centralized data management contract for all game modules
  *      Uses external DrugRegistry and AreaRegistry for configuration
- * @author Dealers.Exe Team
+ * @author Berny0x
  */
-contract DealersExeCore is Ownable, ReentrancyGuard {
+contract DealersExeCore is IDealersExeCore, Ownable, ReentrancyGuard {
     // =============================================================
     //                            CONSTANTS
     // =============================================================
@@ -48,6 +49,11 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     // Configuration limits
     uint256 public constant MAX_TIERS = 20;
 
+    // Infamy / heat decay constants
+    uint256 public constant DECAY_GRACE_PERIOD = 7 days;
+    uint256 public constant DECAY_RATE_PER_DAY = 1;
+    uint256 public constant INFAMY_DECAY_MULTIPLIER = 2;
+
     // =============================================================
     //                            STRUCTS
     // =============================================================
@@ -64,32 +70,6 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         uint8 dailyAttemptsRemaining;
         uint8 heatLevel;
         bool isInitialized;
-    }
-
-    /**
-     * @dev Boost data structure for temporary player bonuses
-     */
-    struct BoostData {
-        uint64 expiresAt;
-        uint8 drugMultiplier;
-        uint8 repMultiplier;
-        uint8 extraAttempts;
-        bool freeAreaMovement;
-        bool doubleHeistEntries;
-        uint8 cashMultiplier;
-        uint8 tierId;
-    }
-
-    /**
-     * @dev Reputation tier structure for scaling rewards/penalties
-     */
-    struct ReputationTier {
-        uint256 minReputation;
-        int16 winBonus;
-        int16 tieBonus;
-        int16 lossPenalty;
-        int16 repCap;
-        string tierName;
     }
 
     /**
@@ -127,6 +107,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     // Configurable parameters
     CoreConfig public config;
     uint256 public MAX_REPUTATION = 1200;
+    uint256 public MAX_INFAMY = 10000;
     bool public paused;
 
     // Boosts
@@ -138,6 +119,9 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
     // $CASH balances
     mapping(uint256 => uint256) public dealerCash;                        // tokenId => $CASH balance
+
+    // Infamy scores (PVP identity)
+    mapping(uint256 => uint256) public dealerInfamy;                      // tokenId => infamy score
 
     // External contract references
     IERC721Minimal public nftContract;
@@ -159,16 +143,11 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     event ReputationTiersUpdated(uint256 tierCount);
 
     event DealerJailed(uint256 indexed tokenId, uint8 previousArea, uint256 repLost, uint256 confiscatedDrugId, uint256 confiscatedAmount);
-    event DealerBailed(uint256 indexed tokenId, uint256 bailPaid, uint8 newArea);
-    event BreakoutAttempted(uint256 indexed tokenId, bool success, uint8 exitArea);
     event HeatLevelChanged(uint256 indexed tokenId, uint8 newHeatLevel);
     event AttemptsUsed(uint256 indexed tokenId, uint8 remaining);
     event AttemptsReset(uint256 indexed tokenId, uint8 newAmount);
     event BoostApplied(uint256 indexed tokenId, uint64 expiresAt);
-    event BoostExpired(uint256 indexed tokenId);
     event DealerStatsUpdated(uint256 indexed tokenId, uint8 threat, uint8 armor);
-    event WantedPosterRemoved(uint256 indexed tokenId, bool success);
-    event CopBribed(uint256 indexed tokenId, uint256 feePaid);
     event NFTContractUpdated(address indexed newAddress);
     event PaymentHandlerUpdated(address indexed newAddress);
     event DrugRegistryUpdated(address indexed newAddress);
@@ -176,11 +155,10 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     event RandomnessUpdated(address indexed newAddress);
 
     event CashUpdated(uint256 indexed tokenId, uint256 newBalance, int256 change);
-    event CashPurchased(uint256 indexed tokenId, uint256 amount, uint256 ethPaid);
+    event InfamyUpdated(uint256 indexed tokenId, uint256 newInfamy, int256 delta);
     event MaxReputationUpdated(uint256 oldMax, uint256 newMax);
     event Paused(address account);
     event Unpaused(address account);
-    event DealerTraveled(uint256 indexed tokenId, uint8 fromArea, uint8 toArea, uint256 feePaid, bool wasFreeMovement);
     event CoreConfigUpdated(CoreConfig oldConfig, CoreConfig newConfig);
 
     // =============================================================
@@ -198,26 +176,17 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
     error CannotEnterSafeHouse();
     error CannotEnterJail();
-    error DealerInJail();
-    error NotInJail();
-    error InsufficientBail();
-    error BreakoutAlreadyAttemptedToday();
     error NoAttemptsRemaining();
-    error NoHeatToReduce();
-    error InsufficientPayment();
-    error NotDealerOwner();
-    error NFTContractNotSet();
     error RegistryNotSet();
 
-    error CashBalanceTooHigh();
     error InsufficientCash();
     error InsufficientReputation();
-    error ETHTransferFailed();
     error NoTiersConfigured();
     error InvalidBoostMultiplier();
     error TooManyTiers();
     error TiersNotSorted();
     error ContractPaused();
+    error InvalidCoreConfig();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -298,22 +267,166 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         // Starter $CASH
         dealerCash[tokenId] = config.starterCash;
 
-        // Starter drugs: 100 Weed (ID=1), 5 XTC (ID=2), 1 Cocaine (ID=3)
-        drugBalances[tokenId][1] = STARTER_WEED;
-        drugBalances[tokenId][2] = STARTER_XTC;
-        drugBalances[tokenId][3] = STARTER_COCAINE;
+        // Starter drugs: 100 Weed (ID=4), 5 XTC (ID=5), 1 Cocaine (ID=6)
+        drugBalances[tokenId][4] = STARTER_WEED;
+        drugBalances[tokenId][5] = STARTER_XTC;
+        drugBalances[tokenId][6] = STARTER_COCAINE;
 
-        drugRegistry.incrementSupply(1, STARTER_WEED);
-        drugRegistry.incrementSupply(2, STARTER_XTC);
-        drugRegistry.incrementSupply(3, STARTER_COCAINE);
+        drugRegistry.incrementSupply(4, STARTER_WEED);
+        drugRegistry.incrementSupply(5, STARTER_XTC);
+        drugRegistry.incrementSupply(6, STARTER_COCAINE);
 
         areaRegistry.updateDealerLocation(tokenId, 0, STARTING_AREA);
 
         emit DealerInitialized(tokenId, STARTING_AREA);
         emit CashUpdated(tokenId, config.starterCash, int256(config.starterCash));
-        emit DrugBalanceUpdated(tokenId, 1, STARTER_WEED, int256(STARTER_WEED));
-        emit DrugBalanceUpdated(tokenId, 2, STARTER_XTC, int256(STARTER_XTC));
-        emit DrugBalanceUpdated(tokenId, 3, STARTER_COCAINE, int256(STARTER_COCAINE));
+        emit DrugBalanceUpdated(tokenId, 4, STARTER_WEED, int256(STARTER_WEED));
+        emit DrugBalanceUpdated(tokenId, 5, STARTER_XTC, int256(STARTER_XTC));
+        emit DrugBalanceUpdated(tokenId, 6, STARTER_COCAINE, int256(STARTER_COCAINE));
+    }
+
+    // =============================================================
+    //                     BATCHED READ API
+    // =============================================================
+
+    function getGameState(uint256 tokenId) external view returns (GameState memory state) {
+        state = _buildGameState(tokenId);
+    }
+
+    function getBothGameStates(uint256 t1, uint256 t2) external view returns (GameState memory s1, GameState memory s2) {
+        s1 = _buildGameState(t1);
+        s2 = _buildGameState(t2);
+    }
+
+    function getAreaDrugBalances(uint256 tokenId, uint256[] calldata drugIds) external view returns (uint256[] memory balances) {
+        balances = new uint256[](drugIds.length);
+        for (uint256 i = 0; i < drugIds.length;) {
+            balances[i] = drugBalances[tokenId][drugIds[i]];
+            unchecked { ++i; }
+        }
+    }
+
+    function isInitialized(uint256 tokenId) external view returns (bool) {
+        return dealers[tokenId].isInitialized;
+    }
+
+    function _buildGameState(uint256 tokenId) private view returns (GameState memory state) {
+        DealerData memory d = dealers[tokenId];
+        uint8 effectiveHeat = _calcEffectiveHeat(tokenId);
+        state.currentArea = d.currentArea;
+        state.previousArea = d.previousArea;
+        state.heatLevel = effectiveHeat;
+        state.dailyAttemptsRemaining = _getEffectiveAttempts(tokenId);
+        state.reputation = d.reputation;
+        state.isInitialized = d.isInitialized;
+        state.isJailed = d.currentArea == JAIL_AREA;
+        state.isInSafeHouse = d.currentArea == SAFE_HOUSE_AREA;
+        state.cashBalance = dealerCash[tokenId];
+
+        BoostData storage boost = dealerBoosts[tokenId];
+        state.boostActive = boost.expiresAt > block.timestamp;
+        if (state.boostActive) {
+            state.boostExpiresAt = boost.expiresAt;
+            state.freeAreaMovement = boost.freeAreaMovement;
+            state.drugMultiplier = boost.drugMultiplier;
+            state.repMultiplier = boost.repMultiplier;
+            state.cashMultiplier = boost.cashMultiplier;
+            state.extraAttempts = boost.extraAttempts;
+        } else {
+            state.drugMultiplier = 100;
+            state.repMultiplier = 100;
+            state.cashMultiplier = 100;
+        }
+
+        state.jailChance = uint16(effectiveHeat) * config.jailChancePerHeat;
+
+        state.threat = dealerThreatStat[tokenId];
+        state.armor = dealerArmorStat[tokenId];
+        state.lastBreakoutAttempt = d.lastBreakoutAttempt;
+        state.infamy = _calcEffectiveInfamy(tokenId);
+
+        if (d.isInitialized) {
+            if (address(drugRegistry) != address(0)) {
+                state.totalReputation = d.reputation + getStashBonus(tokenId);
+            } else {
+                state.totalReputation = d.reputation;
+            }
+
+            if (reputationTiers.length > 0) {
+                ReputationTier memory tier = getCurrentTier(d.reputation);
+                state.repWinBonus = tier.winBonus;
+                state.repTieBonus = tier.tieBonus;
+                state.repLossPenalty = tier.lossPenalty;
+                state.repCap = tier.repCap;
+            }
+        }
+    }
+
+    // =============================================================
+    //                     BATCHED WRITE API
+    // =============================================================
+
+    function applyGameOutcome(uint256 tokenId, GameOutcome calldata outcome)
+        external
+        onlyAuthorized
+        dealerExists(tokenId)
+        whenNotPaused
+    {
+        _applyOutcome(tokenId, outcome);
+    }
+
+    function applyPVPOutcome(
+        uint256 atk,
+        uint256 def,
+        GameOutcome calldata atkOut,
+        GameOutcome calldata defOut
+    )
+        external
+        onlyAuthorized
+        dealerExists(atk)
+        dealerExists(def)
+        whenNotPaused
+    {
+        _applyOutcome(atk, atkOut);
+        _applyOutcome(def, defOut);
+    }
+
+    function _applyOutcome(uint256 tokenId, GameOutcome calldata outcome) private {
+        DealerData storage d = dealers[tokenId];
+
+        if (outcome.useAttempt) {
+            if (_shouldResetAttempts(tokenId)) {
+                d.dailyAttemptsRemaining = getMaxAttempts(tokenId);
+            }
+            if (d.dailyAttemptsRemaining == 0) revert NoAttemptsRemaining();
+            unchecked { d.dailyAttemptsRemaining--; }
+            d.lastPlayTimestamp = uint32(block.timestamp);
+            emit AttemptsUsed(tokenId, d.dailyAttemptsRemaining);
+        }
+
+        if (outcome.incrementHeat) {
+            d.heatLevel = _calcEffectiveHeat(tokenId);
+            if (d.heatLevel < MAX_HEAT_LEVEL) {
+                unchecked { d.heatLevel++; }
+                emit HeatLevelChanged(tokenId, d.heatLevel);
+            }
+        }
+
+        if (outcome.repDelta != 0) {
+            _updateRep(tokenId, outcome.repDelta);
+        }
+
+        if (outcome.drugDelta != 0) {
+            _updateDrug(tokenId, outcome.drugId, outcome.drugDelta);
+        }
+
+        if (outcome.cashDelta != 0) {
+            _updateCash(tokenId, outcome.cashDelta);
+        }
+
+        if (outcome.sendToJail) {
+            _sendToJailInternal(tokenId);
+        }
     }
 
     // =============================================================
@@ -333,7 +446,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
             uint8 dailyAttemptsRemaining,
             uint8 heatLevel,
             uint32 lastPlayTimestamp,
-            bool isInitialized
+            bool initialized
         )
     {
         DealerData memory d = dealers[tokenId];
@@ -355,7 +468,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     /**
      * @notice Get the current reputation tier for a given reputation score
      */
-    function getCurrentTier(uint256 reputation) public view returns (ReputationTier memory) {
+    function getCurrentTier(uint256 reputation) internal view returns (ReputationTier memory) {
         if (reputationTiers.length == 0) revert NoTiersConfigured();
         ReputationTier memory currentTier = reputationTiers[0];
         for (uint256 i = reputationTiers.length; i > 0; ) {
@@ -370,27 +483,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         return currentTier;
     }
 
-    /**
-     * @notice Calculate reputation change based on game outcome and current tier
-     */
-    function getReputationChange(uint256 tokenId, uint8 outcome)
-        external
-        view
-        dealerExists(tokenId)
-        returns (int16)
-    {
-        uint256 rep = dealers[tokenId].reputation;
-        ReputationTier memory tier = getCurrentTier(rep);
-        if (outcome == 0) return tier.winBonus;
-        if (outcome == 1) return tier.tieBonus;
-        return tier.lossPenalty;
-    }
-
-    function getRepCap(uint256 tokenId) external view dealerExists(tokenId) returns (int16) {
-        return getCurrentTier(dealers[tokenId].reputation).repCap;
-    }
-
-    /**
+/**
      * @notice Get the tier name for a given reputation score
      */
     function getReputationTitle(uint256 reputation) external view returns (string memory) {
@@ -398,17 +491,10 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Get the complete tier information for a specific dealer
-     */
-    function getPlayerTier(uint256 tokenId) external view dealerExists(tokenId) returns (ReputationTier memory) {
-        return getCurrentTier(dealers[tokenId].reputation);
-    }
-
-    /**
      * @notice Calculate stash bonus from drug holdings
      * @dev Stash bonus = sum(drugBalance * baseCashValue) / STASH_DIVISOR
      */
-    function getStashBonus(uint256 tokenId) public view dealerExists(tokenId) registriesSet returns (uint256) {
+    function getStashBonus(uint256 tokenId) internal view dealerExists(tokenId) registriesSet returns (uint256) {
         uint256 totalValue = 0;
 
         // Get all drug IDs from registry and calculate value
@@ -429,7 +515,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     /**
      * @notice Get total reputation including stash bonus
      */
-    function getTotalReputation(uint256 tokenId) public view dealerExists(tokenId) returns (uint256) {
+    function getTotalReputation(uint256 tokenId) internal view dealerExists(tokenId) returns (uint256) {
         return dealers[tokenId].reputation + getStashBonus(tokenId);
     }
 
@@ -446,20 +532,7 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         dealerExists(tokenId)
         whenNotPaused
     {
-        DealerData storage d = dealers[tokenId];
-
-        if (change < 0) {
-            uint256 dec = uint256(-change);
-            unchecked {
-                d.reputation = dec >= d.reputation ? 0 : d.reputation - dec;
-            }
-        } else if (change > 0) {
-            unchecked {
-                d.reputation += uint256(change);
-            }
-            if (d.reputation > MAX_REPUTATION) d.reputation = MAX_REPUTATION;
-        }
-        emit ReputationUpdated(tokenId, d.reputation, change);
+        _updateRep(tokenId, change);
     }
 
     /**
@@ -473,22 +546,54 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         registriesSet
         whenNotPaused
     {
+        _updateDrug(tokenId, drugId, change);
+    }
+
+    // =============================================================
+    //                    SHARED STATE HELPERS
+    // =============================================================
+
+    function _updateRep(uint256 tokenId, int256 delta) private {
+        DealerData storage d = dealers[tokenId];
+        if (delta < 0) {
+            uint256 dec = uint256(-delta);
+            unchecked {
+                d.reputation = dec >= d.reputation ? 0 : d.reputation - dec;
+            }
+        } else if (delta > 0) {
+            unchecked {
+                d.reputation += uint256(delta);
+            }
+            if (d.reputation > MAX_REPUTATION) d.reputation = MAX_REPUTATION;
+        }
+        emit ReputationUpdated(tokenId, d.reputation, delta);
+    }
+
+    function _updateDrug(uint256 tokenId, uint256 drugId, int256 delta) private {
         if (!drugRegistry.isValidDrug(drugId)) revert InvalidDrug();
-
         uint256 bal = drugBalances[tokenId][drugId];
-
-        if (change < 0) {
-            uint256 dec = uint256(-change);
+        if (delta < 0) {
+            uint256 dec = uint256(-delta);
             if (dec > bal) revert InsufficientDrugBalance();
             drugBalances[tokenId][drugId] = bal - dec;
             drugRegistry.decrementSupply(drugId, dec);
-        } else if (change > 0) {
-            uint256 inc = uint256(change);
+        } else if (delta > 0) {
+            uint256 inc = uint256(delta);
             drugBalances[tokenId][drugId] = bal + inc;
             drugRegistry.incrementSupply(drugId, inc);
         }
+        emit DrugBalanceUpdated(tokenId, drugId, drugBalances[tokenId][drugId], delta);
+    }
 
-        emit DrugBalanceUpdated(tokenId, drugId, drugBalances[tokenId][drugId], change);
+    function _updateCash(uint256 tokenId, int256 delta) private {
+        if (delta < 0) {
+            uint256 dec = uint256(-delta);
+            if (dealerCash[tokenId] < dec) revert InsufficientCash();
+            dealerCash[tokenId] -= dec;
+        } else {
+            dealerCash[tokenId] += uint256(delta);
+        }
+        emit CashUpdated(tokenId, dealerCash[tokenId], delta);
     }
 
     /**
@@ -516,7 +621,23 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         uint8 oldArea = d.currentArea;
         if (oldArea == newAreaId) return;
 
+        d.previousArea = oldArea;
         d.currentArea = newAreaId;
+        areaRegistry.updateDealerLocation(tokenId, oldArea, newAreaId);
+        emit AreaMoved(tokenId, oldArea, newAreaId);
+    }
+
+    function forceMove(uint256 tokenId, uint8 newAreaId)
+        external
+        onlyAuthorized
+        dealerExists(tokenId)
+        whenNotPaused
+    {
+        DealerData storage d = dealers[tokenId];
+        uint8 oldArea = d.currentArea;
+        d.previousArea = oldArea;
+        d.currentArea = newAreaId;
+        areaRegistry.updateDealerLocation(tokenId, oldArea, newAreaId);
         emit AreaMoved(tokenId, oldArea, newAreaId);
     }
 
@@ -533,6 +654,58 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         d.dailyAttemptsRemaining = attemptsUsed > d.dailyAttemptsRemaining ? 0 : d.dailyAttemptsRemaining - attemptsUsed;
         d.lastPlayTimestamp = uint32(block.timestamp);
         emit DailyPlaysUpdated(tokenId, d.dailyAttemptsRemaining);
+    }
+
+    function setHeatLevel(uint256 tokenId, uint8 level)
+        external
+        onlyAuthorized
+        dealerExists(tokenId)
+        whenNotPaused
+    {
+        if (level > MAX_HEAT_LEVEL) level = MAX_HEAT_LEVEL;
+        dealers[tokenId].heatLevel = level;
+        emit HeatLevelChanged(tokenId, level);
+    }
+
+    function setLastBreakoutAttempt(uint256 tokenId, uint32 timestamp)
+        external
+        onlyAuthorized
+        dealerExists(tokenId)
+        whenNotPaused
+    {
+        dealers[tokenId].lastBreakoutAttempt = timestamp;
+    }
+
+    function resetDailyAttempts(uint256 tokenId)
+        external
+        onlyAuthorized
+        dealerExists(tokenId)
+        whenNotPaused
+    {
+        DealerData storage d = dealers[tokenId];
+        d.dailyAttemptsRemaining = getMaxAttempts(tokenId);
+        d.lastPlayTimestamp = uint32(block.timestamp);
+        emit AttemptsReset(tokenId, d.dailyAttemptsRemaining);
+    }
+
+    function updateInfamy(uint256 tokenId, int256 delta)
+        external
+        onlyAuthorized
+        dealerExists(tokenId)
+        whenNotPaused
+    {
+        uint256 settled = _calcEffectiveInfamy(tokenId);
+
+        if (delta < 0) {
+            uint256 dec = uint256(-delta);
+            settled = dec >= settled ? 0 : settled - dec;
+        } else {
+            unchecked { settled += uint256(delta); }
+            if (settled > MAX_INFAMY) settled = MAX_INFAMY;
+        }
+
+        dealerInfamy[tokenId] = settled;
+        emit InfamyUpdated(tokenId, settled, delta);
     }
 
     // =============================================================
@@ -586,6 +759,12 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
      * @notice Set configurable game parameters
      */
     function setCoreConfig(CoreConfig calldata _config) external onlyOwner {
+        if (_config.jailRepPenaltyPercent > 100) revert InvalidCoreConfig();
+        if (_config.wantedPosterSuccessChance > 100) revert InvalidCoreConfig();
+        if (_config.breakoutSuccessChance > 100) revert InvalidCoreConfig();
+        if (_config.jailDrugConfiscationPercent > 100) revert InvalidCoreConfig();
+        if (_config.jailChancePerHeat > 1000) revert InvalidCoreConfig();
+
         CoreConfig memory oldConfig = config;
         config = _config;
         emit CoreConfigUpdated(oldConfig, _config);
@@ -611,11 +790,17 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     //                        VIEW FUNCTIONS
     // =============================================================
 
-    /**
-     * @notice Get the number of reputation tiers configured
-     */
-    function getTierCount() external view returns (uint256) {
-        return reputationTiers.length;
+    function rollJailCheck(uint256 tokenId, uint256 rng) external view returns (bool) {
+        uint16 jailChance = uint16(_calcEffectiveHeat(tokenId)) * config.jailChancePerHeat;
+        return uint16(rng % 1000) < jailChance;
+    }
+
+    function getInfamy(uint256 tokenId) external view returns (uint256) {
+        return _calcEffectiveInfamy(tokenId);
+    }
+
+    function getEffectiveHeat(uint256 tokenId) external view returns (uint8) {
+        return _calcEffectiveHeat(tokenId);
     }
 
     // =============================================================
@@ -656,35 +841,13 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         whenNotPaused
     {
         DealerData storage d = dealers[tokenId];
+        d.heatLevel = _calcEffectiveHeat(tokenId);
         if (d.heatLevel < MAX_HEAT_LEVEL) {
             unchecked { d.heatLevel++; }
             emit HeatLevelChanged(tokenId, d.heatLevel);
         }
     }
 
-    /**
-     * @notice Get the jail chance for a dealer
-     */
-    function getJailChance(uint256 tokenId)
-        external
-        view
-        dealerExists(tokenId)
-        returns (uint16)
-    {
-        return uint16(dealers[tokenId].heatLevel) * config.jailChancePerHeat;
-    }
-
-    /**
-     * @notice Get the heat level for a dealer
-     */
-    function getHeatLevel(uint256 tokenId)
-        external
-        view
-        dealerExists(tokenId)
-        returns (uint8)
-    {
-        return dealers[tokenId].heatLevel;
-    }
 
     /**
      * @notice Send dealer to jail with capped reputation penalty
@@ -695,13 +858,16 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         dealerExists(tokenId)
         whenNotPaused
     {
+        _sendToJailInternal(tokenId);
+    }
+
+    function _sendToJailInternal(uint256 tokenId) private {
         DealerData storage d = dealers[tokenId];
 
         if (d.currentArea == JAIL_AREA) return;
 
         uint8 priorArea = d.currentArea;
 
-        // Calculate capped rep loss: min(rep * penalty%, cap)
         uint256 percentLoss = (d.reputation * config.jailRepPenaltyPercent) / 100;
         uint256 repLoss = percentLoss > config.jailRepPenaltyCap ? config.jailRepPenaltyCap : percentLoss;
 
@@ -715,246 +881,11 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
             d.reputation -= repLoss;
         }
 
-        // Confiscate a percentage of one random drug type
         (uint256 confiscatedDrugId, uint256 confiscatedAmount) = _confiscateDrug(tokenId);
 
         emit DealerJailed(tokenId, priorArea, repLoss, confiscatedDrugId, confiscatedAmount);
     }
 
-    /**
-     * @notice Pay bail to exit jail (returns to previous area, resets heat)
-     */
-    function payBail(uint256 tokenId)
-        external
-        payable
-        nonReentrant
-        dealerExists(tokenId)
-        registriesSet
-        whenNotPaused
-    {
-        DealerData storage d = dealers[tokenId];
-
-        if (d.currentArea != JAIL_AREA) revert NotInJail();
-
-        if (address(nftContract) == address(0)) revert NFTContractNotSet();
-        if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
-
-        uint256 bail = areaRegistry.getMovementFee(JAIL_AREA);
-        if (msg.value < bail) revert InsufficientBail();
-
-        uint8 returnArea = d.previousArea;
-
-        if (!areaRegistry.isValidArea(returnArea) || areaRegistry.isJail(returnArea)) {
-            returnArea = 1;
-        }
-
-        d.currentArea = returnArea;
-        d.heatLevel = 0;
-        areaRegistry.updateDealerLocation(tokenId, JAIL_AREA, returnArea);
-
-        if (address(paymentHandler) != address(0) && bail > 0) {
-            paymentHandler.processMovementFee{value: bail}(msg.sender, bail);
-        }
-
-        if (msg.value > bail) {
-            _safeTransferETH(msg.sender, msg.value - bail);
-        }
-
-        emit DealerBailed(tokenId, bail, returnArea);
-    }
-
-    /**
-     * @notice Attempt to break out of jail (once per day, 33% success, keeps heat)
-     */
-    function attemptBreakout(uint256 tokenId)
-        external
-        nonReentrant
-        dealerExists(tokenId)
-        registriesSet
-        whenNotPaused
-    {
-        DealerData storage d = dealers[tokenId];
-
-        if (d.currentArea != JAIL_AREA) revert NotInJail();
-
-        if (address(nftContract) == address(0)) revert NFTContractNotSet();
-        if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
-
-        uint256 dayStart = (block.timestamp / 1 days) * 1 days;
-        if (d.lastBreakoutAttempt >= dayStart) revert BreakoutAlreadyAttemptedToday();
-
-        d.lastBreakoutAttempt = uint32(block.timestamp);
-
-        bytes32 seed = keccak256(abi.encodePacked(tokenId, "BREAKOUT", block.timestamp, block.prevrandao));
-        uint256 roll = randomness.getRandomness(seed) % 100;
-
-        bool success = roll < config.breakoutSuccessChance;
-
-        uint8 returnArea = d.previousArea;
-
-        if (!areaRegistry.isValidArea(returnArea) || areaRegistry.isJail(returnArea)) {
-            returnArea = 1;
-        }
-
-        if (success) {
-            d.currentArea = returnArea;
-            areaRegistry.updateDealerLocation(tokenId, JAIL_AREA, returnArea);
-        }
-
-        emit BreakoutAttempted(tokenId, success, success ? returnArea : JAIL_AREA);
-    }
-
-    /**
-     * @notice Check if a dealer is currently in jail
-     */
-    function isInJail(uint256 tokenId)
-        external
-        view
-        dealerExists(tokenId)
-        returns (bool)
-    {
-        return dealers[tokenId].currentArea == JAIL_AREA;
-    }
-
-    /**
-     * @notice Check if a dealer is currently in the safe house
-     */
-    function isInSafeHouse(uint256 tokenId)
-        external
-        view
-        dealerExists(tokenId)
-        returns (bool)
-    {
-        return dealers[tokenId].currentArea == SAFE_HOUSE_AREA;
-    }
-
-    /**
-     * @notice Player-callable function to move dealer to a new area
-     * @param tokenId The dealer's token ID
-     * @param destinationArea The area ID to travel to
-     */
-    function travel(uint256 tokenId, uint8 destinationArea)
-        external
-        payable
-        nonReentrant
-        dealerExists(tokenId)
-        registriesSet
-        whenNotPaused
-    {
-        if (address(nftContract) == address(0)) revert NFTContractNotSet();
-        if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
-
-        if (!areaRegistry.isValidArea(destinationArea)) revert InvalidArea();
-        if (areaRegistry.isJail(destinationArea)) revert CannotEnterJail();
-
-        uint256 minRep = areaRegistry.getMinReputation(destinationArea);
-        if (minRep > 0 && getTotalReputation(tokenId) < minRep) {
-            revert InsufficientReputation();
-        }
-
-        DealerData storage d = dealers[tokenId];
-
-        if (d.currentArea == JAIL_AREA) revert DealerInJail();
-
-        uint8 oldArea = d.currentArea;
-        if (oldArea == destinationArea) {
-            if (msg.value > 0) {
-                _safeTransferETH(msg.sender, msg.value);
-            }
-            return;
-        }
-
-        uint256 movementFee = 0;
-        bool hasFreeMovement = hasActiveBoost(tokenId) && dealerBoosts[tokenId].freeAreaMovement;
-        bool enteringSafeHouse = areaRegistry.isSafeHouse(destinationArea);
-        bool isFirstMove = d.currentArea == STARTING_AREA && d.previousArea == STARTING_AREA;
-
-        if (!hasFreeMovement && !enteringSafeHouse && !isFirstMove) {
-            movementFee = areaRegistry.getMovementFee(destinationArea);
-            if (msg.value < movementFee) revert InsufficientPayment();
-        }
-
-        d.currentArea = destinationArea;
-        areaRegistry.updateDealerLocation(tokenId, oldArea, destinationArea);
-
-        if (movementFee > 0 && address(paymentHandler) != address(0)) {
-            paymentHandler.processMovementFee{value: movementFee}(msg.sender, movementFee);
-        }
-
-        if (msg.value > movementFee) {
-            _safeTransferETH(msg.sender, msg.value - movementFee);
-        }
-
-        emit DealerTraveled(tokenId, oldArea, destinationArea, movementFee, hasFreeMovement || enteringSafeHouse || isFirstMove);
-    }
-
-    /**
-     * @notice Pay to fully reset heat level to 0
-     */
-    function bribeCop(uint256 tokenId)
-        external
-        payable
-        nonReentrant
-        dealerExists(tokenId)
-        whenNotPaused
-    {
-        uint256 fee = config.bribeCopFee;
-        if (msg.value < fee) revert InsufficientPayment();
-
-        if (address(nftContract) == address(0)) revert NFTContractNotSet();
-        if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
-
-        dealers[tokenId].heatLevel = 0;
-
-        if (address(paymentHandler) != address(0)) {
-            paymentHandler.processMarketplaceFee{value: fee}(msg.sender, fee);
-        }
-
-        if (msg.value > fee) {
-            _safeTransferETH(msg.sender, msg.value - fee);
-        }
-
-        emit HeatLevelChanged(tokenId, 0);
-        emit CopBribed(tokenId, fee);
-    }
-
-    /**
-     * @notice Use 1 attempt for 50% chance to reduce heat to 0 (auto-resets at midnight UTC)
-     */
-    function removeWantedPoster(uint256 tokenId)
-        external
-        nonReentrant
-        dealerExists(tokenId)
-        whenNotPaused
-    {
-        if (address(nftContract) == address(0)) revert NFTContractNotSet();
-        if (address(randomness) == address(0)) revert RegistryNotSet();
-        if (nftContract.ownerOf(tokenId) != msg.sender) revert NotDealerOwner();
-
-        DealerData storage d = dealers[tokenId];
-
-        // Lazy reset: if last play was before today, reset attempts
-        if (_shouldResetAttempts(tokenId)) {
-            d.dailyAttemptsRemaining = getMaxAttempts(tokenId);
-        }
-
-        if (d.dailyAttemptsRemaining == 0) revert NoAttemptsRemaining();
-        if (d.heatLevel == 0) revert NoHeatToReduce();
-
-        unchecked { d.dailyAttemptsRemaining--; }
-        d.lastPlayTimestamp = uint32(block.timestamp);
-
-        bytes32 seed = keccak256(abi.encodePacked(tokenId, "WANTED_POSTER", block.timestamp, block.prevrandao));
-        uint256 roll = randomness.getRandomness(seed) % 100;
-
-        if (roll < config.wantedPosterSuccessChance) {
-            d.heatLevel = 0;
-            emit HeatLevelChanged(tokenId, 0);
-            emit WantedPosterRemoved(tokenId, true);
-        } else {
-            emit WantedPosterRemoved(tokenId, false);
-        }
-    }
 
     // =============================================================
     //                     ATTEMPT FUNCTIONS
@@ -963,45 +894,12 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     /**
      * @notice Get the max attempts for a dealer
      */
-    function getMaxAttempts(uint256 tokenId) public view returns (uint8) {
+    function getMaxAttempts(uint256 tokenId) internal view returns (uint8) {
         BoostData storage boost = dealerBoosts[tokenId];
         if (boost.expiresAt > block.timestamp) {
             return BASE_MAX_ATTEMPTS + boost.extraAttempts;
         }
         return BASE_MAX_ATTEMPTS;
-    }
-
-    /**
-     * @notice Pay to reset attempts to current max
-     */
-    function purchaseAttemptReset(uint256 tokenId)
-        external
-        payable
-        nonReentrant
-        dealerExists(tokenId)
-        whenNotPaused
-    {
-        bool isAdmin = msg.sender == owner();
-        uint256 fee = config.attemptResetFee;
-
-        if (!isAdmin) {
-            if (msg.value < fee) revert InsufficientPayment();
-        }
-
-        DealerData storage d = dealers[tokenId];
-        d.dailyAttemptsRemaining = getMaxAttempts(tokenId);
-        d.lastPlayTimestamp = uint32(block.timestamp);
-
-        if (!isAdmin) {
-            if (address(paymentHandler) != address(0)) {
-                paymentHandler.processMarketplaceFee{value: fee}(msg.sender, fee);
-            }
-            if (msg.value > fee) {
-                _safeTransferETH(msg.sender, msg.value - fee);
-            }
-        }
-
-        emit AttemptsReset(tokenId, getMaxAttempts(tokenId));
     }
 
     // =============================================================
@@ -1018,14 +916,13 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         uint8 repMultiplier,
         uint8 extraAttempts,
         bool freeAreaMovement,
-        bool doubleHeistEntries,
-        uint8 cashMultiplier,
-        uint8 tierId
+        uint8 cashMultiplier
     )
         external
         onlyAuthorized
         dealerExists(tokenId)
         whenNotPaused
+        returns (uint64)
     {
         if (drugMultiplier < 100 || repMultiplier < 100 || cashMultiplier < 100) {
             revert InvalidBoostMultiplier();
@@ -1046,14 +943,14 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
             repMultiplier: repMultiplier,
             extraAttempts: extraAttempts,
             freeAreaMovement: freeAreaMovement,
-            doubleHeistEntries: doubleHeistEntries,
-            cashMultiplier: cashMultiplier,
-            tierId: tierId
+            cashMultiplier: cashMultiplier
         });
 
         dealers[tokenId].dailyAttemptsRemaining = getMaxAttempts(tokenId);
 
         emit BoostApplied(tokenId, newExpiry);
+
+        return newExpiry;
     }
 
     /**
@@ -1070,46 +967,6 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         return dealerBoosts[tokenId];
     }
 
-    /**
-     * @notice Get drug multiplier for a dealer
-     */
-    function getDrugMultiplier(uint256 tokenId) external view returns (uint8) {
-        if (!hasActiveBoost(tokenId)) return 100;
-        return dealerBoosts[tokenId].drugMultiplier;
-    }
-
-    /**
-     * @notice Get rep multiplier for a dealer
-     */
-    function getRepMultiplier(uint256 tokenId) external view returns (uint8) {
-        if (!hasActiveBoost(tokenId)) return 100;
-        return dealerBoosts[tokenId].repMultiplier;
-    }
-
-    /**
-     * @notice Get total daily attempts
-     */
-    function getTotalDailyAttempts(uint256 tokenId) external view returns (uint8) {
-        uint8 base = BASE_MAX_ATTEMPTS;
-        if (!hasActiveBoost(tokenId)) return base;
-        return base + dealerBoosts[tokenId].extraAttempts;
-    }
-
-    /**
-     * @notice Check if dealer has free area movement
-     */
-    function hasFreeAreaMovement(uint256 tokenId) external view returns (bool) {
-        if (!hasActiveBoost(tokenId)) return false;
-        return dealerBoosts[tokenId].freeAreaMovement;
-    }
-
-    /**
-     * @notice Check if dealer has double heist entries
-     */
-    function hasDoubleHeistEntries(uint256 tokenId) external view returns (bool) {
-        if (!hasActiveBoost(tokenId)) return false;
-        return dealerBoosts[tokenId].doubleHeistEntries;
-    }
 
     // =============================================================
     //                     COMBAT STAT FUNCTIONS
@@ -1181,49 +1038,6 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
         if (dealerCash[tokenId] < amount) revert InsufficientCash();
         dealerCash[tokenId] -= amount;
         emit CashUpdated(tokenId, dealerCash[tokenId], -int256(amount));
-    }
-
-    /**
-     * @notice Purchase $CASH with ETH (safety net)
-     */
-    function purchaseCash(uint256 tokenId)
-        external
-        payable
-        nonReentrant
-        dealerExists(tokenId)
-        whenNotPaused
-    {
-        bool isAdmin = msg.sender == owner();
-        uint256 price = config.cashTopupPrice;
-        uint256 amount = config.cashTopupAmount;
-
-        if (dealerCash[tokenId] >= config.cashPurchaseThreshold) revert CashBalanceTooHigh();
-
-        if (!isAdmin) {
-            if (msg.value < price) revert InsufficientPayment();
-        }
-
-        dealerCash[tokenId] += amount;
-
-        emit CashPurchased(tokenId, amount, price);
-        emit CashUpdated(tokenId, dealerCash[tokenId], int256(amount));
-
-        if (!isAdmin) {
-            if (address(paymentHandler) != address(0)) {
-                paymentHandler.processMarketplaceFee{value: price}(msg.sender, price);
-            }
-            if (msg.value > price) {
-                _safeTransferETH(msg.sender, msg.value - price);
-            }
-        }
-    }
-
-    /**
-     * @notice Get cash multiplier for a dealer
-     */
-    function getCashMultiplier(uint256 tokenId) external view returns (uint8) {
-        if (!hasActiveBoost(tokenId)) return 100;
-        return dealerBoosts[tokenId].cashMultiplier;
     }
 
     // =============================================================
@@ -1305,7 +1119,8 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
 
         if (heldCount == 0) return (0, 0);
 
-        uint256 pick = uint256(keccak256(abi.encodePacked(block.prevrandao, tokenId))) % heldCount;
+        bytes32 seed = keccak256(abi.encodePacked(tokenId, block.timestamp, "CONFISCATE"));
+        uint256 pick = randomness.getRandomness(seed) % heldCount;
         drugId = heldDrugs[pick];
 
         uint256 balance = drugBalances[tokenId][drugId];
@@ -1320,6 +1135,28 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
     function _ceilDiv(uint256 a, uint256 b) private pure returns (uint256) {
         if (a == 0) return 0;
         return (a - 1) / b + 1;
+    }
+
+    function _pendingDecay(uint256 tokenId) private view returns (uint256) {
+        uint256 lastPlay = uint256(dealers[tokenId].lastPlayTimestamp);
+        uint256 graceEnd = lastPlay + DECAY_GRACE_PERIOD;
+        if (block.timestamp <= graceEnd) return 0;
+        return (block.timestamp - graceEnd) / 1 days;
+    }
+
+    function _calcEffectiveInfamy(uint256 tokenId) private view returns (uint256) {
+        uint256 stored = dealerInfamy[tokenId];
+        if (stored == 0) return 0;
+        uint256 decay = _pendingDecay(tokenId) * INFAMY_DECAY_MULTIPLIER;
+        return decay >= stored ? 0 : stored - decay;
+    }
+
+    function _calcEffectiveHeat(uint256 tokenId) private view returns (uint8) {
+        uint8 stored = dealers[tokenId].heatLevel;
+        if (stored == 0) return 0;
+        uint256 decay = _pendingDecay(tokenId);
+        if (decay >= uint256(stored)) return 0;
+        return stored - uint8(decay);
     }
 
     /**
@@ -1348,16 +1185,5 @@ contract DealersExeCore is Ownable, ReentrancyGuard {
             return getMaxAttempts(tokenId);
         }
         return dealers[tokenId].dailyAttemptsRemaining;
-    }
-
-    /**
-     * @notice Safe ETH transfer using .call()
-     */
-    function _safeTransferETH(address to, uint256 amount) private {
-        if (amount == 0) return;
-        if (to == address(0)) revert InvalidAddress();
-
-        (bool success, ) = to.call{value: amount}("");
-        if (!success) revert ETHTransferFailed();
     }
 }

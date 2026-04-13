@@ -26,34 +26,27 @@ contract PVPBattleFlowsTest is BaseTest {
         vm.warp(1 hours + 1);
     }
 
-    function _mockRandomness(uint256 value) internal {
+    function _mockRandomValues(uint256 jailRng, uint256 winRng, uint256 drugRng) internal {
+        uint256[] memory values = new uint256[](4);
+        values[0] = jailRng;
+        values[1] = winRng;
+        values[2] = drugRng;
+        values[3] = 0; // no drop
         vm.mockCall(
             address(randomness),
-            abi.encodeWithSignature("getRandomness(bytes32)"),
-            abi.encode(value)
+            abi.encodeWithSignature("getRandomValues(bytes32,uint8)"),
+            abi.encode(values)
         );
-    }
-
-    function _buildRng(uint8 jailRoll, uint8 winRoll, uint8 rarityRoll) internal pure returns (uint256) {
-        return uint256(jailRoll)
-            | (uint256(winRoll) << 8)
-            | (uint256(rarityRoll) << 16);
     }
 
     function test_pvpFlow_attackerWins() public {
         vm.prank(owner);
         core.setDealerStats(attackerToken, 25, 0);
 
-        vm.mockCall(
-            address(core),
-            abi.encodeWithSelector(core.getJailChance.selector, attackerToken),
-            abi.encode(uint8(0))
-        );
-
         uint256 defenderWeedBefore = core.getDrugBalance(defenderToken, DRUG_WEED);
         uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
 
-        _mockRandomness(_buildRng(50, 0, 10));
+        _mockRandomValues(50, 0, 10);
 
         vm.prank(player1);
         pvp.attack(attackerToken, defenderToken);
@@ -65,8 +58,7 @@ contract PVPBattleFlowsTest is BaseTest {
         uint256 expected = _ceilDiv(defenderWeedBefore * 2, 100);
         assertEq(stolen, expected, "Should steal 2% of weed (rounded up)");
 
-        uint256 transferred = stolen / 2;
-        assertEq(attackerWeedAfter, attackerWeedBefore + transferred, "Attacker gains half stolen weed");
+        assertEq(attackerWeedAfter, attackerWeedBefore + stolen, "Attacker gains all stolen weed");
     }
 
     function test_pvpFlow_defenderWins() public {
@@ -75,15 +67,9 @@ contract PVPBattleFlowsTest is BaseTest {
         vm.prank(owner);
         core.updateDrugBalance(attackerToken, DRUG_WEED, 80);
 
-        vm.mockCall(
-            address(core),
-            abi.encodeWithSelector(core.getJailChance.selector, attackerToken),
-            abi.encode(uint8(0))
-        );
-
         uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
 
-        _mockRandomness(_buildRng(50, 99, 10));
+        _mockRandomValues(50, 99, 10);
 
         vm.prank(player1);
         pvp.attack(attackerToken, defenderToken);
@@ -103,19 +89,14 @@ contract PVPBattleFlowsTest is BaseTest {
             core.incrementHeatLevel(attackerToken);
         }
 
-        vm.mockCall(
-            address(core),
-            abi.encodeWithSelector(core.getJailChance.selector, attackerToken),
-            abi.encode(uint16(1000))
-        );
-        _mockRandomness(_buildRng(0, 0, 10));
+        _mockRandomValues(0, 0, 0);
 
         uint256 defenderWeedBefore = core.getDrugBalance(defenderToken, DRUG_WEED);
 
         vm.prank(player1);
         pvp.attack(attackerToken, defenderToken);
 
-        assertTrue(core.isInJail(attackerToken), "Attacker should be in jail");
+        assertTrue(core.getGameState(attackerToken).isJailed, "Attacker should be in jail");
         assertEq(
             core.getDrugBalance(defenderToken, DRUG_WEED),
             defenderWeedBefore,
@@ -163,7 +144,7 @@ contract PVPBattleFlowsTest is BaseTest {
         core.updateReputation(safeToken, 200);
 
         vm.prank(player1);
-        core.travel{value: 0}(safeToken, SAFE_HOUSE);
+        actions.travel{value: 0}(safeToken, SAFE_HOUSE);
 
         (uint8 area, , , , , ) = core.getDealerData(safeToken);
         assertEq(area, SAFE_HOUSE, "Should be in safe house");
@@ -204,12 +185,7 @@ contract PVPBattleFlowsTest is BaseTest {
     function test_pvpFlow_reputationChanges() public {
         (, uint256 attackerRepBefore, , , , ) = core.getDealerData(attackerToken);
 
-        vm.mockCall(
-            address(core),
-            abi.encodeWithSelector(core.getJailChance.selector, attackerToken),
-            abi.encode(uint8(0))
-        );
-        _mockRandomness(_buildRng(50, 0, 10));
+        _mockRandomValues(50, 0, 10);
 
         vm.prank(player1);
         pvp.attack(attackerToken, defenderToken);

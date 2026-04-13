@@ -12,7 +12,7 @@ import {IDrugRegistry} from "./IDrugRegistry.sol";
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Manages area definitions, drug availability per area, and buy/sell pricing
- * @author Dealers.Exe Team
+ * @author Berny0x
  */
 contract DEAreaRegistry is Ownable, IAreaRegistry {
     // =============================================================
@@ -21,7 +21,8 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
 
     /// @notice Safe House area ID
     uint8 public constant SAFE_HOUSE_AREA = 0;
-
+    /// @notice Black Market ID
+    uint8 public constant BLACK_MARKET_AREA = 254;
     /// @notice Jail area ID
     uint8 public constant JAIL_AREA = 255;
 
@@ -59,6 +60,9 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
     /// @notice TokenId => Whether dealer has been registered
     mapping(uint256 => bool) private _dealerRegistered;
 
+    /// @notice Area ID => Whether this area is the Black Market
+    mapping(uint8 => bool) private _isBlackMarket;
+
     // =============================================================
     //                            ERRORS
     // =============================================================
@@ -75,6 +79,7 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
     error ArrayLengthMismatch();
     error NotAuthorized();
     error CoreContractNotSet();
+    error InvalidOldArea();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -90,9 +95,7 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
 
         _createSafeHouse();
         _createJail();
-        _createManhattan();
-        _createAmsterdam();
-        _createColombia();
+        _createBlackMarket();
     }
 
     // =============================================================
@@ -144,6 +147,11 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
     /// @inheritdoc IAreaRegistry
     function isJail(uint8 areaId) external view returns (bool) {
         return _areas[areaId].isJail;
+    }
+
+    /// @inheritdoc IAreaRegistry
+    function isBlackMarket(uint8 areaId) external view returns (bool) {
+        return _isBlackMarket[areaId];
     }
 
     /// @inheritdoc IAreaRegistry
@@ -199,6 +207,10 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
     function updateDealerLocation(uint256 tokenId, uint8 oldArea, uint8 newArea) external onlyCore {
         if (oldArea == newArea) return;
 
+        if (_dealerRegistered[tokenId] && _dealerCurrentArea[tokenId] != oldArea) {
+            revert InvalidOldArea();
+        }
+
         if (_dealerRegistered[tokenId]) {
             uint256[] storage oldList = _dealersInArea[oldArea];
             uint256 index = _dealerAreaIndex[tokenId];
@@ -218,6 +230,26 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
         _dealerRegistered[tokenId] = true;
 
         emit DealerLocationUpdated(tokenId, oldArea, newArea);
+    }
+
+    /// @notice Seed the dealer-in-area reverse index after redeploying this contract.
+    ///         Call in batches (e.g. 500) to avoid gas limits. Skips already-registered dealers.
+    function seedDealerLocations(uint256[] calldata tokenIds, uint8[] calldata areas) external onlyOwner {
+        if (tokenIds.length != areas.length) revert ArrayLengthMismatch();
+
+        for (uint256 i = 0; i < tokenIds.length;) {
+            uint256 tokenId = tokenIds[i];
+            uint8 area = areas[i];
+
+            if (!_dealerRegistered[tokenId]) {
+                _dealersInArea[area].push(tokenId);
+                _dealerAreaIndex[tokenId] = _dealersInArea[area].length - 1;
+                _dealerCurrentArea[tokenId] = area;
+                _dealerRegistered[tokenId] = true;
+            }
+
+            unchecked { ++i; }
+        }
     }
 
     /// @inheritdoc IAreaRegistry
@@ -514,61 +546,23 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
         emit AreaCreated(JAIL_AREA, "Jail", false, true);
     }
 
-    function _createManhattan() private {
-        _totalAreas = 1;
-
-        _areas[1] = IAreaRegistry.AreaInfo({
-            name: "Manhattan",
-            movementFee: 0.001 ether,
-            minReputation: 0,
+    function _createBlackMarket() private {
+        _areas[BLACK_MARKET_AREA] = IAreaRegistry.AreaInfo({
+            name: "Black Market",
+            movementFee: 0,
+            minReputation: 100,
             isActive: true,
             isSafeHouse: false,
             isJail: false
         });
 
-        _configureAreaDrug(1, 1, 1, 1);
-        _configureAreaDrug(1, 2, 12, 10);
-        _configureAreaDrug(1, 3, 120, 100);
+        _isBlackMarket[BLACK_MARKET_AREA] = true;
 
-        emit AreaCreated(1, "Manhattan", false, false);
-    }
+        _configureAreaDrug(BLACK_MARKET_AREA, 1, 75, 75);
+        _configureAreaDrug(BLACK_MARKET_AREA, 2, 500, 500);
+        _configureAreaDrug(BLACK_MARKET_AREA, 3, 2500, 2500);
 
-    function _createAmsterdam() private {
-        _totalAreas = 2;
-
-        _areas[2] = IAreaRegistry.AreaInfo({
-            name: "Amsterdam",
-            movementFee: 0.001 ether,
-            minReputation: 150,
-            isActive: true,
-            isSafeHouse: false,
-            isJail: false
-        });
-
-        _configureAreaDrug(2, 1, 3, 2);
-        _configureAreaDrug(2, 4, 15, 12);
-        _configureAreaDrug(2, 5, 180, 150);
-
-        emit AreaCreated(2, "Amsterdam", false, false);
-    }
-
-    function _createColombia() private {
-        _totalAreas = 3;
-
-        _areas[3] = IAreaRegistry.AreaInfo({
-            name: "Colombia",
-            movementFee: 0.001 ether,
-            minReputation: 250,
-            isActive: true,
-            isSafeHouse: false,
-            isJail: false
-        });
-
-        _configureAreaDrug(3, 1, 1, 1);
-        _configureAreaDrug(3, 3, 60, 50);
-        _configureAreaDrug(3, 5, 90, 75);
-
-        emit AreaCreated(3, "Colombia", false, false);
+        emit AreaCreated(BLACK_MARKET_AREA, "Black Market", false, false);
     }
 
     function _configureAreaDrug(
@@ -590,7 +584,7 @@ contract DEAreaRegistry is Ownable, IAreaRegistry {
     }
 
     function _isValidAreaId(uint8 areaId) private view returns (bool) {
-        if (areaId == SAFE_HOUSE_AREA || areaId == JAIL_AREA) {
+        if (areaId == SAFE_HOUSE_AREA || areaId == JAIL_AREA || areaId == BLACK_MARKET_AREA) {
             return true;
         }
         return areaId > 0 && areaId <= _totalAreas;

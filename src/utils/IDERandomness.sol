@@ -8,7 +8,7 @@ pragma solidity ^0.8.28;
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Interface for centralized randomness provider
- * @author Dealers.Exe Team
+ * @author Berny0x
  */
 interface IDERandomness {
     // =============================================================
@@ -17,6 +17,9 @@ interface IDERandomness {
 
     /// @notice Get a random number based on a seed
     function getRandomness(bytes32 seed) external returns (uint256);
+
+    /// @notice Get multiple independent random values from a single seed
+    function getRandomValues(bytes32 seed, uint8 count) external returns (uint256[] memory);
 
     // =============================================================
     //                        VIEW FUNCTIONS

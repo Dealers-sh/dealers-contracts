@@ -1,62 +1,81 @@
 # Deployment Guide — Abstract Testnet
 
-Full fresh deployment flow for Dealers.Exe contracts on Abstract Testnet.
+## TLDR Checklist
+
+```
+ 1. cast wallet import dealersKeystore --interactive     (one-time)
+ 2. Create .env with DEV_WALLET, BANK_VAULT, ROYALTY_RECEIVER, ETHERSCAN_API_KEY
+ 3. forge build && forge build --zksync                  (EVM + zkSync)
+ 4. DeployAll.s.sol            --zksync                  (12 game contracts + wire + tiers)
+ 5. DeployRenderers.s.sol      NO --zksync               (SVG + HTML renderers)
+ 6. cast send NFT setContractRendererSVG/HTML             (link renderers)
+ 7. UploadPlaceholder.s.sol    NO --zksync               (fallback SVG)
+ 8. UploadTraits — uploadNormal() + uploadSpecial()       (trait SVGs to FileStore)
+ 9. UploadOneOfOnes.s.sol      NO --zksync               (optional: 1/1 SVGs)
+10. SetupClaims.s.sol          --zksync                  (22 achievements)
+11. SetupTestnetPricing.s.sol  --zksync                  (optional: 10x fee reduction)
+12. batchSetTraits on RendererSVG                         (assign traits to tokens)
+13. reveal() on RendererSVG                               (switch from placeholder)
+14. setMintStatus(3) on NFT                               (enable public mint)
+15. VerifyConfig.s.sol                                    (read-only sanity check)
+16. verify-source.sh                                      (optional: block explorer)
+```
+
+---
 
 ## 1. Prerequisites
 
-### Keystore Setup (one-time)
+### Keystore (one-time)
 
 ```bash
 cast wallet import dealersKeystore --interactive
 ```
 
-### Environment Config
-
-Create a `.env` with the required config variables:
+### .env
 
 ```bash
 DEV_WALLET=0x...
 BANK_VAULT=0x...
 ROYALTY_RECEIVER=0x...
-FILESTORE_ADDRESS=0xFe1411d6864592549AdE050215482e4385dFa0FB
 ETHERSCAN_API_KEY=your_key
-
 ABSTRACT_TESTNET_RPC=https://api.testnet.abs.xyz
-ABSTRACT_TESTNET_CHAIN_ID=11124
 ```
 
-Contract addresses are not needed in `.env` — they are auto-saved to and loaded from `script/data/deployments/testnet.json`.
+Contract addresses are managed via `script/data/deployments/testnet.json` — do not put them in `.env`.
 
-## 2. Build
-
-Build both EVM (for renderers) and zkSync (for game contracts):
+### Build
 
 ```bash
-forge build
-forge build --zksync
+forge build                                              # EVM (renderers)
+forge build --zksync --skip "RendererSVG"  # zkSync (game)
 ```
 
-## 3. Deploy Game Contracts
+---
 
-Unset any stale contract addresses, then run `DeployAll` which deploys all game contracts, wires cross-references, sets authorizations, and configures reputation tiers:
+## 2. Deploy Game Contracts
+
+Deploys all 12 game contracts in dependency order, wires cross-references, sets authorizations, and configures 10-tier reputation system.
+
+For a fresh deploy, delete the JSON first: `rm -f script/data/deployments/testnet.json`
 
 ```bash
-unset DRUG_REGISTRY AREA_REGISTRY DEALERS_CORE PAYMENT_HANDLER RANDOMNESS \
-      DEALERS_NFT DEALERS_BOOSTS DEALERS_PVE DEALERS_PVP DEALERS_CLAIMS
-
 source .env && forge script script/deploy/DeployAll.s.sol:DeployAll \
   --rpc-url abstract-testnet \
   --account dealersKeystore \
   --broadcast \
   --zksync \
-  --skip "DealerRenderer" --skip "DeployRenderers"
+  --skip "RendererSVG"
 ```
 
-Addresses are automatically saved to `script/data/deployments/testnet.json`. All subsequent scripts load from this file first (falling back to `.env`).
+Contracts deployed: DEDrugRegistry, DEAreaRegistry, DealersExeCore, DEPaymentHandler, DERandomness, DealersExeNFT, DealersExeBoosts, DealersExePVE, DealersExePVP, DealersExeClaims, DealersExeActions, DealersExeMulticall.
 
-## 4. Deploy Renderers
+Addresses auto-saved to `script/data/deployments/testnet.json`.
 
-Renderers use SSTORE2/EXTCODECOPY and must be deployed in EVM mode (no `--zksync`):
+---
+
+## 3. Deploy Renderers
+
+Renderers use SSTORE2/EXTCODECOPY — must deploy in EVM mode (no `--zksync`).
 
 ```bash
 source .env && forge script script/deploy/DeployRenderers.s.sol:DeployRenderers \
@@ -65,11 +84,11 @@ source .env && forge script script/deploy/DeployRenderers.s.sol:DeployRenderers 
   --broadcast
 ```
 
-Addresses are auto-saved to `script/data/deployments/testnet.json`.
+Deploys DealerRendererSVG and DealerRendererHTML. The HTML renderer points to FileStore (`0xFe1411d6864592549AdE050215482e4385dFa0FB`) and defaults to `src1.min.js.gz` (already on FileStore).
 
-## 5. Set Renderers on NFT
+---
 
-Use the addresses from the console output (or read them from `testnet.json`):
+## 4. Link Renderers to NFT
 
 ```bash
 source .env
@@ -85,22 +104,70 @@ cast send $DEALERS_NFT "setContractRendererHTML(address)" $RENDERER_HTML \
   --rpc-url $ABSTRACT_TESTNET_RPC --account dealersKeystore
 ```
 
-## 6. Setup Testnet Pricing (OPTIONAL)
+---
 
-Reduces all ETH fees by 10x for testnet (attempt resets, bribes, boosts, area movement, jail bail):
+## 5. Upload Placeholder SVG
+
+Fallback image shown before reveal or for tokens without traits assigned.
 
 ```bash
-source .env && forge script script/setup/SetupTestnetPricing.s.sol:SetupTestnetPricing \
-  --rpc-url $ABSTRACT_TESTNET_RPC \
+source .env && forge script script/upload/UploadPlaceholder.s.sol:UploadPlaceholder \
+  --rpc-url https://api.testnet.abs.xyz \
   --account dealersKeystore \
-  --broadcast \
-  --zksync \
-  --skip "DealerRenderer" --skip "DeployRenderers"
+  --broadcast
 ```
 
-## 7. Setup Claims
+Reads from `script/data/traits.json` → `.placeholder`. Large SVGs auto-chunked via SSTORE2.
 
-Configures default achievement milestones:
+---
+
+## 6. Upload Trait SVGs
+
+Uploads trait SVG art to FileStore and registers them on DealerRendererSVG. Pointers cached in `script/data/traits.json` — re-running skips already-uploaded traits.
+
+```bash
+# Normal traits
+source .env && forge script script/upload/UploadTraits.s.sol:UploadTraits \
+  --sig "uploadNormal()" \
+  --rpc-url https://api.testnet.abs.xyz \
+  --account dealersKeystore \
+  --broadcast
+
+# Special traits
+source .env && forge script script/upload/UploadTraits.s.sol:UploadTraits \
+  --sig "uploadSpecial()" \
+  --rpc-url https://api.testnet.abs.xyz \
+  --account dealersKeystore \
+  --broadcast
+```
+
+---
+
+## 7. Upload One-of-Ones (optional)
+
+Upload unique SVGs and assign them to specific token IDs.
+
+```bash
+# Upload SVGs to FileStore
+source .env && forge script script/upload/UploadOneOfOnes.s.sol:UploadOneOfOnes \
+  --sig "uploadOneOfOnes()" \
+  --rpc-url https://api.testnet.abs.xyz \
+  --account dealersKeystore \
+  --broadcast
+
+# Assign to token IDs (off-chain determined)
+source .env && forge script script/upload/UploadOneOfOnes.s.sol:UploadOneOfOnes \
+  --sig "assignAllOneOfOnes(uint256[])" "[1,42,100]" \
+  --rpc-url https://api.testnet.abs.xyz \
+  --account dealersKeystore \
+  --broadcast
+```
+
+---
+
+## 8. Setup Claims
+
+Configures 22 achievement milestones (PVE/PVP wins, rep milestones, drug rewards).
 
 ```bash
 source .env && forge script script/setup/SetupClaims.s.sol:SetupClaims \
@@ -108,72 +175,83 @@ source .env && forge script script/setup/SetupClaims.s.sol:SetupClaims \
   --account dealersKeystore \
   --broadcast \
   --zksync \
-  --skip "DealerRenderer" --skip "DeployRenderers"
+  --skip "RendererSVG"
 ```
 
-## 8. Upload SVG Traits to FileStore
+---
 
-Upload normal traits, special traits, and placeholder (all EVM mode, no `--zksync`).
-All scripts load the renderer address from `testnet.json` automatically.
+## 9. Setup Testnet Pricing (optional)
+
+Divides all ETH fees by 10 for cheaper testnet gameplay.
 
 ```bash
-# Normal traits
-forge script script/upload/UploadTraits.s.sol:UploadTraits \
-  --sig "uploadNormal()" \
-  --rpc-url https://api.testnet.abs.xyz \
+source .env && forge script script/setup/SetupTestnetPricing.s.sol:SetupTestnetPricing \
+  --rpc-url abstract-testnet \
   --account dealersKeystore \
-  --broadcast
-
-# Special traits
-forge script script/upload/UploadTraits.s.sol:UploadTraits \
-  --sig "uploadSpecial()" \
-  --rpc-url https://api.testnet.abs.xyz \
-  --account dealersKeystore \
-  --broadcast
-
-# Placeholder SVG
-forge script script/upload/UploadPlaceholder.s.sol:UploadPlaceholder \
-  --rpc-url https://api.testnet.abs.xyz \
-  --account dealersKeystore \
-  --broadcast
+  --broadcast \
+  --zksync \
+  --skip "RendererSVG"
 ```
 
-Trait pointers are cached in `script/data/traits.json` — re-running skips already-uploaded traits.
+---
 
-## 9. Verify Address State
+## 10. Assign Traits to Tokens
 
-All deployed addresses are persisted in `script/data/deployments/testnet.json`. You can inspect them with:
+After minting, assign traits to token IDs. Traits are generated off-chain and packed into bytes32.
 
 ```bash
-jq . script/data/deployments/testnet.json
+RENDERER_SVG=$(jq -r .rendererSvg script/data/deployments/testnet.json)
+
+cast send $RENDERER_SVG "batchSetTraits(uint256[],bytes32[])" \
+  "[1,2,3]" "[0x...,0x...,0x...]" \
+  --rpc-url $ABSTRACT_TESTNET_RPC --account dealersKeystore
 ```
 
-Your `.env` only needs config variables (not contract addresses):
+Each bytes32: 12 trait uint8s (bytes 0-11) + character type uint8 (byte 12).
+
+---
+
+## 11. Reveal
+
+Switches all tokens from placeholder to their actual trait-based SVGs. Call only after all traits and placeholder are uploaded.
 
 ```bash
-DEV_WALLET=0x...
-BANK_VAULT=0x...
-ROYALTY_RECEIVER=0x...
-FILESTORE_ADDRESS=0xFe1411d6864592549AdE050215482e4385dFa0FB
-ETHERSCAN_API_KEY=...
-ABSTRACT_TESTNET_RPC=https://api.testnet.abs.xyz
-ABSTRACT_TESTNET_CHAIN_ID=11124
+RENDERER_SVG=$(jq -r .rendererSvg script/data/deployments/testnet.json)
+
+cast send $RENDERER_SVG "reveal()" \
+  --rpc-url $ABSTRACT_TESTNET_RPC --account dealersKeystore
 ```
 
-## 10. Verify Configuration
+---
 
-Read-only check — confirms all cross-contract references and authorizations are correctly set:
+## 12. Enable Minting
+
+```bash
+DEALERS_NFT=$(jq -r .nft script/data/deployments/testnet.json)
+
+cast send $DEALERS_NFT "setMintStatus(uint8)" 3 \
+  --rpc-url $ABSTRACT_TESTNET_RPC --account dealersKeystore
+```
+
+Mint statuses: `0` DISABLED, `1` FAMILY, `2` WHITELIST, `3` PUBLIC.
+
+---
+
+## 13. Verify Configuration
+
+Read-only — confirms all cross-contract references and authorizations.
 
 ```bash
 forge script script/verify/VerifyConfig.s.sol:VerifyConfig \
   --rpc-url https://api.testnet.abs.xyz \
-  --zksync \
-  --skip "DealerRenderer" --skip "DeployRenderers"
+  --skip "RendererSVG"
 ```
 
-No `--broadcast` needed. Reports `[OK]`, `[MISMATCH]`, or `[NEEDS CONFIG]` for every slot.
+Reports `[OK]`, `[MISMATCH]`, or `[NEEDS CONFIG]` for every slot.
 
-### Source Verification (block explorer)
+---
+
+## 14. Source Verification (optional)
 
 ```bash
 source .env && ./script/verify-source.sh              # all contracts
@@ -181,11 +259,70 @@ source .env && ./script/verify-source.sh game          # game contracts only
 source .env && ./script/verify-source.sh renderers     # renderers only
 ```
 
+---
+
+## Redeploying Individual Contracts
+
+Each contract has its own deploy script. After deploying, run SetupWiring to re-wire.
+
+| Contract | Script | Constructor Deps |
+|----------|--------|-----------------|
+| DEDrugRegistry | `DeployDrugRegistry.s.sol` | none |
+| DEAreaRegistry | `DeployAreaRegistry.s.sol` | drugRegistry |
+| DealersExeCore | `DeployCore.s.sol` | none |
+| DEPaymentHandler | `DeployPaymentHandler.s.sol` | devWallet, bankVault |
+| DERandomness | `DeployRandomness.s.sol` | none |
+| DealersExeNFT | `DeployNFT.s.sol` | royaltyReceiver |
+| DealersExeBoosts | `DeployBoosts.s.sol` | core, nft, paymentHandler |
+| DealersExePVE | `DeployPVE.s.sol` | core, nft, areaRegistry |
+| DealersExePVP | `DeployPVP.s.sol` | core, nft, areaRegistry |
+| DealersExeClaims | `DeployClaims.s.sol` | core, nft, pve, pvp |
+| DealersExeActions | `DeployActions.s.sol` | core, nft, areaRegistry |
+| DealersExeMulticall | `DeployMulticall.s.sol` | core, pve, pvp, areaRegistry, drugRegistry |
+
+### Workflow: Deploy + Re-wire
+
+```bash
+# 1. Deploy the contract
+source .env && forge script script/deploy/Deploy<Contract>.s.sol:<Contract> \
+  --rpc-url abstract-testnet \
+  --account dealersKeystore \
+  --broadcast \
+  --zksync \
+  --skip "RendererSVG"
+
+# 2. Re-wire (idempotent — only updates stale references)
+source .env && forge script script/setup/SetupWiring.s.sol:SetupWiring \
+  --rpc-url abstract-testnet \
+  --account dealersKeystore \
+  --broadcast \
+  --zksync \
+  --skip "RendererSVG"
+```
+
+### Redeploying Core
+
+Most impactful — every module references Core. After deploying a new Core:
+
+1. Run SetupWiring (re-wires all modules + re-authorizes)
+2. Run SetupTiers (reputation tiers are stored on Core)
+
+```bash
+source .env && forge script script/setup/SetupTiers.s.sol:SetupTiers \
+  --rpc-url abstract-testnet \
+  --account dealersKeystore \
+  --broadcast \
+  --zksync \
+  --skip "RendererSVG"
+```
+
+---
+
 ## Notes
 
-- **Address persistence**: all deploy scripts save addresses to `script/data/deployments/testnet.json`. All scripts load from this file first, falling back to `.env`.
-- **`DeployAll` is idempotent**: any contract with a non-zero address (from JSON or `.env`) will be skipped.
-- **Two build modes**: game contracts require `--zksync`, renderers must NOT use `--zksync` (they rely on SSTORE2/EXTCODECOPY).
-- **`--skip` flags**: always pass `--skip "DealerRenderer" --skip "DeployRenderers"` when building with `--zksync` to prevent compilation errors.
-- **FileStore address**: `0xFe1411d6864592549AdE050215482e4385dFa0FB` — same on both mainnet and testnet.
-- **Enable minting** (when ready): `cast send $(jq -r .nft script/data/deployments/testnet.json) "setMintStatus(uint8)" 3 --rpc-url https://api.testnet.abs.xyz --account dealersKeystore` (3 = PUBLIC).
+- **Address persistence**: all deploy scripts save to `script/data/deployments/testnet.json`. Scripts load from JSON first, falling back to `.env`.
+- **Idempotent**: DeployAll skips contracts with existing addresses. SetupWiring checks state before calling setters. Safe to re-run.
+- **Two build modes**: game contracts require `--zksync`, renderers must NOT use `--zksync` (SSTORE2/EXTCODECOPY).
+- **`--skip` flags**: always pass `--skip "RendererSVG"` with `--zksync` to prevent compilation errors.
+- **FileStore**: `0xFe1411d6864592549AdE050215482e4385dFa0FB` — same on mainnet and testnet. Gzipped JS (`src1.min.js.gz`) already uploaded.
+- **Fresh deploy**: delete `script/data/deployments/testnet.json` before running DeployAll.

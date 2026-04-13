@@ -11,7 +11,7 @@ import {IDrugRegistry} from "./IDrugRegistry.sol";
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Manages all drug definitions, supply tracking, and base values
- * @author Dealers.Exe Team
+ * @author Berny0x
  */
 contract DEDrugRegistry is Ownable, IDrugRegistry {
     // =============================================================
@@ -65,7 +65,6 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
      */
     constructor() {
         _initializeOwner(msg.sender);
-        _createInitialDrugs();
     }
 
     // =============================================================
@@ -257,17 +256,6 @@ contract DEDrugRegistry is Ownable, IDrugRegistry {
     // =============================================================
     //                    INTERNAL HELPER FUNCTIONS
     // =============================================================
-
-    /**
-     * @dev Create the initial 3 drugs during construction
-     */
-    function _createInitialDrugs() private {
-        _createDrug("Weed", DrugRarity.COMMON, 1);
-        _createDrug("XTC", DrugRarity.UNCOMMON, 10);
-        _createDrug("Cocaine", DrugRarity.RARE, 100);
-        _createDrug("Shrooms", DrugRarity.UNCOMMON, 12);
-        _createDrug("Heroin", DrugRarity.RARE, 150);
-    }
 
     /**
      * @dev Internal function to create a drug

@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
 import "../../src/core/DealersExeCore.sol";
+import "../../src/core/IDealersExeCore.sol";
 import "../../src/core/DealersExeClaims.sol";
 import "../../src/core/DealersExePVE.sol";
 import "../../src/core/DealersExePVP.sol";
@@ -69,7 +70,7 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
 
     uint256 constant DEALER_1 = 1;
     uint256 constant DEALER_2 = 2;
-    uint256 constant DRUG_WEED = 1;
+    uint256 constant DRUG_WEED = 4;
 
     function setUp() public virtual {
         player1 = makeAddr("player1");
@@ -80,6 +81,7 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
 
         drugRegistry = new DEDrugRegistry();
         areaRegistry = new DEAreaRegistry(address(drugRegistry));
+        _setupDrugsAndAreas();
         paymentHandler = new DEPaymentHandler(makeAddr("devWallet"), makeAddr("bankVault"));
         randomness = new DERandomness();
         mockPVE = new MockPVE();
@@ -113,8 +115,8 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
     }
 
     function _setupReputationTiers() internal {
-        DealersExeCore.ReputationTier[] memory tiers = new DealersExeCore.ReputationTier[](1);
-        tiers[0] = DealersExeCore.ReputationTier({
+        IDealersExeCore.ReputationTier[] memory tiers = new IDealersExeCore.ReputationTier[](1);
+        tiers[0] = IDealersExeCore.ReputationTier({
             minReputation: 0,
             winBonus: 10,
             tieBonus: 5,
@@ -124,6 +126,29 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
         });
         core.setReputationTiers(tiers);
         core.setMaxReputation(1000);
+    }
+
+    function _setupDrugsAndAreas() internal {
+        drugRegistry.createDrug("Goods",      IDrugRegistry.DrugRarity.COMMON,   75);
+        drugRegistry.createDrug("Contraband", IDrugRegistry.DrugRarity.UNCOMMON, 500);
+        drugRegistry.createDrug("Jewels",     IDrugRegistry.DrugRarity.RARE,     2500);
+        drugRegistry.createDrug("Weed",       IDrugRegistry.DrugRarity.COMMON,   1);
+        drugRegistry.createDrug("XTC",        IDrugRegistry.DrugRarity.UNCOMMON, 10);
+        drugRegistry.createDrug("Cocaine",    IDrugRegistry.DrugRarity.RARE,     100);
+        drugRegistry.createDrug("Shrooms",    IDrugRegistry.DrugRarity.UNCOMMON, 12);
+        drugRegistry.createDrug("Heroin",     IDrugRegistry.DrugRarity.RARE,     150);
+        drugRegistry.createDrug("Opioids",    IDrugRegistry.DrugRarity.COMMON,   18);
+        drugRegistry.createDrug("Meth",       IDrugRegistry.DrugRarity.UNCOMMON, 25);
+        drugRegistry.createDrug("Fentanyl",   IDrugRegistry.DrugRarity.RARE,     200);
+
+        areaRegistry.createArea("Manhattan", 0.001 ether, 0, false, false);
+        uint256[] memory ids = new uint256[](3);
+        uint256[] memory buys = new uint256[](3);
+        uint256[] memory sells = new uint256[](3);
+        ids[0] = 4; ids[1] = 5; ids[2] = 6;
+        buys[0] = 1; buys[1] = 12; buys[2] = 120;
+        sells[0] = 1; sells[1] = 10; sells[2] = 100;
+        areaRegistry.batchConfigureAreaDrugs(1, ids, buys, sells);
     }
 
     function _setAchievement(
@@ -161,11 +186,11 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
         _setAchievement(0, 4, 0, 10, 0, 0, 50); // PVE_TOTAL >= 10 → 50 rep
         mockPVE.setStats(DEALER_1, 4, 3, 3);
 
-        uint256 repBefore = core.getTotalReputation(DEALER_1);
+        uint256 repBefore = core.getGameState(DEALER_1).totalReputation;
         vm.prank(player1);
         claims.claimAchievement(DEALER_1, 0);
 
-        assertEq(core.getTotalReputation(DEALER_1), repBefore + 50);
+        assertEq(core.getGameState(DEALER_1).totalReputation, repBefore + 50);
     }
 
     function test_claimAchievement_pvpAttackWins() public {
@@ -183,11 +208,11 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
         _setAchievement(0, 7, 0, 5, 0, 0, 100); // PVP_TOTAL_WINS >= 5 → 100 rep
         mockPVP.setStats(DEALER_1, 3, 0, 2, 0);
 
-        uint256 repBefore = core.getTotalReputation(DEALER_1);
+        uint256 repBefore = core.getGameState(DEALER_1).totalReputation;
         vm.prank(player1);
         claims.claimAchievement(DEALER_1, 0);
 
-        assertEq(core.getTotalReputation(DEALER_1), repBefore + 100);
+        assertEq(core.getGameState(DEALER_1).totalReputation, repBefore + 100);
     }
 
     function test_claimAchievement_drugReward() public {
@@ -325,9 +350,9 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
     }
 
     function test_grantReward_reputation() public {
-        uint256 repBefore = core.getTotalReputation(DEALER_1);
+        uint256 repBefore = core.getGameState(DEALER_1).totalReputation;
         claims.grantReward(DEALER_1, 0, 0, 50);
-        assertEq(core.getTotalReputation(DEALER_1), repBefore + 50);
+        assertEq(core.getGameState(DEALER_1).totalReputation, repBefore + 50);
     }
 
     function test_grantReward_drug() public {
@@ -372,12 +397,12 @@ contract DealersExeClaimsTest is Test, IERC721Receiver {
         amounts[1] = 50;
 
         uint256 cash1 = core.getCashBalance(DEALER_1);
-        uint256 rep2 = core.getTotalReputation(DEALER_2);
+        uint256 rep2 = core.getGameState(DEALER_2).totalReputation;
 
         claims.batchGrantRewards(tokenIds, rewardTypes, rewardIds, amounts);
 
         assertEq(core.getCashBalance(DEALER_1), cash1 + 100);
-        assertEq(core.getTotalReputation(DEALER_2), rep2 + 50);
+        assertEq(core.getGameState(DEALER_2).totalReputation, rep2 + 50);
     }
 
     // =========================================================================

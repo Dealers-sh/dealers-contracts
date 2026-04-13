@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import "../utils/IAreaRegistry.sol";
+
 /**
  * @title IDealersExeCore - Interface for DealersExeCore
  *
@@ -9,36 +11,19 @@ pragma solidity ^0.8.28;
  *
  * @dev Interface for all game modules to interact with core state.
  *      Drug and Area configuration has been moved to separate registries.
- * @author Dealers.Exe Team
+ * @author Berny0x
  */
 interface IDealersExeCore {
     // =============================================================
     //                           STRUCTS
     // =============================================================
 
-    /**
-     * @dev Core dealer state stored per tokenId
-     */
-    struct DealerData {
-        uint256 reputation;
-        uint32 lastPlayTimestamp;
-        uint8 currentArea;
-        uint8 previousArea;
-        uint8 dailyAttemptsRemaining;
-        uint8 heatLevel;
-        bool isInitialized;
-    }
-
-    /**
-     * @dev Time-limited boost configuration applied to a dealer
-     */
     struct BoostData {
         uint64 expiresAt;
         uint8 drugMultiplier;
         uint8 repMultiplier;
         uint8 extraAttempts;
         bool freeAreaMovement;
-        bool doubleHeistEntries;
         uint8 cashMultiplier;
     }
 
@@ -55,19 +40,63 @@ interface IDealersExeCore {
     }
 
     // =============================================================
+    //                     BATCHED API STRUCTS
+    // =============================================================
+
+    struct GameState {
+        uint8 currentArea;
+        uint8 previousArea;
+        uint8 heatLevel;
+        uint8 dailyAttemptsRemaining;
+        uint256 reputation;
+        uint256 totalReputation;
+        bool isInitialized;
+        bool isJailed;
+        bool isInSafeHouse;
+        uint256 cashBalance;
+        bool boostActive;
+        uint64 boostExpiresAt;
+        bool freeAreaMovement;
+        uint8 drugMultiplier;
+        uint8 repMultiplier;
+        uint8 cashMultiplier;
+        uint8 extraAttempts;
+        uint16 jailChance;
+        int16 repWinBonus;
+        int16 repTieBonus;
+        int16 repLossPenalty;
+        int16 repCap;
+        uint8 threat;
+        uint8 armor;
+        uint32 lastBreakoutAttempt;
+        uint256 infamy;
+    }
+
+    struct GameOutcome {
+        int256 repDelta;
+        uint256 drugId;
+        int256 drugDelta;
+        int256 cashDelta;
+        bool incrementHeat;
+        bool sendToJail;
+        bool useAttempt;
+    }
+
+    // =============================================================
     //                      VIEW FUNCTIONS
     // =============================================================
 
-    function dealers(uint256 tokenId) external view returns (
-        uint256 reputation,
-        uint32 lastPlayTimestamp,
-        uint32 lastBreakoutAttempt,
-        uint8 currentArea,
-        uint8 previousArea,
-        uint8 dailyAttemptsRemaining,
-        uint8 heatLevel,
-        bool isInitialized
-    );
+    /// @notice Single read replacing all pre-flight calls for a dealer
+    function getGameState(uint256 tokenId) external view returns (GameState memory);
+
+    /// @notice Get game states for two dealers (for PVP)
+    function getBothGameStates(uint256 t1, uint256 t2) external view returns (GameState memory, GameState memory);
+
+    /// @notice Batch drug balance lookup for a dealer
+    function getAreaDrugBalances(uint256 tokenId, uint256[] calldata drugIds) external view returns (uint256[] memory);
+
+    /// @notice Check if a dealer is initialized (cheap single-field getter)
+    function isInitialized(uint256 tokenId) external view returns (bool);
 
     function getDealerData(uint256 tokenId) external view returns (
         uint8 currentArea,
@@ -75,8 +104,11 @@ interface IDealersExeCore {
         uint8 dailyAttemptsRemaining,
         uint8 heatLevel,
         uint32 lastPlayTimestamp,
-        bool isInitialized
+        bool initialized
     );
+
+    /// @notice Check if a dealer gets arrested based on heat and RNG
+    function rollJailCheck(uint256 tokenId, uint256 rng) external view returns (bool);
 
     /// @notice Get the drug balance for a dealer
     function getDrugBalance(uint256 tokenId, uint256 drugId) external view returns (uint256);
@@ -84,38 +116,8 @@ interface IDealersExeCore {
     /// @notice Get the threat and armor stats for a dealer
     function getDealerStats(uint256 tokenId) external view returns (uint8 threat, uint8 armor);
 
-    /// @notice Get the reputation tier for a dealer
-    function getPlayerTier(uint256 tokenId) external view returns (ReputationTier memory);
-
-    /// @notice Get the reputation change for a given outcome
-    function getReputationChange(uint256 tokenId, uint8 outcome) external view returns (int16);
-
-    /// @notice Get the rep cap for a dealer's current tier
-    function getRepCap(uint256 tokenId) external view returns (int16);
-
     /// @notice Get the title string for a reputation value
     function getReputationTitle(uint256 reputation) external view returns (string memory);
-
-    /// @notice Get the tier data for a given reputation value
-    function getCurrentTier(uint256 reputation) external view returns (ReputationTier memory);
-
-    /// @notice Get the total reputation for a dealer
-    function getTotalReputation(uint256 tokenId) external view returns (uint256);
-
-    /// @notice Get the stash bonus multiplier for a dealer
-    function getStashBonus(uint256 tokenId) external view returns (uint256);
-
-    /// @notice Check if a dealer is in jail
-    function isInJail(uint256 tokenId) external view returns (bool);
-
-    /// @notice Check if a dealer is in the safe house
-    function isInSafeHouse(uint256 tokenId) external view returns (bool);
-
-    /// @notice Get the current heat level for a dealer
-    function getHeatLevel(uint256 tokenId) external view returns (uint8);
-
-    /// @notice Get the jail chance percentage based on heat level
-    function getJailChance(uint256 tokenId) external view returns (uint16);
 
     /// @notice Check if a dealer has an active boost
     function hasActiveBoost(uint256 tokenId) external view returns (bool);
@@ -123,36 +125,27 @@ interface IDealersExeCore {
     /// @notice Get the boost data for a dealer
     function getBoost(uint256 tokenId) external view returns (BoostData memory);
 
-    /// @notice Get the drug multiplier from active boost
-    function getDrugMultiplier(uint256 tokenId) external view returns (uint8);
-
-    /// @notice Get the reputation multiplier from active boost
-    function getRepMultiplier(uint256 tokenId) external view returns (uint8);
-
-    /// @notice Get the maximum attempts including boost bonus
-    function getMaxAttempts(uint256 tokenId) external view returns (uint8);
-
-    /// @notice Get total daily attempts available for a dealer
-    function getTotalDailyAttempts(uint256 tokenId) external view returns (uint8);
-
-    /// @notice Check if dealer has free area movement from boost
-    function hasFreeAreaMovement(uint256 tokenId) external view returns (bool);
-
-    /// @notice Check if dealer has double heist entries from boost
-    function hasDoubleHeistEntries(uint256 tokenId) external view returns (bool);
-
     /// @notice Get the $CASH balance for a dealer
     function getCashBalance(uint256 tokenId) external view returns (uint256);
 
-    /// @notice Get the $CASH multiplier from active boost
-    function getCashMultiplier(uint256 tokenId) external view returns (uint8);
+    /// @notice Get a dealer's infamy score with lazy decay applied (view only, no write)
+    function getInfamy(uint256 tokenId) external view returns (uint256);
 
-    /// @notice Get the total number of reputation tiers
-    function getTierCount() external view returns (uint256);
+    /// @notice Get a dealer's effective heat level with lazy decay applied (view only, no write)
+    function getEffectiveHeat(uint256 tokenId) external view returns (uint8);
+
+    /// @notice Get the area registry reference
+    function areaRegistry() external view returns (IAreaRegistry);
 
     // =============================================================
     //                    STATE-MODIFYING FUNCTIONS
     // =============================================================
+
+    /// @notice Single write replacing all state mutation calls for one dealer
+    function applyGameOutcome(uint256 tokenId, GameOutcome calldata outcome) external;
+
+    /// @notice Single write for PVP: applies outcomes to both attacker and defender
+    function applyPVPOutcome(uint256 atk, uint256 def, GameOutcome calldata atkOut, GameOutcome calldata defOut) external;
 
     /// @notice Initialize a dealer for a newly minted token
     function initializeDealer(uint256 tokenId) external;
@@ -163,8 +156,11 @@ interface IDealersExeCore {
     /// @notice Update a dealer's drug balance by a signed amount
     function updateDrugBalance(uint256 tokenId, uint256 drugId, int256 change) external;
 
-    /// @notice Move a dealer to a new area
+    /// @notice Move a dealer to a new area (validates area, blocks safe house/jail)
     function moveToArea(uint256 tokenId, uint8 newAreaId) external;
+
+    /// @notice Force-move a dealer to any area (no validation, for bail/breakout)
+    function forceMove(uint256 tokenId, uint8 newAreaId) external;
 
     /// @notice Consume one daily attempt for a dealer
     function useAttempt(uint256 tokenId) external;
@@ -181,7 +177,7 @@ interface IDealersExeCore {
     /// @notice Set a dealer's threat and armor stats
     function setDealerStats(uint256 tokenId, uint8 threat, uint8 armor) external;
 
-    /// @notice Apply a boost to a dealer
+    /// @notice Apply a boost to a dealer, returns the expiry timestamp
     function applyBoost(
         uint256 tokenId,
         uint64 duration,
@@ -189,10 +185,8 @@ interface IDealersExeCore {
         uint8 repMultiplier,
         uint8 extraAttempts,
         bool freeAreaMovement,
-        bool doubleHeistEntries,
-        uint8 cashMultiplier,
-        uint8 tierId
-    ) external;
+        uint8 cashMultiplier
+    ) external returns (uint64 expiresAt);
 
     /// @notice Add $CASH to a dealer's balance
     function addCash(uint256 tokenId, uint256 amount) external;
@@ -200,26 +194,21 @@ interface IDealersExeCore {
     /// @notice Spend $CASH from a dealer's balance
     function spendCash(uint256 tokenId, uint256 amount) external;
 
-    /// @notice Purchase $CASH with ETH
-    function purchaseCash(uint256 tokenId) external payable;
+    // =============================================================
+    //                     NEW CORE PRIMITIVES
+    // =============================================================
 
-    /// @notice Pay bail to exit jail (returns to previous area, resets heat)
-    function payBail(uint256 tokenId) external payable;
+    /// @notice Set a dealer's heat level directly
+    function setHeatLevel(uint256 tokenId, uint8 level) external;
 
-    /// @notice Attempt to break out of jail (once per day, 33% success, keeps heat)
-    function attemptBreakout(uint256 tokenId) external;
+    /// @notice Set a dealer's last breakout attempt timestamp
+    function setLastBreakoutAttempt(uint256 tokenId, uint32 timestamp) external;
 
-    /// @notice Player-callable function to move dealer to a new area
-    function travel(uint256 tokenId, uint8 destinationArea) external payable;
+    /// @notice Reset a dealer's daily attempts to max
+    function resetDailyAttempts(uint256 tokenId) external;
 
-    /// @notice Purchase an attempt reset for a dealer
-    function purchaseAttemptReset(uint256 tokenId) external payable;
-
-    /// @notice Bribe a cop to reduce heat level
-    function bribeCop(uint256 tokenId) external payable;
-
-    /// @notice Remove a wanted poster to clear heat
-    function removeWantedPoster(uint256 tokenId) external;
+    /// @notice Update a dealer's infamy score by a signed delta (settles decay first)
+    function updateInfamy(uint256 tokenId, int256 delta) external;
 
     // =============================================================
     //                          CONSTANTS
@@ -240,32 +229,11 @@ interface IDealersExeCore {
     /// @notice Maximum heat level
     function MAX_HEAT_LEVEL() external view returns (uint8);
 
-    /// @notice Fee to reset daily attempts
-    function ATTEMPT_RESET_FEE() external view returns (uint256);
-
-    /// @notice Fee to bribe a cop
-    function BRIBE_COP_FEE() external view returns (uint256);
-
-    /// @notice Jail reputation penalty percentage
-    function JAIL_REP_PENALTY_PERCENT() external view returns (uint8);
-
-    /// @notice Maximum jail reputation penalty
-    function JAIL_REP_PENALTY_CAP() external view returns (uint256);
-
     /// @notice Maximum stat modifier value
     function MAX_STAT_MODIFIER() external view returns (uint8);
 
     /// @notice Starting reputation for new dealers
     function STARTING_REPUTATION() external view returns (uint256);
-
-    /// @notice Price to top up $CASH
-    function CASH_TOPUP_PRICE() external view returns (uint256);
-
-    /// @notice Amount of $CASH received per top up
-    function CASH_TOPUP_AMOUNT() external view returns (uint256);
-
-    /// @notice Threshold below which $CASH purchase is allowed
-    function CASH_PURCHASE_THRESHOLD() external view returns (uint256);
 
     /// @notice Divisor for stash bonus calculation
     function STASH_DIVISOR() external view returns (uint256);

@@ -10,9 +10,9 @@ import "../base/DeployBase.s.sol";
  *      Loads addresses from testnet.json via DeployBase.
  *
  * Usage:
- *   forge script script/verify/VerifyConfig.s.sol:VerifyConfig \
- *     --rpc-url https://api.testnet.abs.xyz \
- *     --skip "DealerRenderer" --skip "DeployRenderers"
+ *   source .env && forge script script/verify/VerifyConfig.s.sol:VerifyConfig \
+      --rpc-url https://api.testnet.abs.xyz \
+      --skip "RendererSVG" --zksync
  */
 
 interface IVerifyCore {
@@ -77,6 +77,34 @@ interface IVerifyBoosts {
     function owner() external view returns (address);
 }
 
+interface IVerifyActions {
+    function paymentHandler() external view returns (address);
+    function randomness() external view returns (address);
+    function owner() external view returns (address);
+}
+
+interface IVerifyClaims {
+    function dealersExeCore() external view returns (address);
+    function dealersExeNFT() external view returns (address);
+    function pveContract() external view returns (address);
+    function pvpContract() external view returns (address);
+    function owner() external view returns (address);
+}
+
+interface IVerifyRandomness {
+    function isAuthorizedResolver(address) external view returns (bool);
+    function owner() external view returns (address);
+}
+
+interface IVerifyMulticall {
+    function core() external view returns (address);
+    function pve() external view returns (address);
+    function pvp() external view returns (address);
+    function areaRegistry() external view returns (address);
+    function drugRegistry() external view returns (address);
+    function owner() external view returns (address);
+}
+
 contract VerifyConfig is DeployBase {
     uint256 public issues;
 
@@ -97,6 +125,10 @@ contract VerifyConfig is DeployBase {
         _verifyPVE();
         _verifyPVP();
         _verifyBoosts();
+        _verifyActions();
+        _verifyClaims();
+        _verifyRandomness();
+        _verifyMulticall();
 
         _printSummary();
     }
@@ -125,6 +157,7 @@ contract VerifyConfig is DeployBase {
         _checkAuth("    PVP", c.authorizedContracts(pvp), pvp);
         _checkAuth("    Boosts", c.authorizedContracts(boosts), boosts);
         _checkAuth("    NFT", c.authorizedContracts(nft), nft);
+        if (actions != address(0)) _checkAuth("    Actions", c.authorizedContracts(actions), actions);
 
         console.log("  Owner:", c.owner());
         console.log("");
@@ -194,6 +227,7 @@ contract VerifyConfig is DeployBase {
         console.log("  Authorizations:");
         _checkAuth("    Core", ph.authorizedContracts(core), core);
         _checkAuth("    Boosts", ph.authorizedContracts(boosts), boosts);
+        if (actions != address(0)) _checkAuth("    Actions", ph.authorizedContracts(actions), actions);
 
         console.log("  Owner:", ph.owner());
         console.log("");
@@ -282,6 +316,93 @@ contract VerifyConfig is DeployBase {
         _checkRef("    paymentHandler", b.paymentHandler(), paymentHandler);
 
         console.log("  Owner:", b.owner());
+        console.log("");
+    }
+
+    function _verifyActions() internal view {
+        console.log("DEALERS_ACTIONS:", actions);
+        console.log("--------------------------------------------------------------------------------");
+
+        if (actions == address(0)) {
+            console.log("  [SKIP] Address not set in environment");
+            console.log("");
+            return;
+        }
+
+        IVerifyActions a = IVerifyActions(actions);
+
+        console.log("  References:");
+        _checkRef("    paymentHandler", a.paymentHandler(), paymentHandler);
+        _checkRef("    randomness", a.randomness(), randomness);
+
+        console.log("  Owner:", a.owner());
+        console.log("");
+    }
+
+    function _verifyClaims() internal view {
+        console.log("DEALERS_CLAIMS:", claims);
+        console.log("--------------------------------------------------------------------------------");
+
+        if (claims == address(0)) {
+            console.log("  [SKIP] Address not set in environment");
+            console.log("");
+            return;
+        }
+
+        IVerifyClaims c = IVerifyClaims(claims);
+
+        console.log("  References:");
+        _checkRef("    dealersExeCore", c.dealersExeCore(), core);
+        _checkRef("    dealersExeNFT", c.dealersExeNFT(), nft);
+        _checkRef("    pveContract", c.pveContract(), pve);
+        _checkRef("    pvpContract", c.pvpContract(), pvp);
+
+        console.log("  Owner:", c.owner());
+        console.log("");
+    }
+
+    function _verifyRandomness() internal view {
+        console.log("RANDOMNESS:", randomness);
+        console.log("--------------------------------------------------------------------------------");
+
+        if (randomness == address(0)) {
+            console.log("  [SKIP] Address not set in environment");
+            console.log("");
+            return;
+        }
+
+        IVerifyRandomness r = IVerifyRandomness(randomness);
+
+        console.log("  Authorizations:");
+        _checkAuth("    Core", r.isAuthorizedResolver(core), core);
+        _checkAuth("    PVE", r.isAuthorizedResolver(pve), pve);
+        _checkAuth("    PVP", r.isAuthorizedResolver(pvp), pvp);
+        if (actions != address(0)) _checkAuth("    Actions", r.isAuthorizedResolver(actions), actions);
+
+        console.log("  Owner:", r.owner());
+        console.log("");
+    }
+
+    function _verifyMulticall() internal view {
+        console.log("DEALER_MULTICALL:", multicall);
+        console.log("--------------------------------------------------------------------------------");
+
+        if (multicall == address(0)) {
+            console.log("  [SKIP] Address not set in environment");
+            console.log("");
+            return;
+        }
+
+        IVerifyMulticall m = IVerifyMulticall(multicall);
+
+        console.log("  References:");
+        _checkRef("    core", m.core(), core);
+        _checkRef("    pve", m.pve(), pve);
+        _checkRef("    pvp", m.pvp(), pvp);
+        _checkRef("    areaRegistry", m.areaRegistry(), areaRegistry);
+        _checkRef("    drugRegistry", m.drugRegistry(), drugRegistry);
+
+        console.log("  Owner:", m.owner());
         console.log("");
     }
 
