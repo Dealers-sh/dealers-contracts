@@ -11,7 +11,7 @@ import "../utils/IAreaRegistry.sol";
  *
  * @dev Interface for all game modules to interact with core state.
  *      Drug and Area configuration has been moved to separate registries.
- * @author HeadmasterBerny
+ * @author Berny0x
  */
 interface IDealersExeCore {
     // =============================================================

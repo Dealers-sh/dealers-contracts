@@ -2,16 +2,16 @@
 pragma solidity ^0.8.28;
 
 /**
- * @title IChatGate - Chat Room Access Gate Interface
+ * @title IDEChatGate - Chat Room Access Gate Interface
  *
  * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Implementations check whether a dealer is allowed to post in a room.
  *      The factory calls canPost before routing each message.
- * @author HeadmasterBerny
+ * @author Berny0x
  */
-interface IChatGate {
+interface IDEChatGate {
     /**
      * @param tokenId The dealer's NFT token ID
      * @param roomId The room-type-specific identifier (area ID, gang ID, etc.)

@@ -2,20 +2,20 @@
 pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
-import {ChatRoom} from "../../src/social/ChatRoom.sol";
-import {IChatRoom} from "../../src/social/IChatRoom.sol";
+import {DEChatRoom} from "../../src/social/DEChatRoom.sol";
+import {IDEChatRoom} from "../../src/social/IDEChatRoom.sol";
 
-contract ChatRoomTest is Test {
-    ChatRoom public room;
+contract DEChatRoomTest is Test {
+    DEChatRoom public room;
 
     function setUp() public {
-        room = new ChatRoom(address(this));
+        room = new DEChatRoom(address(this));
     }
 
     function test_postMessage_storesCorrectly() public {
         room.postMessage(42, "gm from the streets");
 
-        IChatRoom.Message memory msg_ = room.getMessage(0);
+        IDEChatRoom.Message memory msg_ = room.getMessage(0);
         assertEq(msg_.tokenId, 42);
         assertEq(msg_.timestamp, uint40(block.timestamp));
         assertEq(msg_.text, "gm from the streets");
@@ -23,13 +23,13 @@ contract ChatRoomTest is Test {
 
     function test_postMessage_revertsNotFactory() public {
         vm.prank(address(0xdead));
-        vm.expectRevert(IChatRoom.NotFactory.selector);
+        vm.expectRevert(IDEChatRoom.NotFactory.selector);
         room.postMessage(1, "should fail");
     }
 
     function test_postMessage_emitsEvent() public {
         vm.expectEmit(true, false, false, true);
-        emit IChatRoom.MessagePosted(7, uint40(block.timestamp), "test event");
+        emit IDEChatRoom.MessagePosted(7, uint40(block.timestamp), "test event");
         room.postMessage(7, "test event");
     }
 
@@ -41,10 +41,10 @@ contract ChatRoomTest is Test {
         assertEq(room.getMessageCount(), 64);
         assertEq(room.totalMessages(), 65);
 
-        IChatRoom.Message memory oldest = room.getMessage(0);
+        IDEChatRoom.Message memory oldest = room.getMessage(0);
         assertEq(oldest.tokenId, 1);
 
-        IChatRoom.Message memory newest = room.getMessage(63);
+        IDEChatRoom.Message memory newest = room.getMessage(63);
         assertEq(newest.tokenId, 64);
     }
 
@@ -56,10 +56,10 @@ contract ChatRoomTest is Test {
         assertEq(room.getMessageCount(), 64);
         assertEq(room.totalMessages(), 128);
 
-        IChatRoom.Message memory oldest = room.getMessage(0);
+        IDEChatRoom.Message memory oldest = room.getMessage(0);
         assertEq(oldest.tokenId, 64);
 
-        IChatRoom.Message memory newest = room.getMessage(63);
+        IDEChatRoom.Message memory newest = room.getMessage(63);
         assertEq(newest.tokenId, 127);
     }
 
@@ -68,7 +68,7 @@ contract ChatRoomTest is Test {
             room.postMessage(i, string(abi.encodePacked("msg", vm.toString(i))));
         }
 
-        IChatRoom.Message[] memory latest = room.getLatestMessages(5);
+        IDEChatRoom.Message[] memory latest = room.getLatestMessages(5);
         assertEq(latest.length, 5);
         assertEq(latest[0].tokenId, 6);
         assertEq(latest[1].tokenId, 7);
@@ -82,14 +82,14 @@ contract ChatRoomTest is Test {
             room.postMessage(i, "hi");
         }
 
-        IChatRoom.Message[] memory latest = room.getLatestMessages(10);
+        IDEChatRoom.Message[] memory latest = room.getLatestMessages(10);
         assertEq(latest.length, 3);
         assertEq(latest[0].tokenId, 1);
         assertEq(latest[2].tokenId, 3);
     }
 
     function test_getLatestMessages_emptyRoom() public view {
-        IChatRoom.Message[] memory latest = room.getLatestMessages(5);
+        IDEChatRoom.Message[] memory latest = room.getLatestMessages(5);
         assertEq(latest.length, 0);
     }
 
@@ -98,7 +98,7 @@ contract ChatRoomTest is Test {
             room.postMessage(i, "x");
         }
 
-        IChatRoom.Message[] memory page = room.getMessages(2, 3);
+        IDEChatRoom.Message[] memory page = room.getMessages(2, 3);
         assertEq(page.length, 3);
         assertEq(page[0].tokenId, 3);
         assertEq(page[1].tokenId, 4);
@@ -108,7 +108,7 @@ contract ChatRoomTest is Test {
     function test_getMessages_offsetBeyondAvailable() public {
         room.postMessage(1, "only one");
 
-        IChatRoom.Message[] memory result = room.getMessages(5, 3);
+        IDEChatRoom.Message[] memory result = room.getMessages(5, 3);
         assertEq(result.length, 0);
     }
 
@@ -117,7 +117,7 @@ contract ChatRoomTest is Test {
             room.postMessage(i, "x");
         }
 
-        IChatRoom.Message[] memory result = room.getMessages(3, 100);
+        IDEChatRoom.Message[] memory result = room.getMessages(3, 100);
         assertEq(result.length, 2);
         assertEq(result[0].tokenId, 4);
         assertEq(result[1].tokenId, 5);
@@ -137,7 +137,7 @@ contract ChatRoomTest is Test {
 
     function test_getMessage_revertsOutOfBounds() public {
         room.postMessage(1, "x");
-        vm.expectRevert(IChatRoom.IndexOutOfBounds.selector);
+        vm.expectRevert(IDEChatRoom.IndexOutOfBounds.selector);
         room.getMessage(1);
     }
 
@@ -146,7 +146,7 @@ contract ChatRoomTest is Test {
             room.postMessage(i, "x");
         }
 
-        IChatRoom.Message[] memory latest = room.getLatestMessages(3);
+        IDEChatRoom.Message[] memory latest = room.getLatestMessages(3);
         assertEq(latest.length, 3);
         assertEq(latest[0].tokenId, 67);
         assertEq(latest[1].tokenId, 68);
@@ -158,7 +158,7 @@ contract ChatRoomTest is Test {
             room.postMessage(i, "x");
         }
 
-        IChatRoom.Message[] memory page = room.getMessages(0, 3);
+        IDEChatRoom.Message[] memory page = room.getMessages(0, 3);
         assertEq(page[0].tokenId, 6);
         assertEq(page[1].tokenId, 7);
         assertEq(page[2].tokenId, 8);

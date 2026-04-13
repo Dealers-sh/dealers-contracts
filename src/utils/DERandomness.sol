@@ -10,7 +10,7 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Provides synchronous randomness using prevrandao for gaming applications
- * @author HeadmasterBerny
+ * @author Berny0x
  */
 contract DERandomness is Ownable {
 

@@ -5,7 +5,7 @@ pragma solidity ^0.8.28;
  * @title IDEPaymentHandler - Interface for Payment Handler
  *
  * @dev Interface for ETH management and fee distribution
- * @author HeadmasterBerny
+ * @author Berny0x
  */
 interface IDEPaymentHandler {
     // =============================================================

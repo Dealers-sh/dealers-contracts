@@ -11,7 +11,7 @@ import {IDrugRegistry} from "./IDrugRegistry.sol";
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Manages all drug definitions, supply tracking, and base values
- * @author HeadmasterBerny
+ * @author Berny0x
  */
 contract DEDrugRegistry is Ownable, IDrugRegistry {
     // =============================================================

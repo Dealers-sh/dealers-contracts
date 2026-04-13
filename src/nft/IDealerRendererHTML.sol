@@ -8,7 +8,7 @@ pragma solidity ^0.8.28;
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Interface for HTML wrapper generation around dealer SVGs
- * @author HeadmasterBerny
+ * @author Berny0x
  */
 interface IDealerRendererHTML {
     // =============================================================

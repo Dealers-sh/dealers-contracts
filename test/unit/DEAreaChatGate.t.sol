@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
-import {AreaChatGate} from "../../src/social/AreaChatGate.sol";
+import {DEAreaChatGate} from "../../src/social/DEAreaChatGate.sol";
 import {IDealersExeCore} from "../../src/core/IDealersExeCore.sol";
 
 contract MockCore {
@@ -21,8 +21,8 @@ contract MockCore {
     }
 }
 
-contract AreaChatGateTest is Test {
-    AreaChatGate public gate;
+contract DEAreaChatGateTest is Test {
+    DEAreaChatGate public gate;
     MockCore public mockCore;
 
     uint16 public constant TOKEN_A = 1;
@@ -30,7 +30,7 @@ contract AreaChatGateTest is Test {
 
     function setUp() public {
         mockCore = new MockCore();
-        gate = new AreaChatGate(address(mockCore));
+        gate = new DEAreaChatGate(address(mockCore));
     }
 
     function test_canPost_correctAreaReturnsTrue() public {
@@ -64,8 +64,8 @@ contract AreaChatGateTest is Test {
     }
 
     function test_constructor_revertsZeroAddress() public {
-        vm.expectRevert(AreaChatGate.InvalidAddress.selector);
-        new AreaChatGate(address(0));
+        vm.expectRevert(DEAreaChatGate.InvalidAddress.selector);
+        new DEAreaChatGate(address(0));
     }
 
     function test_constructor_storesCore() public view {

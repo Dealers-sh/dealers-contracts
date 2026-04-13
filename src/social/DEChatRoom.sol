@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IChatRoom} from "./IChatRoom.sol";
+import {IDEChatRoom} from "./IDEChatRoom.sol";
 
 /**
- * @title ChatRoom - Circular Buffer Message Storage
+ * @title DEChatRoom - Circular Buffer Message Storage
  *
  * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
@@ -12,9 +12,9 @@ import {IChatRoom} from "./IChatRoom.sol";
  * @dev Stores up to 64 messages in a circular buffer. Oldest messages
  *      are overwritten when the buffer is full. Only the factory
  *      contract can post messages.
- * @author HeadmasterBerny
+ * @author Berny0x
  */
-contract ChatRoom is IChatRoom {
+contract DEChatRoom is IDEChatRoom {
     uint256 private constant BUFFER_SIZE = 64;
 
     address public immutable factory;

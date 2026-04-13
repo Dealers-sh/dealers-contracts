@@ -19,7 +19,7 @@ import {IDERandomness} from "../utils/IDERandomness.sol";
  * @dev Same-area PVP battles where dealers steal drugs and cash from each other.
  *      Win chance is 50% + (threat - armor), capped between 25-75%.
  *      Defenders have daily attack limits. Winners earn infamy and loot drops.
- * @author HeadmasterBerny
+ * @author Berny0x
  */
 contract DealersExePVP is IDealersExePVP, ReentrancyGuard, Ownable {
     // =============================================================

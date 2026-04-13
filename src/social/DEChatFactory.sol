@@ -3,29 +3,29 @@ pragma solidity ^0.8.28;
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {IERC721Minimal} from "../utils/IERC721Minimal.sol";
-import {IChatRoom} from "./IChatRoom.sol";
-import {IChatGate} from "./IChatGate.sol";
-import {ChatRoom} from "./ChatRoom.sol";
+import {IDEChatRoom} from "./IDEChatRoom.sol";
+import {IDEChatGate} from "./IDEChatGate.sol";
+import {DEChatRoom} from "./DEChatRoom.sol";
 
 /**
- * @title ChatFactory - Chat Room Deployer and Message Router
+ * @title DEChatFactory - Chat Room Deployer and Message Router
  *
  * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
- * @dev Deploys ChatRoom instances via CREATE2 and routes messages
+ * @dev Deploys DEChatRoom instances via CREATE2 and routes messages
  *      after validating token ownership, blocked status, cooldowns,
  *      and optional per-room access gates.
- * @author HeadmasterBerny
+ * @author Berny0x
  */
-contract ChatFactory is Ownable {
+contract DEChatFactory is Ownable {
     // =============================================================
     //                          STRUCTS
     // =============================================================
 
     struct RoomInfo {
         address room;
-        IChatGate gate;
+        IDEChatGate gate;
         uint8 roomId;
     }
 
@@ -111,10 +111,10 @@ contract ChatFactory is Ownable {
         bytes32 key = roomKey(roomType, id);
         if (rooms[key].room != address(0)) revert RoomAlreadyExists();
 
-        room = address(new ChatRoom{salt: key}(address(this)));
+        room = address(new DEChatRoom{salt: key}(address(this)));
         rooms[key] = RoomInfo({
             room: room,
-            gate: IChatGate(gate),
+            gate: IDEChatGate(gate),
             roomId: id
         });
 
@@ -177,7 +177,7 @@ contract ChatFactory is Ownable {
         if (len > MAX_MESSAGE_LENGTH) revert MessageTooLong();
 
         lastMessageTime[tokenId] = now_;
-        IChatRoom(info.room).postMessage(tokenId, text);
+        IDEChatRoom(info.room).postMessage(tokenId, text);
 
         emit MessageRouted(_roomKey, tokenId);
     }

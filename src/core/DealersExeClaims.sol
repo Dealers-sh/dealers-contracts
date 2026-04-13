@@ -17,7 +17,7 @@ import "../utils/IERC721Minimal.sol";
  * @dev Two claim paths:
  *      1. On-chain achievements: contract reads PVE/PVP/Core stats, verifies threshold
  *      2. Admin grants: owner distributes rewards for off-chain events via script
- * @author HeadmasterBerny
+ * @author Berny0x
  */
 contract DealersExeClaims is ReentrancyGuard, Ownable {
     // =============================================================

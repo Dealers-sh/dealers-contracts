@@ -52,8 +52,8 @@ contract DealersExeBoostsTest is BaseTest {
         assertEq(tier.price, GRINDER_PRICE);
         assertEq(tier.duration, DURATION_3_DAYS);
         assertEq(tier.drugMultiplier, 125);  // 1.25x
-        assertEq(tier.repMultiplier, 125);   // 1.25x
-        assertEq(tier.extraAttempts, 3);
+        assertEq(tier.repMultiplier, 110);   // 1.1x
+        assertEq(tier.extraAttempts, 2);
         assertEq(tier.cashMultiplier, 125);  // 1.25x
         assertFalse(tier.freeAreaMovement);
         assertTrue(tier.isActive);
@@ -65,8 +65,8 @@ contract DealersExeBoostsTest is BaseTest {
         assertEq(tier.price, HUSTLER_PRICE);
         assertEq(tier.duration, DURATION_7_DAYS);
         assertEq(tier.drugMultiplier, 150);  // 1.5x
-        assertEq(tier.repMultiplier, 150);   // 1.5x
-        assertEq(tier.extraAttempts, 5);
+        assertEq(tier.repMultiplier, 115);   // 1.15x
+        assertEq(tier.extraAttempts, 3);
         assertEq(tier.cashMultiplier, 150);  // 1.5x
         assertFalse(tier.freeAreaMovement);
         assertTrue(tier.isActive);
@@ -78,8 +78,8 @@ contract DealersExeBoostsTest is BaseTest {
         assertEq(tier.price, KINGPIN_PRICE);
         assertEq(tier.duration, 14 days);    // Kingpin is 14 days
         assertEq(tier.drugMultiplier, 175);  // 1.75x
-        assertEq(tier.repMultiplier, 200);   // 2x
-        assertEq(tier.extraAttempts, 10);
+        assertEq(tier.repMultiplier, 120);   // 1.2x
+        assertEq(tier.extraAttempts, 5);
         assertEq(tier.cashMultiplier, 175);  // 1.75x
         assertTrue(tier.freeAreaMovement);
         assertTrue(tier.isActive);
@@ -97,8 +97,8 @@ contract DealersExeBoostsTest is BaseTest {
 
         IDealersExeCore.BoostData memory boost = core.getBoost(dealer1);
         assertEq(boost.drugMultiplier, 125);  // 1.25x
-        assertEq(boost.repMultiplier, 125);   // 1.25x
-        assertEq(boost.extraAttempts, 3);
+        assertEq(boost.repMultiplier, 110);   // 1.1x
+        assertEq(boost.extraAttempts, 2);
         assertEq(boost.cashMultiplier, 125);  // 1.25x
         assertFalse(boost.freeAreaMovement);
         assertEq(boost.expiresAt, uint64(block.timestamp + DURATION_3_DAYS));
@@ -446,6 +446,6 @@ contract DealersExeBoostsTest is BaseTest {
         boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
 
         (, , uint8 attemptsAfter, , ,) = core.getDealerData(dealer1);
-        assertEq(attemptsAfter, 8); // 5 base + 3 extra
+        assertEq(attemptsAfter, 7); // 5 base + 2 extra
     }
 }

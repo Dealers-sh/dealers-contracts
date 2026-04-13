@@ -114,8 +114,8 @@ contract PlayerJourneyTest is BaseTest {
 
         IDealersExeCore.BoostData memory boost = core.getBoost(tokenId);
         assertEq(boost.drugMultiplier, 125, "Drug multiplier should be 125 (1.25x)");
-        assertEq(boost.repMultiplier, 125, "Rep multiplier should be 125 (1.25x)");
-        assertEq(boost.extraAttempts, 3, "Extra attempts should be 3");
+        assertEq(boost.repMultiplier, 110, "Rep multiplier should be 110 (1.1x)");
+        assertEq(boost.extraAttempts, 2, "Extra attempts should be 2");
 
         (, , uint8 attempts, , , ) = core.getDealerData(tokenId);
         if (attempts == 0) {
@@ -134,7 +134,7 @@ contract PlayerJourneyTest is BaseTest {
         vm.stopPrank();
 
         uint8 maxAttempts = core.BASE_MAX_ATTEMPTS() + core.getBoost(tokenId).extraAttempts;
-        assertEq(maxAttempts, 8, "Max attempts should be 5 + 3 = 8");
+        assertEq(maxAttempts, 7, "Max attempts should be 5 + 2 = 7");
     }
 
     function test_fullJourney_pvpBattle() public {

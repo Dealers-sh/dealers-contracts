@@ -21,7 +21,7 @@ interface INFTSetRenderer {
  *     --account dealersKeystore \
  *     --broadcast
  *
- * @author HeadmasterBerny
+ * @author Berny0x
  */
 contract DeployHtmlRenderer is DeployBase {
     address constant FILE_STORE = 0xFe1411d6864592549AdE050215482e4385dFa0FB;

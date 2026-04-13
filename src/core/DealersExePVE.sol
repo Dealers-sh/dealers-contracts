@@ -18,7 +18,7 @@ import "../utils/IDERandomness.sol";
  * @dev Rock-paper-scissors style hustle game where dealers buy or sell drugs.
  *      Outcomes (win/tie/loss) are determined by biased house odds, with jail
  *      checks on every play. Reputation scales with stake value.
- * @author HeadmasterBerny
+ * @author Berny0x
  */
 contract DealersExePVE is IDealersExePVE, ReentrancyGuard, Ownable {
     // =============================================================

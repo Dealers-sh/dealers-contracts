@@ -15,7 +15,7 @@ import "../utils/IDEPaymentHandler.sol";
  *
  * @dev Allows players to purchase temporary boosts for their dealers
  *      Boosts provide drug/rep multipliers, extra attempts, and special abilities
- * @author HeadmasterBerny
+ * @author Berny0x
  */
 contract DealersExeBoosts is ReentrancyGuard, Ownable {
     // =============================================================
@@ -188,8 +188,8 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
             price: 0.0025 ether,
             duration: DURATION_3_DAYS,
             drugMultiplier: 125,     // 1.25x drugs
-            repMultiplier: 125,      // 1.25x rep
-            extraAttempts: 3,        // 5 base + 3 = 8 max
+            repMultiplier: 110,      // 1.1x rep
+            extraAttempts: 2,        // 5 base + 2 = 7 max
             freeAreaMovement: false,
             cashMultiplier: 125,     // 1.25x cash
             isActive: true
@@ -200,8 +200,8 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
             price: 0.005 ether,
             duration: DURATION_7_DAYS,
             drugMultiplier: 150,     // 1.5x drugs
-            repMultiplier: 150,      // 1.5x rep
-            extraAttempts: 5,        // 5 base + 5 = 10 max
+            repMultiplier: 115,      // 1.15x rep
+            extraAttempts: 3,        // 5 base + 3 = 8 max
             freeAreaMovement: false,
             cashMultiplier: 150,     // 1.5x cash
             isActive: true
@@ -212,8 +212,8 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
             price: 0.01 ether,
             duration: DURATION_14_DAYS,
             drugMultiplier: 175,     // 1.75x drugs
-            repMultiplier: 200,      // 2x rep
-            extraAttempts: 10,       // 5 base + 10 = 15 max
+            repMultiplier: 120,      // 1.2x rep
+            extraAttempts: 5,        // 5 base + 5 = 10 max
             freeAreaMovement: true,
             cashMultiplier: 175,     // 1.75x cash
             isActive: true
@@ -224,8 +224,8 @@ contract DealersExeBoosts is ReentrancyGuard, Ownable {
             price: 0.023 ether,
             duration: DURATION_30_DAYS,
             drugMultiplier: 200,     // 2x drugs
-            repMultiplier: 200,      // 2x rep
-            extraAttempts: 10,       // 5 base + 10 = 15 max
+            repMultiplier: 125,      // 1.25x rep
+            extraAttempts: 7,        // 5 base + 7 = 12 max
             freeAreaMovement: true,
             cashMultiplier: 200,     // 2x cash
             isActive: true

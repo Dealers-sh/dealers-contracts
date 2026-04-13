@@ -8,7 +8,7 @@ pragma solidity ^0.8.28;
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Interface for area definitions, drug availability per area, and pricing
- * @author HeadmasterBerny
+ * @author Berny0x
  */
 interface IAreaRegistry {
     // =============================================================

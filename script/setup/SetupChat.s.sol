@@ -2,14 +2,14 @@
 pragma solidity ^0.8.28;
 
 import "../base/DeployBase.s.sol";
-import {ChatFactory} from "../../src/social/ChatFactory.sol";
-import {AreaChatGate} from "../../src/social/AreaChatGate.sol";
+import {DEChatFactory} from "../../src/social/DEChatFactory.sol";
+import {DEAreaChatGate} from "../../src/social/DEAreaChatGate.sol";
 
 /**
  * @title SetupChat - Create WORLD room and area chat rooms
  * @dev Creates:
  *      - WORLD room (ungated)
- *      - Area rooms for areas 1-6, 254 (Black Market), 255 (Jail) with AreaChatGate
+ *      - Area rooms for areas 1-6, 254 (Black Market), 255 (Jail) with DEAreaChatGate
  *      - Skips Safe House (area 0)
  *
  * Usage:
@@ -23,7 +23,7 @@ contract SetupChat is DeployBase {
         _requireAddress(chatFactory, "CHAT_FACTORY");
         _requireAddress(core, "DEALERS_CORE");
 
-        ChatFactory factory = ChatFactory(chatFactory);
+        DEChatFactory factory = DEChatFactory(chatFactory);
 
         vm.startBroadcast();
 
@@ -34,35 +34,35 @@ contract SetupChat is DeployBase {
         vm.stopBroadcast();
     }
 
-    function _createWorldRoom(ChatFactory factory) internal {
-        bytes32 worldKey = factory.roomKey(ChatFactory.RoomType.WORLD, 0);
+    function _createWorldRoom(DEChatFactory factory) internal {
+        bytes32 worldKey = factory.roomKey(DEChatFactory.RoomType.WORLD, 0);
         (address existing,,) = factory.getRoomInfo(worldKey);
 
         if (existing != address(0)) {
             console.log("WORLD room: exists, skipping");
         } else {
-            address room = factory.createRoom(ChatFactory.RoomType.WORLD, 0, address(0));
+            address room = factory.createRoom(DEChatFactory.RoomType.WORLD, 0, address(0));
             console.log("WORLD room created:", room);
         }
     }
 
     function _deployAreaGate() internal returns (address gate) {
-        gate = address(new AreaChatGate(core));
-        console.log("AreaChatGate deployed:", gate);
+        gate = address(new DEAreaChatGate(core));
+        console.log("DEAreaChatGate deployed:", gate);
     }
 
-    function _createAreaRooms(ChatFactory factory, address gate) internal {
+    function _createAreaRooms(DEChatFactory factory, address gate) internal {
         uint8[8] memory areas = [uint8(1), 2, 3, 4, 5, 6, 254, 255];
 
         for (uint256 i = 0; i < areas.length; ++i) {
             uint8 areaId = areas[i];
-            bytes32 key = factory.roomKey(ChatFactory.RoomType.AREA, areaId);
+            bytes32 key = factory.roomKey(DEChatFactory.RoomType.AREA, areaId);
             (address existing,,) = factory.getRoomInfo(key);
 
             if (existing != address(0)) {
                 console.log("  Area", areaId, "room: exists, skipping");
             } else {
-                factory.createRoom(ChatFactory.RoomType.AREA, areaId, gate);
+                factory.createRoom(DEChatFactory.RoomType.AREA, areaId, gate);
                 console.log("  Area", areaId, "room: created");
             }
         }

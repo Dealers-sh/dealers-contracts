@@ -84,7 +84,7 @@ contract BoostGameplayTest is BaseTest {
 
         boosts.purchaseBoost{value: HUSTLER_PRICE}(tokenId, HUSTLER_ID);
 
-        assertEq(core.getGameState(tokenId).repMultiplier, 150, "Rep multiplier should be 150 (1.5x)");
+        assertEq(core.getGameState(tokenId).repMultiplier, 115, "Rep multiplier should be 115 (1.15x)");
 
         vm.stopPrank();
 
@@ -213,9 +213,9 @@ contract BoostGameplayTest is BaseTest {
 
         assertTrue(core.hasActiveBoost(tokenId), "Boost should be active");
         assertEq(core.getGameState(tokenId).drugMultiplier, 125, "Drug multiplier should be 125");
-        assertEq(core.getGameState(tokenId).repMultiplier, 125, "Rep multiplier should be 125");
+        assertEq(core.getGameState(tokenId).repMultiplier, 110, "Rep multiplier should be 110");
         assertEq(core.getGameState(tokenId).cashMultiplier, 125, "Cash multiplier should be 125");
-        assertEq(core.getGameState(tokenId).dailyAttemptsRemaining, 8, "Max attempts should be 5 + 3 = 8");
+        assertEq(core.getGameState(tokenId).dailyAttemptsRemaining, 7, "Max attempts should be 5 + 2 = 7");
 
         IDealersExeCore.BoostData memory boost = core.getBoost(tokenId);
         assertGt(boost.expiresAt, block.timestamp, "Expiry should be in the future");
@@ -236,17 +236,17 @@ contract BoostGameplayTest is BaseTest {
 
         vm.prank(player1);
         boosts.purchaseBoost{value: GRINDER_PRICE}(tokenId, GRINDER_ID);
-        assertEq(core.getGameState(tokenId).dailyAttemptsRemaining, 8, "Grinder: 5 + 3 = 8 attempts");
+        assertEq(core.getGameState(tokenId).dailyAttemptsRemaining, 7, "Grinder: 5 + 2 = 7 attempts");
 
         uint256 token2 = _mintAndMoveToManhattan(player1);
         vm.prank(player1);
         boosts.purchaseBoost{value: HUSTLER_PRICE}(token2, HUSTLER_ID);
-        assertEq(core.getGameState(token2).dailyAttemptsRemaining, 10, "Hustler: 5 + 5 = 10 attempts");
+        assertEq(core.getGameState(token2).dailyAttemptsRemaining, 8, "Hustler: 5 + 3 = 8 attempts");
 
         uint256 token3 = _mintAndMoveToManhattan(player1);
         vm.prank(player1);
         boosts.purchaseBoost{value: KINGPIN_PRICE}(token3, KINGPIN_ID);
-        assertEq(core.getGameState(token3).dailyAttemptsRemaining, 15, "Kingpin: 5 + 10 = 15 attempts");
+        assertEq(core.getGameState(token3).dailyAttemptsRemaining, 10, "Kingpin: 5 + 5 = 10 attempts");
     }
 
     function test_boost_freeAreaMovement() public {
@@ -300,36 +300,36 @@ contract BoostGameplayTest is BaseTest {
         assertEq(grinder.price, GRINDER_PRICE, "Grinder price");
         assertEq(grinder.duration, 3 days, "Grinder duration");
         assertEq(grinder.drugMultiplier, 125, "Grinder drug mult");
-        assertEq(grinder.repMultiplier, 125, "Grinder rep mult");
+        assertEq(grinder.repMultiplier, 110, "Grinder rep mult");
         assertEq(grinder.cashMultiplier, 125, "Grinder cash mult");
-        assertEq(grinder.extraAttempts, 3, "Grinder extra attempts");
+        assertEq(grinder.extraAttempts, 2, "Grinder extra attempts");
         assertFalse(grinder.freeAreaMovement, "Grinder no free movement");
 
         DealersExeBoosts.BoostTier memory hustler = boosts.getBoostTier(HUSTLER_ID);
         assertEq(hustler.price, HUSTLER_PRICE, "Hustler price");
         assertEq(hustler.duration, 7 days, "Hustler duration");
         assertEq(hustler.drugMultiplier, 150, "Hustler drug mult");
-        assertEq(hustler.repMultiplier, 150, "Hustler rep mult");
+        assertEq(hustler.repMultiplier, 115, "Hustler rep mult");
         assertEq(hustler.cashMultiplier, 150, "Hustler cash mult");
-        assertEq(hustler.extraAttempts, 5, "Hustler extra attempts");
+        assertEq(hustler.extraAttempts, 3, "Hustler extra attempts");
         assertFalse(hustler.freeAreaMovement, "Hustler no free movement");
 
         DealersExeBoosts.BoostTier memory kingpin = boosts.getBoostTier(KINGPIN_ID);
         assertEq(kingpin.price, KINGPIN_PRICE, "Kingpin price");
         assertEq(kingpin.duration, 14 days, "Kingpin duration");
         assertEq(kingpin.drugMultiplier, 175, "Kingpin drug mult");
-        assertEq(kingpin.repMultiplier, 200, "Kingpin rep mult");
+        assertEq(kingpin.repMultiplier, 120, "Kingpin rep mult");
         assertEq(kingpin.cashMultiplier, 175, "Kingpin cash mult");
-        assertEq(kingpin.extraAttempts, 10, "Kingpin extra attempts");
+        assertEq(kingpin.extraAttempts, 5, "Kingpin extra attempts");
         assertTrue(kingpin.freeAreaMovement, "Kingpin free movement");
 
         DealersExeBoosts.BoostTier memory godfather = boosts.getBoostTier(4);
         assertEq(godfather.price, 0.023 ether, "Godfather price");
         assertEq(godfather.duration, 30 days, "Godfather duration");
         assertEq(godfather.drugMultiplier, 200, "Godfather drug mult");
-        assertEq(godfather.repMultiplier, 200, "Godfather rep mult");
+        assertEq(godfather.repMultiplier, 125, "Godfather rep mult");
         assertEq(godfather.cashMultiplier, 200, "Godfather cash mult");
-        assertEq(godfather.extraAttempts, 10, "Godfather extra attempts");
+        assertEq(godfather.extraAttempts, 7, "Godfather extra attempts");
         assertTrue(godfather.freeAreaMovement, "Godfather free movement");
     }
 

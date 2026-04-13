@@ -2,14 +2,14 @@
 pragma solidity ^0.8.28;
 
 /**
- * @title IChatRoom - Chat Room Interface
+ * @title IDEChatRoom - Chat Room Interface
  *
  * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
- * @author HeadmasterBerny
+ * @author Berny0x
  */
-interface IChatRoom {
+interface IDEChatRoom {
     // =============================================================
     //                          STRUCTS
     // =============================================================

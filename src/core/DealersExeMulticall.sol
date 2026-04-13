@@ -16,7 +16,7 @@ import {IDrugRegistry} from "../utils/IDrugRegistry.sol";
  *
  * @dev Batches multiple read calls into single responses for the frontend.
  *      Returns full dealer state, area economies, and drug balances in one call.
- * @author HeadmasterBerny
+ * @author Berny0x
  */
 contract DealersExeMulticall is Ownable {
     error ZeroAddress(string param);

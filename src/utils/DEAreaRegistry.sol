@@ -12,7 +12,7 @@ import {IDrugRegistry} from "./IDrugRegistry.sol";
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
  *
  * @dev Manages area definitions, drug availability per area, and buy/sell pricing
- * @author HeadmasterBerny
+ * @author Berny0x
  */
 contract DEAreaRegistry is Ownable, IAreaRegistry {
     // =============================================================

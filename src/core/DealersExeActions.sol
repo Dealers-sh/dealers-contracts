@@ -18,7 +18,7 @@ import "../utils/IDERandomness.sol";
  *
  * @dev Handles non-combat player actions: jail bail/breakout, travel between areas,
  *      heat reduction (bribe/wanted poster), attempt resets, cash purchases, and drug sales
- * @author HeadmasterBerny
+ * @author Berny0x
  */
 contract DealersExeActions is ReentrancyGuard, Ownable {
     // =============================================================

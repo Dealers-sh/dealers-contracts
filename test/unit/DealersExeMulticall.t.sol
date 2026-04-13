@@ -81,8 +81,8 @@ contract DealersExeMulticallTest is BaseTest {
         assertGt(state.boostExpiry, block.timestamp);
         assertEq(state.drugMultiplier, 125);
         assertEq(state.cashMultiplier, 125);
-        assertEq(state.repMultiplier, 125);
-        assertEq(state.maxAttempts, 8);
+        assertEq(state.repMultiplier, 110);
+        assertEq(state.maxAttempts, 7);
     }
 
     function test_getFullDealerState_reputationTitle() public view {

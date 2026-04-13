@@ -18,7 +18,7 @@ import "../utils/IDERandomness.sol";
  *
  * @dev Centralized data management contract for all game modules
  *      Uses external DrugRegistry and AreaRegistry for configuration
- * @author HeadmasterBerny
+ * @author Berny0x
  */
 contract DealersExeCore is IDealersExeCore, Ownable, ReentrancyGuard {
     // =============================================================

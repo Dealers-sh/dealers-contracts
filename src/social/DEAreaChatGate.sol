@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IChatGate} from "./IChatGate.sol";
+import {IDEChatGate} from "./IDEChatGate.sol";
 import {IDealersExeCore} from "../core/IDealersExeCore.sol";
 
 /**
- * @title AreaChatGate - Gates chat rooms by dealer's current area
+ * @title DEAreaChatGate - Gates chat rooms by dealer's current area
  *
  * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
@@ -13,9 +13,9 @@ import {IDealersExeCore} from "../core/IDealersExeCore.sol";
  * @dev Reads the dealer's current area from DealersExeCore and checks
  *      it matches the room's area ID.
  *      chat in the jail room.
- * @author HeadmasterBerny
+ * @author Berny0x
  */
-contract AreaChatGate is IChatGate {
+contract DEAreaChatGate is IDEChatGate {
     IDealersExeCore public immutable core;
 
     error InvalidAddress();
