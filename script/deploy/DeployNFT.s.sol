@@ -7,7 +7,7 @@ import "../base/DeployBase.s.sol";
  * @title DeployNFT
  * @dev Constructor deps: ROYALTY_RECEIVER (EOA)
  *      Post-deploy:
- *        - NFT.setDealersExeCore(core)
+ *        - NFT.setDealersCore(core)
  *        - Core.authorizeContract(nft, true)
  *        - Core.setNFTContract(nft)
  *        - Set renderers via setContractRendererSVG/HTML (separate EVM deploy)
@@ -24,14 +24,14 @@ contract DeployNFT is DeployBase {
 
         vm.startBroadcast();
         nft = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersExeNFT.sol:DealersExeNFT"),
+            vm.getCode("DealersNFT.sol:DealersNFT"),
             abi.encode(royaltyReceiver)
         ));
         vm.stopBroadcast();
 
         _saveAddresses();
 
-        console.log("DealersExeNFT deployed:", nft);
+        console.log("DealersNFT deployed:", nft);
         console.log("  Royalty Receiver:", royaltyReceiver);
         console.log("");
         console.log("Next:");

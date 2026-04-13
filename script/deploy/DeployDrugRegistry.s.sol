@@ -18,12 +18,12 @@ contract DeployDrugRegistry is DeployBase {
         _loadAddresses();
 
         vm.startBroadcast();
-        drugRegistry = _zkCreate(vm.getCode("DEDrugRegistry.sol:DEDrugRegistry"));
+        drugRegistry = _zkCreate(vm.getCode("DealersDrugRegistry.sol:DealersDrugRegistry"));
         vm.stopBroadcast();
 
         _saveAddresses();
 
-        console.log("DEDrugRegistry deployed:", drugRegistry);
+        console.log("DealersDrugRegistry deployed:", drugRegistry);
         console.log("");
         console.log("Next: run SetupWiring.s.sol");
     }

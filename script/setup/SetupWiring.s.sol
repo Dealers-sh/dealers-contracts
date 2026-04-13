@@ -61,7 +61,7 @@ contract SetupWiring is DeployBase {
 
     function _setupCoreReferences() internal {
         console.log("Core references:");
-        IDealersExeCore c = IDealersExeCore(core);
+        IDealersCore c = IDealersCore(core);
 
         if (c.drugRegistry() != drugRegistry) {
             c.setDrugRegistry(drugRegistry);
@@ -106,7 +106,7 @@ contract SetupWiring is DeployBase {
 
     function _authorizeModulesInCore() internal {
         console.log("Core authorizations:");
-        IDealersExeCore c = IDealersExeCore(core);
+        IDealersCore c = IDealersCore(core);
 
         _authorizeIfNeeded(c, pve, "PVE");
         _authorizeIfNeeded(c, pvp, "PVP");
@@ -117,7 +117,7 @@ contract SetupWiring is DeployBase {
         console.log("");
     }
 
-    function _authorizeIfNeeded(IDealersExeCore c, address module, string memory name) internal {
+    function _authorizeIfNeeded(IDealersCore c, address module, string memory name) internal {
         if (!c.authorizedContracts(module)) {
             c.authorizeContract(module, true);
             console.log(string.concat("  ", name, ": AUTHORIZED"));
@@ -187,16 +187,16 @@ contract SetupWiring is DeployBase {
     function _setupModuleReferences() internal {
         console.log("Module references:");
 
-        IDealersExeNFT nftContract = IDealersExeNFT(nft);
-        _setIfNeeded(nftContract.dealersExeCore(), core, "NFT -> Core", nftContract.setDealersExeCore);
+        IDealersNFT nftContract = IDealersNFT(nft);
+        _setIfNeeded(nftContract.dealersCore(), core, "NFT -> Core", nftContract.setDealersCore);
 
         IBoostsContract boostsContract = IBoostsContract(boosts);
-        _setIfNeeded(boostsContract.dealersExeCore(), core, "Boosts -> Core", boostsContract.setDealersExeCore);
-        _setIfNeeded(boostsContract.dealersExeNFT(), nft, "Boosts -> NFT", boostsContract.setDealersExeNFT);
+        _setIfNeeded(boostsContract.dealersCore(), core, "Boosts -> Core", boostsContract.setDealersCore);
+        _setIfNeeded(boostsContract.dealersNFT(), nft, "Boosts -> NFT", boostsContract.setDealersNFT);
         _setIfNeeded(boostsContract.paymentHandler(), paymentHandler, "Boosts -> PaymentHandler", boostsContract.setPaymentHandler);
 
         IPVEContract pveContract = IPVEContract(pve);
-        _setIfNeeded(pveContract.dealersExeCore(), core, "PVE -> Core", pveContract.setDealersExeCore);
+        _setIfNeeded(pveContract.dealersCore(), core, "PVE -> Core", pveContract.setDealersCore);
         _setIfNeeded(pveContract.randomness(), randomness, "PVE -> Randomness", pveContract.setRandomness);
 
         IPVPContract pvpContract = IPVPContract(pvp);
@@ -206,8 +206,8 @@ contract SetupWiring is DeployBase {
 
         if (claims != address(0)) {
             IClaimsContract claimsContract = IClaimsContract(claims);
-            _setIfNeeded(claimsContract.dealersExeCore(), core, "Claims -> Core", claimsContract.setDealersExeCore);
-            _setIfNeeded(claimsContract.dealersExeNFT(), nft, "Claims -> NFT", claimsContract.setDealersExeNFT);
+            _setIfNeeded(claimsContract.dealersCore(), core, "Claims -> Core", claimsContract.setDealersCore);
+            _setIfNeeded(claimsContract.dealersNFT(), nft, "Claims -> NFT", claimsContract.setDealersNFT);
             _setIfNeeded(address(claimsContract.pveContract()), pve, "Claims -> PVE", claimsContract.setPVE);
             _setIfNeeded(address(claimsContract.pvpContract()), pvp, "Claims -> PVP", claimsContract.setPVP);
         }

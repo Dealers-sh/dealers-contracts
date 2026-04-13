@@ -2,20 +2,20 @@
 pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
-import {DealersExeCore} from "../../src/core/DealersExeCore.sol";
-import {DealersExeNFT} from "../../src/nft/DealersExeNFT.sol";
-import {DealersExePVE} from "../../src/core/DealersExePVE.sol";
-import {DealersExePVP} from "../../src/core/DealersExePVP.sol";
-import {IDealersExePVE} from "../../src/core/IDealersExePVE.sol";
-import {IDealersExePVP} from "../../src/core/IDealersExePVP.sol";
-import {DealersExeBoosts} from "../../src/core/DealersExeBoosts.sol";
-import {DealersExeActions} from "../../src/core/DealersExeActions.sol";
-import {DEDrugRegistry} from "../../src/utils/DEDrugRegistry.sol";
+import {DealersCore} from "../../src/core/DealersCore.sol";
+import {DealersNFT} from "../../src/nft/DealersNFT.sol";
+import {DealersPVE} from "../../src/core/DealersPVE.sol";
+import {DealersPVP} from "../../src/core/DealersPVP.sol";
+import {IDealersPVE} from "../../src/core/IDealersPVE.sol";
+import {IDealersPVP} from "../../src/core/IDealersPVP.sol";
+import {DealersBoosts} from "../../src/core/DealersBoosts.sol";
+import {DealersActions} from "../../src/core/DealersActions.sol";
+import {DealersDrugRegistry} from "../../src/utils/DealersDrugRegistry.sol";
 import {IDrugRegistry} from "../../src/utils/IDrugRegistry.sol";
-import {DEAreaRegistry} from "../../src/utils/DEAreaRegistry.sol";
-import {DEPaymentHandler} from "../../src/utils/DEPaymentHandler.sol";
-import {DERandomness} from "../../src/utils/DERandomness.sol";
-import {IDealersExeCore} from "../../src/core/IDealersExeCore.sol";
+import {DealersAreaRegistry} from "../../src/utils/DealersAreaRegistry.sol";
+import {DealersPaymentHandler} from "../../src/utils/DealersPaymentHandler.sol";
+import {DealersRandomness} from "../../src/utils/DealersRandomness.sol";
+import {IDealersCore} from "../../src/core/IDealersCore.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 contract MockEOA is IERC721Receiver {
@@ -30,16 +30,16 @@ abstract contract BaseTest is Test, IERC721Receiver {
     function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
         return this.onERC721Received.selector;
     }
-    DealersExeCore public core;
-    DealersExeNFT public nft;
-    DealersExePVE public pve;
-    DealersExePVP public pvp;
-    DealersExeBoosts public boosts;
-    DealersExeActions public actions;
-    DEDrugRegistry public drugRegistry;
-    DEAreaRegistry public areaRegistry;
-    DEPaymentHandler public paymentHandler;
-    DERandomness public randomness;
+    DealersCore public core;
+    DealersNFT public nft;
+    DealersPVE public pve;
+    DealersPVP public pvp;
+    DealersBoosts public boosts;
+    DealersActions public actions;
+    DealersDrugRegistry public drugRegistry;
+    DealersAreaRegistry public areaRegistry;
+    DealersPaymentHandler public paymentHandler;
+    DealersRandomness public randomness;
 
     address public owner = address(this);
     address public player1;
@@ -82,17 +82,17 @@ abstract contract BaseTest is Test, IERC721Receiver {
     }
 
     function _deployContracts() internal {
-        drugRegistry = new DEDrugRegistry();
-        areaRegistry = new DEAreaRegistry(address(drugRegistry));
-        paymentHandler = new DEPaymentHandler(devWallet, bankVault);
-        randomness = new DERandomness();
+        drugRegistry = new DealersDrugRegistry();
+        areaRegistry = new DealersAreaRegistry(address(drugRegistry));
+        paymentHandler = new DealersPaymentHandler(devWallet, bankVault);
+        randomness = new DealersRandomness();
 
-        core = new DealersExeCore();
-        nft = new DealersExeNFT(devWallet);
-        pve = new DealersExePVE(address(core), address(nft), address(areaRegistry));
-        pvp = new DealersExePVP(address(core), address(nft), address(areaRegistry));
-        boosts = new DealersExeBoosts(address(core), address(nft), address(paymentHandler));
-        actions = new DealersExeActions(address(core), address(nft), address(areaRegistry));
+        core = new DealersCore();
+        nft = new DealersNFT(devWallet);
+        pve = new DealersPVE(address(core), address(nft), address(areaRegistry));
+        pvp = new DealersPVP(address(core), address(nft), address(areaRegistry));
+        boosts = new DealersBoosts(address(core), address(nft), address(paymentHandler));
+        actions = new DealersActions(address(core), address(nft), address(areaRegistry));
         actions.setPaymentHandler(address(paymentHandler));
         actions.setRandomness(address(randomness));
 
@@ -102,8 +102,8 @@ abstract contract BaseTest is Test, IERC721Receiver {
         core.setAreaRegistry(address(areaRegistry));
         core.setRandomness(address(randomness));
 
-        nft.setDealersExeCore(address(core));
-        nft.setMintStatus(DealersExeNFT.MintStatus.PUBLIC);
+        nft.setDealersCore(address(core));
+        nft.setMintStatus(DealersNFT.MintStatus.PUBLIC);
 
         pve.setRandomness(address(randomness));
         pvp.setRandomness(address(randomness));
@@ -175,18 +175,18 @@ abstract contract BaseTest is Test, IERC721Receiver {
     }
 
     function _setupReputationTiers() internal {
-        IDealersExeCore.ReputationTier[] memory tiers = new IDealersExeCore.ReputationTier[](10);
+        IDealersCore.ReputationTier[] memory tiers = new IDealersCore.ReputationTier[](10);
 
-        tiers[0] = IDealersExeCore.ReputationTier({minReputation: 0, winBonus: 15, tieBonus: 5, lossPenalty: -2, repCap: 25, tierName: "Outsider"});
-        tiers[1] = IDealersExeCore.ReputationTier({minReputation: 50, winBonus: 12, tieBonus: 4, lossPenalty: -3, repCap: 22, tierName: "Associate"});
-        tiers[2] = IDealersExeCore.ReputationTier({minReputation: 150, winBonus: 10, tieBonus: 4, lossPenalty: -3, repCap: 18, tierName: "Dealer"});
-        tiers[3] = IDealersExeCore.ReputationTier({minReputation: 300, winBonus: 9, tieBonus: 3, lossPenalty: -4, repCap: 17, tierName: "Soldier"});
-        tiers[4] = IDealersExeCore.ReputationTier({minReputation: 700, winBonus: 8, tieBonus: 3, lossPenalty: -4, repCap: 16, tierName: "Capo"});
-        tiers[5] = IDealersExeCore.ReputationTier({minReputation: 1250, winBonus: 7, tieBonus: 3, lossPenalty: -5, repCap: 14, tierName: "Consigliere"});
-        tiers[6] = IDealersExeCore.ReputationTier({minReputation: 1900, winBonus: 6, tieBonus: 2, lossPenalty: -5, repCap: 12, tierName: "Underboss"});
-        tiers[7] = IDealersExeCore.ReputationTier({minReputation: 2600, winBonus: 5, tieBonus: 2, lossPenalty: -6, repCap: 12, tierName: "Don"});
-        tiers[8] = IDealersExeCore.ReputationTier({minReputation: 3500, winBonus: 4, tieBonus: 2, lossPenalty: -6, repCap: 10, tierName: "Godfather"});
-        tiers[9] = IDealersExeCore.ReputationTier({minReputation: 5000, winBonus: 3, tieBonus: 1, lossPenalty: -7, repCap: 8, tierName: "Legend"});
+        tiers[0] = IDealersCore.ReputationTier({minReputation: 0, winBonus: 15, tieBonus: 5, lossPenalty: -2, repCap: 25, tierName: "Outsider"});
+        tiers[1] = IDealersCore.ReputationTier({minReputation: 50, winBonus: 12, tieBonus: 4, lossPenalty: -3, repCap: 22, tierName: "Associate"});
+        tiers[2] = IDealersCore.ReputationTier({minReputation: 150, winBonus: 10, tieBonus: 4, lossPenalty: -3, repCap: 18, tierName: "Dealer"});
+        tiers[3] = IDealersCore.ReputationTier({minReputation: 300, winBonus: 9, tieBonus: 3, lossPenalty: -4, repCap: 17, tierName: "Soldier"});
+        tiers[4] = IDealersCore.ReputationTier({minReputation: 700, winBonus: 8, tieBonus: 3, lossPenalty: -4, repCap: 16, tierName: "Capo"});
+        tiers[5] = IDealersCore.ReputationTier({minReputation: 1250, winBonus: 7, tieBonus: 3, lossPenalty: -5, repCap: 14, tierName: "Consigliere"});
+        tiers[6] = IDealersCore.ReputationTier({minReputation: 1900, winBonus: 6, tieBonus: 2, lossPenalty: -5, repCap: 12, tierName: "Underboss"});
+        tiers[7] = IDealersCore.ReputationTier({minReputation: 2600, winBonus: 5, tieBonus: 2, lossPenalty: -6, repCap: 12, tierName: "Don"});
+        tiers[8] = IDealersCore.ReputationTier({minReputation: 3500, winBonus: 4, tieBonus: 2, lossPenalty: -6, repCap: 10, tierName: "Godfather"});
+        tiers[9] = IDealersCore.ReputationTier({minReputation: 5000, winBonus: 3, tieBonus: 1, lossPenalty: -7, repCap: 8, tierName: "Legend"});
 
         core.setReputationTiers(tiers);
         core.setMaxReputation(6000);

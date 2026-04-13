@@ -12,10 +12,10 @@ import "../base/DeployBase.s.sol";
  *        - DrugRegistry.authorizeContract(core)
  *        - PaymentHandler.authorizeContract(core)
  *        - AreaRegistry.setCoreContract(core)
- *        - NFT.setDealersExeCore(core)
- *        - PVE.setDealersExeCore(core)
- *        - PVP.setDealersExeCore(core)
- *        - Boosts.setDealersExeCore(core)
+ *        - NFT.setDealersCore(core)
+ *        - PVE.setDealersCore(core)
+ *        - PVP.setDealersCore(core)
+ *        - Boosts.setDealersCore(core)
  *        - SetupTiers.s.sol for reputation tiers
  *
  * Usage:
@@ -28,12 +28,12 @@ contract DeployCore is DeployBase {
         _loadAddresses();
 
         vm.startBroadcast();
-        core = _zkCreate(vm.getCode("DealersExeCore.sol:DealersExeCore"));
+        core = _zkCreate(vm.getCode("DealersCore.sol:DealersCore"));
         vm.stopBroadcast();
 
         _saveAddresses();
 
-        console.log("DealersExeCore deployed:", core);
+        console.log("DealersCore deployed:", core);
         console.log("");
         console.log("Next steps:");
         console.log("  1. Run SetupWiring.s.sol");

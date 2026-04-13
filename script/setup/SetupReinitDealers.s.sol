@@ -24,7 +24,7 @@ contract SetupReinitDealers is DeployBase {
         _requireAddress(core, "DEALERS_CORE");
         _requireAddress(nft, "DEALERS_NFT");
 
-        IDealersExeCore coreContract = IDealersExeCore(core);
+        IDealersCore coreContract = IDealersCore(core);
 
         uint256 totalSupply = INFT(nft).currentTokenId();
         console.log("NFT currentTokenId:", totalSupply);

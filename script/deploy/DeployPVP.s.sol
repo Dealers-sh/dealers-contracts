@@ -25,13 +25,13 @@ contract DeployPVP is DeployBase {
 
         vm.startBroadcast();
         pvp = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersExePVP.sol:DealersExePVP"),
+            vm.getCode("DealersPVP.sol:DealersPVP"),
             abi.encode(core, nft, areaRegistry)
         ));
         vm.stopBroadcast();
 
         _saveAddresses();
-        console.log("DealersExePVP deployed:", pvp);
+        console.log("DealersPVP deployed:", pvp);
         console.log("");
         console.log("Next: run SetupWiring.s.sol to wire up references and authorizations");
     }

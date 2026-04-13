@@ -57,10 +57,10 @@ contract DeployAll is DeployBase {
 
     function _deployIfNeeded() internal {
         if (drugRegistry == address(0)) {
-            drugRegistry = _zkCreate(vm.getCode("DEDrugRegistry.sol:DEDrugRegistry"));
-            console.log("DEDrugRegistry deployed:", drugRegistry);
+            drugRegistry = _zkCreate(vm.getCode("DealersDrugRegistry.sol:DealersDrugRegistry"));
+            console.log("DealersDrugRegistry deployed:", drugRegistry);
         } else {
-            console.log("DEDrugRegistry: skipped (exists)");
+            console.log("DealersDrugRegistry: skipped (exists)");
         }
 
         // WARNING: Redeploying AreaRegistry resets the dealer-in-area reverse index.
@@ -69,46 +69,46 @@ contract DeployAll is DeployBase {
         if (areaRegistry == address(0)) {
             _requireAddress(drugRegistry, "DRUG_REGISTRY");
             areaRegistry = _zkCreate(abi.encodePacked(
-                vm.getCode("DEAreaRegistry.sol:DEAreaRegistry"),
+                vm.getCode("DealersAreaRegistry.sol:DealersAreaRegistry"),
                 abi.encode(drugRegistry)
             ));
-            console.log("DEAreaRegistry deployed:", areaRegistry);
+            console.log("DealersAreaRegistry deployed:", areaRegistry);
         } else {
-            console.log("DEAreaRegistry: skipped (exists)");
+            console.log("DealersAreaRegistry: skipped (exists)");
         }
 
         if (core == address(0)) {
-            core = _zkCreate(vm.getCode("DealersExeCore.sol:DealersExeCore"));
-            console.log("DealersExeCore deployed:", core);
+            core = _zkCreate(vm.getCode("DealersCore.sol:DealersCore"));
+            console.log("DealersCore deployed:", core);
         } else {
-            console.log("DealersExeCore: skipped (exists)");
+            console.log("DealersCore: skipped (exists)");
         }
 
         if (paymentHandler == address(0)) {
             paymentHandler = _zkCreate(abi.encodePacked(
-                vm.getCode("DEPaymentHandler.sol:DEPaymentHandler"),
+                vm.getCode("DealersPaymentHandler.sol:DealersPaymentHandler"),
                 abi.encode(devWallet, bankVault)
             ));
-            console.log("DEPaymentHandler deployed:", paymentHandler);
+            console.log("DealersPaymentHandler deployed:", paymentHandler);
         } else {
-            console.log("DEPaymentHandler: skipped (exists)");
+            console.log("DealersPaymentHandler: skipped (exists)");
         }
 
         if (randomness == address(0)) {
-            randomness = _zkCreate(vm.getCode("DERandomness.sol:DERandomness"));
-            console.log("DERandomness deployed:", randomness);
+            randomness = _zkCreate(vm.getCode("DealersRandomness.sol:DealersRandomness"));
+            console.log("DealersRandomness deployed:", randomness);
         } else {
-            console.log("DERandomness: skipped (exists)");
+            console.log("DealersRandomness: skipped (exists)");
         }
 
         if (nft == address(0)) {
             nft = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersExeNFT.sol:DealersExeNFT"),
+                vm.getCode("DealersNFT.sol:DealersNFT"),
                 abi.encode(royaltyReceiver)
             ));
-            console.log("DealersExeNFT deployed:", nft);
+            console.log("DealersNFT deployed:", nft);
         } else {
-            console.log("DealersExeNFT: skipped (exists)");
+            console.log("DealersNFT: skipped (exists)");
         }
 
         if (boosts == address(0)) {
@@ -116,12 +116,12 @@ contract DeployAll is DeployBase {
             _requireAddress(nft, "DEALERS_NFT");
             _requireAddress(paymentHandler, "PAYMENT_HANDLER");
             boosts = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersExeBoosts.sol:DealersExeBoosts"),
+                vm.getCode("DealersBoosts.sol:DealersBoosts"),
                 abi.encode(core, nft, paymentHandler)
             ));
-            console.log("DealersExeBoosts deployed:", boosts);
+            console.log("DealersBoosts deployed:", boosts);
         } else {
-            console.log("DealersExeBoosts: skipped (exists)");
+            console.log("DealersBoosts: skipped (exists)");
         }
 
         if (pve == address(0)) {
@@ -129,12 +129,12 @@ contract DeployAll is DeployBase {
             _requireAddress(nft, "DEALERS_NFT");
             _requireAddress(areaRegistry, "AREA_REGISTRY");
             pve = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersExePVE.sol:DealersExePVE"),
+                vm.getCode("DealersPVE.sol:DealersPVE"),
                 abi.encode(core, nft, areaRegistry)
             ));
-            console.log("DealersExePVE deployed:", pve);
+            console.log("DealersPVE deployed:", pve);
         } else {
-            console.log("DealersExePVE: skipped (exists)");
+            console.log("DealersPVE: skipped (exists)");
         }
 
         if (pvp == address(0)) {
@@ -142,12 +142,12 @@ contract DeployAll is DeployBase {
             _requireAddress(nft, "DEALERS_NFT");
             _requireAddress(areaRegistry, "AREA_REGISTRY");
             pvp = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersExePVP.sol:DealersExePVP"),
+                vm.getCode("DealersPVP.sol:DealersPVP"),
                 abi.encode(core, nft, areaRegistry)
             ));
-            console.log("DealersExePVP deployed:", pvp);
+            console.log("DealersPVP deployed:", pvp);
         } else {
-            console.log("DealersExePVP: skipped (exists)");
+            console.log("DealersPVP: skipped (exists)");
         }
 
         if (claims == address(0)) {
@@ -156,12 +156,12 @@ contract DeployAll is DeployBase {
             _requireAddress(pve, "DEALERS_PVE");
             _requireAddress(pvp, "DEALERS_PVP");
             claims = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersExeClaims.sol:DealersExeClaims"),
+                vm.getCode("DealersClaims.sol:DealersClaims"),
                 abi.encode(core, nft, pve, pvp)
             ));
-            console.log("DealersExeClaims deployed:", claims);
+            console.log("DealersClaims deployed:", claims);
         } else {
-            console.log("DealersExeClaims: skipped (exists)");
+            console.log("DealersClaims: skipped (exists)");
         }
 
         if (actions == address(0)) {
@@ -169,22 +169,22 @@ contract DeployAll is DeployBase {
             _requireAddress(nft, "DEALERS_NFT");
             _requireAddress(areaRegistry, "AREA_REGISTRY");
             actions = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersExeActions.sol:DealersExeActions"),
+                vm.getCode("DealersActions.sol:DealersActions"),
                 abi.encode(core, nft, areaRegistry)
             ));
-            console.log("DealersExeActions deployed:", actions);
+            console.log("DealersActions deployed:", actions);
         } else {
-            console.log("DealersExeActions: skipped (exists)");
+            console.log("DealersActions: skipped (exists)");
         }
 
         if (multicall == address(0)) {
             multicall = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersExeMulticall.sol:DealersExeMulticall"),
+                vm.getCode("DealersMulticall.sol:DealersMulticall"),
                 abi.encode(core, pve, pvp, areaRegistry, drugRegistry)
             ));
-            console.log("DealersExeMulticall deployed:", multicall);
+            console.log("DealersMulticall deployed:", multicall);
         } else {
-            console.log("DealersExeMulticall: skipped (exists)");
+            console.log("DealersMulticall: skipped (exists)");
         }
 
         console.log("");
@@ -197,7 +197,7 @@ contract DeployAll is DeployBase {
     function _wireAll() internal {
         console.log("Wiring references + authorizations...");
 
-        IDealersExeCore c = IDealersExeCore(core);
+        IDealersCore c = IDealersCore(core);
 
         // Core references
         _setIfDifferent(c.drugRegistry(), drugRegistry, c.setDrugRegistry);
@@ -236,16 +236,16 @@ contract DeployAll is DeployBase {
         if (actions != address(0) && !rng.isAuthorizedResolver(actions)) rng.authorizeResolver(actions, true);
 
         // Module references
-        IDealersExeNFT nftC = IDealersExeNFT(nft);
-        _setIfDifferent(nftC.dealersExeCore(), core, nftC.setDealersExeCore);
+        IDealersNFT nftC = IDealersNFT(nft);
+        _setIfDifferent(nftC.dealersCore(), core, nftC.setDealersCore);
 
         IBoostsContract boostsC = IBoostsContract(boosts);
-        _setIfDifferent(boostsC.dealersExeCore(), core, boostsC.setDealersExeCore);
-        _setIfDifferent(boostsC.dealersExeNFT(), nft, boostsC.setDealersExeNFT);
+        _setIfDifferent(boostsC.dealersCore(), core, boostsC.setDealersCore);
+        _setIfDifferent(boostsC.dealersNFT(), nft, boostsC.setDealersNFT);
         _setIfDifferent(boostsC.paymentHandler(), paymentHandler, boostsC.setPaymentHandler);
 
         IPVEContract pveC = IPVEContract(pve);
-        _setIfDifferent(pveC.dealersExeCore(), core, pveC.setDealersExeCore);
+        _setIfDifferent(pveC.dealersCore(), core, pveC.setDealersCore);
         _setIfDifferent(pveC.areaRegistry(), areaRegistry, pveC.setAreaRegistry);
         _setIfDifferent(pveC.randomness(), randomness, pveC.setRandomness);
 
@@ -257,8 +257,8 @@ contract DeployAll is DeployBase {
 
         if (claims != address(0)) {
             IClaimsContract claimsC = IClaimsContract(claims);
-            _setIfDifferent(claimsC.dealersExeCore(), core, claimsC.setDealersExeCore);
-            _setIfDifferent(claimsC.dealersExeNFT(), nft, claimsC.setDealersExeNFT);
+            _setIfDifferent(claimsC.dealersCore(), core, claimsC.setDealersCore);
+            _setIfDifferent(claimsC.dealersNFT(), nft, claimsC.setDealersNFT);
             _setIfDifferent(address(claimsC.pveContract()), pve, claimsC.setPVE);
             _setIfDifferent(address(claimsC.pvpContract()), pvp, claimsC.setPVP);
         }
@@ -287,7 +287,7 @@ contract DeployAll is DeployBase {
         if (current != target) setter(target);
     }
 
-    function _authorizeIfNeeded(IDealersExeCore c, address module) internal {
+    function _authorizeIfNeeded(IDealersCore c, address module) internal {
         if (!c.authorizedContracts(module)) c.authorizeContract(module, true);
     }
 
@@ -363,7 +363,7 @@ contract DeployAll is DeployBase {
     // =========================================================================
 
     function _setupTiers() internal {
-        IDealersExeCore c = IDealersExeCore(core);
+        IDealersCore c = IDealersCore(core);
         try c.reputationTiers(0) returns (uint256, int16, int16, int16, int16, string memory) {
             console.log("Reputation tiers: already configured");
             return;

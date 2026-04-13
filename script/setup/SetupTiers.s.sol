@@ -17,7 +17,7 @@ contract SetupTiers is DeployBase {
         _loadAddresses();
         _requireAddress(core, "DEALERS_CORE");
 
-        IDealersExeCore coreContract = IDealersExeCore(core);
+        IDealersCore coreContract = IDealersCore(core);
 
         console.log("Core address:", core);
 

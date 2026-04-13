@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Dealers.Exe / Drug Wars** - An on-chain PvE/PvP mafia strategy game built on Abstract Chain with dynamic NFT dealers, embedded gameplay interfaces, and player-to-player drug trading.
+**Dealers.sh / Drug Wars** - An on-chain PvE/PvP mafia strategy game built on Abstract Chain with dynamic NFT dealers, embedded gameplay interfaces, and player-to-player drug trading.
 
 This is a Foundry project targeting Abstract Chain (zkSync-based L2). The project uses Abstract Chain's FileStore (address: `0xFe1411d6864592549AdE050215482e4385dFa0FB` on both mainnet and testnet) for on-chain file storage.
 
@@ -44,14 +44,14 @@ forge snapshot
 
 ### Modular Contract System
 
-The project follows a **modular architecture** where a central data contract (`DealersExeCore`) manages all game state, while specialized module contracts handle specific game mechanics. This design enables:
+The project follows a **modular architecture** where a central data contract (`DealersCore`) manages all game state, while specialized module contracts handle specific game mechanics. This design enables:
 - Easy addition of new game features without touching core state
 - Clear separation of concerns
 - Upgradeable game modules while maintaining state continuity
 
 ### Core Contracts
 
-**DealersExeCore** ([src/DealersExeCore.sol](src/DealersExeCore.sol))
+**DealersCore** ([src/DealersCore.sol](src/DealersCore.sol))
 - Central state management hub for all game data
 - Stores dealer stats (reputation, area, heat level, attempts)
 - Manages drug balances per dealer (tokenId => drugId => amount)
@@ -59,28 +59,28 @@ The project follows a **modular architecture** where a central data contract (`D
 - Boost system for time-limited multipliers
 - Authorization system: Only authorized contracts can modify state via `onlyAuthorized` modifier
 
-**DealersExeNFT** ([src/DealersExeNFT.sol](src/DealersExeNFT.sol))
+**DealersNFT** ([src/DealersNFT.sol](src/DealersNFT.sol))
 - ERC721 with dynamic on-chain metadata and embedded HTML gameplay UI
 - Max supply: 8,888 NFTs with 200 reserved
 - Minting stages: DISABLED → FAMILY → WHITELIST → PUBLIC
 - Per-token seed generation for deterministic trait rendering
 - Integrates with renderer contracts (SVG + HTML) for fully on-chain visuals
 
-**DealersExePVE** ([src/DealersExePVE.sol](src/DealersExePVE.sol))
+**DealersPVE** ([src/DealersPVE.sol](src/DealersPVE.sol))
 - Player-vs-Environment game module using `prevrandao` for randomness
 - Rock-paper-scissors style gameplay: DEAL/THREATEN/BAIL
 - Drug rewards with boost multipliers, jail checks, heat increment
 
-**DealersExeBoosts** ([src/DealersExeBoosts.sol](src/DealersExeBoosts.sol))
+**DealersBoosts** ([src/DealersBoosts.sol](src/DealersBoosts.sol))
 - 3 boost tiers: Grinder (24h), Hustler (7d), Kingpin (30d)
 - Multipliers for drugs, reputation, extra attempts
 
-**DealersExePVP** ([src/DealersExePVP.sol](src/DealersExePVP.sol))
+**DealersPVP** ([src/DealersPVP.sol](src/DealersPVP.sol))
 - Same-area PVP requirement
 - Win chance: 50% + (threat - armor), capped 25-75%
 - 1-hour cooldown, 2% drug steal on win
 
-**DEPaymentHandler** ([src/DEPaymentHandler.sol](src/DEPaymentHandler.sol))
+**DealersPaymentHandler** ([src/DealersPaymentHandler.sol](src/DealersPaymentHandler.sol))
 - Centralized ETH management and fee distribution
 - Abstract Chain compatible (uses `.call()` instead of `.transfer()`)
 
@@ -111,7 +111,7 @@ Deployment uses `--zksync` flag for Abstract Chain compatibility.
 ## Development Notes
 
 ### Authorization Pattern
-All game modules must be authorized in `DealersExeCore.authorizeContract()` before they can modify state.
+All game modules must be authorized in `DealersCore.authorizeContract()` before they can modify state.
 
 ### Supply Management
 Drug supply is capped per rarity:

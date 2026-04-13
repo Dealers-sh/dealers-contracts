@@ -18,12 +18,12 @@ contract DeployRandomness is DeployBase {
         _loadAddresses();
 
         vm.startBroadcast();
-        randomness = _zkCreate(vm.getCode("DERandomness.sol:DERandomness"));
+        randomness = _zkCreate(vm.getCode("DealersRandomness.sol:DealersRandomness"));
         vm.stopBroadcast();
 
         _saveAddresses();
 
-        console.log("DERandomness deployed:", randomness);
+        console.log("DealersRandomness deployed:", randomness);
         console.log("");
         console.log("Next: run SetupWiring.s.sol");
     }

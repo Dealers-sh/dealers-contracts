@@ -27,14 +27,14 @@ contract DeployActions is DeployBase {
 
         vm.startBroadcast();
         actions = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersExeActions.sol:DealersExeActions"),
+            vm.getCode("DealersActions.sol:DealersActions"),
             abi.encode(core, nft, areaRegistry)
         ));
         vm.stopBroadcast();
 
         _saveAddresses();
 
-        console.log("DealersExeActions deployed:", actions);
+        console.log("DealersActions deployed:", actions);
         console.log("");
         console.log("Next: run SetupWiring.s.sol to wire references + authorizations");
     }

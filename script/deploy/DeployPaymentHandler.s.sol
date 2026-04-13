@@ -5,7 +5,7 @@ import "../base/DeployBase.s.sol";
 
 /**
  * @title DeployPaymentHandler
- * @dev Deploys a new DEPaymentHandler, saves the address, and re-wires all
+ * @dev Deploys a new DealersPaymentHandler, saves the address, and re-wires all
  *      contracts that reference it (Core, Boosts) + authorizes Core and Boosts.
  *
  * Usage:
@@ -26,10 +26,10 @@ contract DeployPaymentHandler is DeployBase {
         vm.startBroadcast();
 
         paymentHandler = _zkCreate(abi.encodePacked(
-            vm.getCode("DEPaymentHandler.sol:DEPaymentHandler"),
+            vm.getCode("DealersPaymentHandler.sol:DealersPaymentHandler"),
             abi.encode(devWallet, bankVault)
         ));
-        console.log("DEPaymentHandler deployed:", paymentHandler);
+        console.log("DealersPaymentHandler deployed:", paymentHandler);
         console.log("  Old:", oldHandler);
 
         IPaymentHandler ph = IPaymentHandler(paymentHandler);
@@ -37,7 +37,7 @@ contract DeployPaymentHandler is DeployBase {
         if (!ph.authorizedContracts(boosts)) ph.authorizeContract(boosts, true);
         console.log("  Authorized: Core, Boosts");
 
-        IDealersExeCore(core).setPaymentHandler(paymentHandler);
+        IDealersCore(core).setPaymentHandler(paymentHandler);
         console.log("  Core -> PaymentHandler: SET");
 
         IBoostsContract(boosts).setPaymentHandler(paymentHandler);

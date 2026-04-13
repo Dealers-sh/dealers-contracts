@@ -26,7 +26,7 @@ interface IVerifyCore {
 }
 
 interface IVerifyNFT {
-    function dealersExeCore() external view returns (address);
+    function dealersCore() external view returns (address);
     function contractRendererSVG() external view returns (address);
     function contractRendererHTML() external view returns (address);
     function owner() external view returns (address);
@@ -63,16 +63,16 @@ interface IVerifyPVP {
 }
 
 interface IVerifyPVE {
-    function dealersExeCore() external view returns (address);
-    function dealersExeNFT() external view returns (address);
+    function dealersCore() external view returns (address);
+    function dealersNFT() external view returns (address);
     function areaRegistry() external view returns (address);
     function randomness() external view returns (address);
     function owner() external view returns (address);
 }
 
 interface IVerifyBoosts {
-    function dealersExeCore() external view returns (address);
-    function dealersExeNFT() external view returns (address);
+    function dealersCore() external view returns (address);
+    function dealersNFT() external view returns (address);
     function paymentHandler() external view returns (address);
     function owner() external view returns (address);
 }
@@ -84,8 +84,8 @@ interface IVerifyActions {
 }
 
 interface IVerifyClaims {
-    function dealersExeCore() external view returns (address);
-    function dealersExeNFT() external view returns (address);
+    function dealersCore() external view returns (address);
+    function dealersNFT() external view returns (address);
     function pveContract() external view returns (address);
     function pvpContract() external view returns (address);
     function owner() external view returns (address);
@@ -176,7 +176,7 @@ contract VerifyConfig is DeployBase {
         IVerifyNFT n = IVerifyNFT(nft);
 
         console.log("  References:");
-        _checkRef("    dealersExeCore", n.dealersExeCore(), core);
+        _checkRef("    dealersCore", n.dealersCore(), core);
         _checkRenderer("    rendererSvg", n.contractRendererSVG(), rendererSvg);
         _checkRenderer("    rendererHtml", n.contractRendererHTML(), rendererHtml);
 
@@ -266,8 +266,8 @@ contract VerifyConfig is DeployBase {
         IVerifyPVE p = IVerifyPVE(pve);
 
         console.log("  References:");
-        _checkRef("    dealersExeCore", p.dealersExeCore(), core);
-        _checkRef("    dealersExeNFT", p.dealersExeNFT(), nft);
+        _checkRef("    dealersCore", p.dealersCore(), core);
+        _checkRef("    dealersNFT", p.dealersNFT(), nft);
         _checkRef("    areaRegistry", p.areaRegistry(), areaRegistry);
         _checkRef("    randomness", p.randomness(), randomness);
 
@@ -311,8 +311,8 @@ contract VerifyConfig is DeployBase {
         IVerifyBoosts b = IVerifyBoosts(boosts);
 
         console.log("  References:");
-        _checkRef("    dealersExeCore", b.dealersExeCore(), core);
-        _checkRef("    dealersExeNFT", b.dealersExeNFT(), nft);
+        _checkRef("    dealersCore", b.dealersCore(), core);
+        _checkRef("    dealersNFT", b.dealersNFT(), nft);
         _checkRef("    paymentHandler", b.paymentHandler(), paymentHandler);
 
         console.log("  Owner:", b.owner());
@@ -352,8 +352,8 @@ contract VerifyConfig is DeployBase {
         IVerifyClaims c = IVerifyClaims(claims);
 
         console.log("  References:");
-        _checkRef("    dealersExeCore", c.dealersExeCore(), core);
-        _checkRef("    dealersExeNFT", c.dealersExeNFT(), nft);
+        _checkRef("    dealersCore", c.dealersCore(), core);
+        _checkRef("    dealersNFT", c.dealersNFT(), nft);
         _checkRef("    pveContract", c.pveContract(), pve);
         _checkRef("    pvpContract", c.pvpContract(), pvp);
 

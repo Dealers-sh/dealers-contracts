@@ -47,7 +47,7 @@ contract BoostGameplayTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                IDealersExePVE.HustleType.BUY,
+                IDealersPVE.HustleType.BUY,
                 DRUG_WEED,
                 buyAmount
             ) {
@@ -103,7 +103,7 @@ contract BoostGameplayTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                IDealersExePVE.HustleType.BUY,
+                IDealersPVE.HustleType.BUY,
                 DRUG_WEED,
                 50
             ) {
@@ -174,7 +174,7 @@ contract BoostGameplayTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                IDealersExePVE.HustleType.SELL,
+                IDealersPVE.HustleType.SELL,
                 DRUG_WEED,
                 sellAmount
             ) {
@@ -217,7 +217,7 @@ contract BoostGameplayTest is BaseTest {
         assertEq(core.getGameState(tokenId).cashMultiplier, 125, "Cash multiplier should be 125");
         assertEq(core.getGameState(tokenId).dailyAttemptsRemaining, 7, "Max attempts should be 5 + 2 = 7");
 
-        IDealersExeCore.BoostData memory boost = core.getBoost(tokenId);
+        IDealersCore.BoostData memory boost = core.getBoost(tokenId);
         assertGt(boost.expiresAt, block.timestamp, "Expiry should be in the future");
 
         vm.stopPrank();
@@ -272,7 +272,7 @@ contract BoostGameplayTest is BaseTest {
         vm.warp(block.timestamp + 12 hours);
         assertTrue(core.hasActiveBoost(tokenId), "Should still be active after 12 hours");
 
-        vm.expectRevert(DealersExeBoosts.BoostTierTooLow.selector);
+        vm.expectRevert(DealersBoosts.BoostTierTooLow.selector);
         boosts.purchaseBoost{value: GRINDER_PRICE}(tokenId, GRINDER_ID);
 
         vm.stopPrank();
@@ -296,7 +296,7 @@ contract BoostGameplayTest is BaseTest {
     }
 
     function test_boost_allTierConfigurations() public {
-        DealersExeBoosts.BoostTier memory grinder = boosts.getBoostTier(GRINDER_ID);
+        DealersBoosts.BoostTier memory grinder = boosts.getBoostTier(GRINDER_ID);
         assertEq(grinder.price, GRINDER_PRICE, "Grinder price");
         assertEq(grinder.duration, 3 days, "Grinder duration");
         assertEq(grinder.drugMultiplier, 125, "Grinder drug mult");
@@ -305,7 +305,7 @@ contract BoostGameplayTest is BaseTest {
         assertEq(grinder.extraAttempts, 2, "Grinder extra attempts");
         assertFalse(grinder.freeAreaMovement, "Grinder no free movement");
 
-        DealersExeBoosts.BoostTier memory hustler = boosts.getBoostTier(HUSTLER_ID);
+        DealersBoosts.BoostTier memory hustler = boosts.getBoostTier(HUSTLER_ID);
         assertEq(hustler.price, HUSTLER_PRICE, "Hustler price");
         assertEq(hustler.duration, 7 days, "Hustler duration");
         assertEq(hustler.drugMultiplier, 150, "Hustler drug mult");
@@ -314,7 +314,7 @@ contract BoostGameplayTest is BaseTest {
         assertEq(hustler.extraAttempts, 3, "Hustler extra attempts");
         assertFalse(hustler.freeAreaMovement, "Hustler no free movement");
 
-        DealersExeBoosts.BoostTier memory kingpin = boosts.getBoostTier(KINGPIN_ID);
+        DealersBoosts.BoostTier memory kingpin = boosts.getBoostTier(KINGPIN_ID);
         assertEq(kingpin.price, KINGPIN_PRICE, "Kingpin price");
         assertEq(kingpin.duration, 14 days, "Kingpin duration");
         assertEq(kingpin.drugMultiplier, 175, "Kingpin drug mult");
@@ -323,7 +323,7 @@ contract BoostGameplayTest is BaseTest {
         assertEq(kingpin.extraAttempts, 5, "Kingpin extra attempts");
         assertTrue(kingpin.freeAreaMovement, "Kingpin free movement");
 
-        DealersExeBoosts.BoostTier memory godfather = boosts.getBoostTier(4);
+        DealersBoosts.BoostTier memory godfather = boosts.getBoostTier(4);
         assertEq(godfather.price, 0.023 ether, "Godfather price");
         assertEq(godfather.duration, 30 days, "Godfather duration");
         assertEq(godfather.drugMultiplier, 200, "Godfather drug mult");
@@ -341,7 +341,7 @@ contract BoostGameplayTest is BaseTest {
 
     function test_boost_purchaseRequiresSufficientPayment() public {
         vm.prank(player1);
-        vm.expectRevert(DealersExeBoosts.InsufficientPayment.selector);
+        vm.expectRevert(DealersBoosts.InsufficientPayment.selector);
         boosts.purchaseBoost{value: GRINDER_PRICE - 1}(tokenId, GRINDER_ID);
     }
 

@@ -31,7 +31,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                IDealersExePVE.HustleType.BUY,
+                IDealersPVE.HustleType.BUY,
                 DRUG_WEED,
                 buyAmount
             ) {
@@ -83,7 +83,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                IDealersExePVE.HustleType.BUY,
+                IDealersPVE.HustleType.BUY,
                 DRUG_WEED,
                 buyAmount
             ) {
@@ -132,7 +132,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                IDealersExePVE.HustleType.BUY,
+                IDealersPVE.HustleType.BUY,
                 DRUG_WEED,
                 buyAmount
             ) {
@@ -184,7 +184,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                IDealersExePVE.HustleType.SELL,
+                IDealersPVE.HustleType.SELL,
                 DRUG_WEED,
                 sellAmount
             ) {
@@ -237,7 +237,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                IDealersExePVE.HustleType.SELL,
+                IDealersPVE.HustleType.SELL,
                 DRUG_WEED,
                 sellAmount
             ) {
@@ -287,7 +287,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                IDealersExePVE.HustleType.SELL,
+                IDealersPVE.HustleType.SELL,
                 DRUG_WEED,
                 sellAmount
             ) {
@@ -347,7 +347,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                IDealersExePVE.HustleType.BUY,
+                IDealersPVE.HustleType.BUY,
                 DRUG_WEED,
                 buyAmount
             ) {
@@ -389,7 +389,7 @@ contract PVEGameFlowsTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                IDealersExePVE.HustleType.BUY,
+                IDealersPVE.HustleType.BUY,
                 DRUG_WEED,
                 5
             ) {
@@ -412,7 +412,7 @@ contract PVEGameFlowsTest is BaseTest {
             pve.playGame(
                 tokenId,
                 0,
-                IDealersExePVE.HustleType.BUY,
+                IDealersPVE.HustleType.BUY,
                 DRUG_WEED,
                 5
             );
@@ -425,11 +425,11 @@ contract PVEGameFlowsTest is BaseTest {
         uint256 cashBalance = core.getCashBalance(tokenId);
 
         vm.prank(player1);
-        vm.expectRevert(DealersExePVE.InsufficientCash.selector);
+        vm.expectRevert(DealersPVE.InsufficientCash.selector);
         pve.playGame(
             tokenId,
             0,
-            IDealersExePVE.HustleType.BUY,
+            IDealersPVE.HustleType.BUY,
             DRUG_WEED,
             cashBalance + 100
         );
@@ -439,11 +439,11 @@ contract PVEGameFlowsTest is BaseTest {
         uint256 weedBalance = core.getDrugBalance(tokenId, DRUG_WEED);
 
         vm.prank(player1);
-        vm.expectRevert(DealersExePVE.InsufficientDrugs.selector);
+        vm.expectRevert(DealersPVE.InsufficientDrugs.selector);
         pve.playGame(
             tokenId,
             0,
-            IDealersExePVE.HustleType.SELL,
+            IDealersPVE.HustleType.SELL,
             DRUG_WEED,
             weedBalance + 100
         );
@@ -460,11 +460,11 @@ contract PVEGameFlowsTest is BaseTest {
         assertEq(area, SAFE_HOUSE, "Should be in safe house");
 
         vm.prank(player1);
-        vm.expectRevert(DealersExePVE.DealerInSafeHouse.selector);
+        vm.expectRevert(DealersPVE.DealerInSafeHouse.selector);
         pve.playGame(
             safeHouseToken,
             0,
-            IDealersExePVE.HustleType.BUY,
+            IDealersPVE.HustleType.BUY,
             DRUG_WEED,
             10
         );
@@ -477,11 +477,11 @@ contract PVEGameFlowsTest is BaseTest {
         assertTrue(core.getGameState(tokenId).isJailed, "Should be in jail");
 
         vm.prank(player1);
-        vm.expectRevert(DealersExePVE.DealerInJail.selector);
+        vm.expectRevert(DealersPVE.DealerInJail.selector);
         pve.playGame(
             tokenId,
             0,
-            IDealersExePVE.HustleType.BUY,
+            IDealersPVE.HustleType.BUY,
             DRUG_WEED,
             10
         );

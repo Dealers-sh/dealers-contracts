@@ -24,12 +24,12 @@ contract DeployMulticall is DeployBase {
 
         vm.startBroadcast();
         multicall = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersExeMulticall.sol:DealersExeMulticall"),
+            vm.getCode("DealersMulticall.sol:DealersMulticall"),
             abi.encode(core, pve, pvp, areaRegistry, drugRegistry)
         ));
         vm.stopBroadcast();
 
         _saveAddresses();
-        console.log("DealersExeMulticall deployed:", multicall);
+        console.log("DealersMulticall deployed:", multicall);
     }
 }

@@ -24,14 +24,14 @@ contract DeployPVE is DeployBase {
 
         vm.startBroadcast();
         pve = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersExePVE.sol:DealersExePVE"),
+            vm.getCode("DealersPVE.sol:DealersPVE"),
             abi.encode(core, nft, areaRegistry)
         ));
         vm.stopBroadcast();
 
         _saveAddresses();
 
-        console.log("DealersExePVE deployed:", pve);
+        console.log("DealersPVE deployed:", pve);
         console.log("");
         console.log("Next: run SetupWiring.s.sol");
     }

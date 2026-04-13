@@ -23,14 +23,14 @@ contract DeployClaims is DeployBase {
         _requireAddress(pvp, "DEALERS_PVP");
         vm.startBroadcast();
         claims = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersExeClaims.sol:DealersExeClaims"),
+            vm.getCode("DealersClaims.sol:DealersClaims"),
             abi.encode(core, nft, pve, pvp)
         ));
         vm.stopBroadcast();
 
         _saveAddresses();
 
-        console.log("DealersExeClaims deployed:", claims);
+        console.log("DealersClaims deployed:", claims);
         console.log("");
         console.log("Next: run SetupWiring.s.sol");
     }

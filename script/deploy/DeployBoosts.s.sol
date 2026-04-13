@@ -24,14 +24,14 @@ contract DeployBoosts is DeployBase {
 
         vm.startBroadcast();
         boosts = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersExeBoosts.sol:DealersExeBoosts"),
+            vm.getCode("DealersBoosts.sol:DealersBoosts"),
             abi.encode(core, nft, paymentHandler)
         ));
         vm.stopBroadcast();
 
         _saveAddresses();
 
-        console.log("DealersExeBoosts deployed:", boosts);
+        console.log("DealersBoosts deployed:", boosts);
         console.log("");
         console.log("Next: run SetupWiring.s.sol");
     }

@@ -26,14 +26,14 @@ contract DeployAreaRegistry is DeployBase {
 
         vm.startBroadcast();
         areaRegistry = _zkCreate(abi.encodePacked(
-            vm.getCode("DEAreaRegistry.sol:DEAreaRegistry"),
+            vm.getCode("DealersAreaRegistry.sol:DealersAreaRegistry"),
             abi.encode(drugRegistry)
         ));
         vm.stopBroadcast();
 
         _saveAddresses();
 
-        console.log("DEAreaRegistry deployed:", areaRegistry);
+        console.log("DealersAreaRegistry deployed:", areaRegistry);
         console.log("  DrugRegistry:", drugRegistry);
         console.log("");
         console.log("Next: run SetupWiring.s.sol");

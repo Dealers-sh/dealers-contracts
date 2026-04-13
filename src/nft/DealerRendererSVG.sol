@@ -10,8 +10,8 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
 /**
  * @title DealerRendererSVG - On-Chain SVG Generator
  *
- * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
- * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀ █░█
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ▄█ █▀█
  *
  * @dev Renders dynamic SVG art for dealers from stored trait indices.
  *      Traits are generated off-chain and uploaded via batchSetTraits.

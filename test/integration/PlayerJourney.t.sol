@@ -51,7 +51,7 @@ contract PlayerJourneyTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                IDealersExePVE.HustleType.BUY,
+                IDealersPVE.HustleType.BUY,
                 DRUG_WEED,
                 10
             ) {
@@ -99,7 +99,7 @@ contract PlayerJourneyTest is BaseTest {
             try pve.playGame(
                 tokenId,
                 0,
-                IDealersExePVE.HustleType.BUY,
+                IDealersPVE.HustleType.BUY,
                 DRUG_WEED,
                 5
             ) {} catch {}
@@ -112,7 +112,7 @@ contract PlayerJourneyTest is BaseTest {
 
         assertTrue(core.hasActiveBoost(tokenId), "Should have active boost");
 
-        IDealersExeCore.BoostData memory boost = core.getBoost(tokenId);
+        IDealersCore.BoostData memory boost = core.getBoost(tokenId);
         assertEq(boost.drugMultiplier, 125, "Drug multiplier should be 125 (1.25x)");
         assertEq(boost.repMultiplier, 110, "Rep multiplier should be 110 (1.1x)");
         assertEq(boost.extraAttempts, 2, "Extra attempts should be 2");
@@ -126,7 +126,7 @@ contract PlayerJourneyTest is BaseTest {
         try pve.playGame(
             tokenId,
             0,
-            IDealersExePVE.HustleType.BUY,
+            IDealersPVE.HustleType.BUY,
             DRUG_WEED,
             5
         ) {} catch {}
@@ -213,7 +213,7 @@ contract PlayerJourneyTest is BaseTest {
         assertEq(area, MANHATTAN, "Should be in Manhattan");
 
         vm.prank(owner);
-        vm.expectRevert(DealersExeCore.CannotEnterSafeHouse.selector);
+        vm.expectRevert(DealersCore.CannotEnterSafeHouse.selector);
         core.moveToArea(tokenId, SAFE_HOUSE);
     }
 }

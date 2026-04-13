@@ -20,7 +20,7 @@ struct ReputationTier {
 //                          INTERFACE DEFINITIONS
 // =============================================================================
 
-interface IDealersExeCore {
+interface IDealersCore {
     function authorizeContract(address contractAddress, bool authorized) external;
     function setNFTContract(address _nftContract) external;
     function setPaymentHandler(address _paymentHandler) external;
@@ -43,9 +43,9 @@ interface IDealersExeCore {
     );
 }
 
-interface IDealersExeNFT {
-    function setDealersExeCore(address _core) external;
-    function dealersExeCore() external view returns (address);
+interface IDealersNFT {
+    function setDealersCore(address _core) external;
+    function dealersCore() external view returns (address);
 }
 
 interface IDrugRegistry {
@@ -80,10 +80,10 @@ interface IPVPContract {
 }
 
 interface IPVEContract {
-    function setDealersExeCore(address _core) external;
+    function setDealersCore(address _core) external;
     function setAreaRegistry(address _areaRegistry) external;
     function setRandomness(address _randomness) external;
-    function dealersExeCore() external view returns (address);
+    function dealersCore() external view returns (address);
     function areaRegistry() external view returns (address);
     function randomness() external view returns (address);
 }
@@ -94,11 +94,11 @@ interface IRandomness {
 }
 
 interface IBoostsContract {
-    function setDealersExeCore(address _core) external;
-    function setDealersExeNFT(address _nft) external;
+    function setDealersCore(address _core) external;
+    function setDealersNFT(address _nft) external;
     function setPaymentHandler(address _handler) external;
-    function dealersExeCore() external view returns (address);
-    function dealersExeNFT() external view returns (address);
+    function dealersCore() external view returns (address);
+    function dealersNFT() external view returns (address);
     function paymentHandler() external view returns (address);
 }
 
@@ -113,12 +113,12 @@ interface IClaimsContract {
         bool active;
     }
     function setAchievement(uint256 achievementId, Achievement calldata achievement) external;
-    function setDealersExeCore(address _core) external;
-    function setDealersExeNFT(address _nft) external;
+    function setDealersCore(address _core) external;
+    function setDealersNFT(address _nft) external;
     function setPVE(address _pve) external;
     function setPVP(address _pvp) external;
-    function dealersExeCore() external view returns (address);
-    function dealersExeNFT() external view returns (address);
+    function dealersCore() external view returns (address);
+    function dealersNFT() external view returns (address);
     function pveContract() external view returns (address);
     function pvpContract() external view returns (address);
     function achievementCount() external view returns (uint256);

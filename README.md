@@ -1,4 +1,4 @@
-# Dealers.exe
+# Dealers.sh
 
 On-chain mafia strategy game on [Abstract Chain](https://abs.xyz). PvE hustles, PvP battles, dynamic NFT dealers with fully on-chain SVG + interactive HTML renders.
 
@@ -7,32 +7,32 @@ On-chain mafia strategy game on [Abstract Chain](https://abs.xyz). PvE hustles, 
 ```
 src/
   core/          Game logic
-    DealersExeCore       Central state hub (dealer data, drugs, rep tiers, heat/jail)
-    DealersExePVE        Player vs Environment — buy/sell/intimidate hustles
-    DealersExePVP        Player vs Player — same-area battles with drug/cash theft
-    DealersExeBoosts     Tiered boost system (Grinder → Godfather)
-    DealersExeActions    Player actions (movement, bail, bribe, cash topup)
-    DealersExeClaims     Achievement / reward claims
-    DealersExeMulticall  Batched read API for frontends
+    DealersCore          Central state hub (dealer data, drugs, rep tiers, heat/jail)
+    DealersPVE           Player vs Environment — buy/sell/intimidate hustles
+    DealersPVP           Player vs Player — same-area battles with drug/cash theft
+    DealersBoosts        Tiered boost system (Grinder → Godfather)
+    DealersActions       Player actions (movement, bail, bribe, cash topup)
+    DealersClaims        Achievement / reward claims
+    DealersMulticall     Batched read API for frontends
 
   nft/           NFT + rendering
-    DealersExeNFT        ERC721 (8,888 supply) with on-chain metadata
+    DealersNFT           ERC721 (8,888 supply) with on-chain metadata
     DealerRendererSVG    Dynamic SVG from per-token traits (SSTORE2)
     DealerRendererHTML   Interactive HTML via FileStore (animation_url)
 
   social/        On-chain chat
-    DEChatFactory        Deploys gated chat rooms
-    DEChatRoom           Per-room messaging
-    DEAreaChatGate       Area-based access control
+    DealersChatFactory   Deploys gated chat rooms
+    DealersChatRoom      Per-room messaging
+    DealersAreaChatGate  Area-based access control
 
   utils/         Shared infrastructure
-    DEAreaRegistry       Areas, drug pricing, dealer locations
-    DEDrugRegistry       Drug definitions, supply tracking
-    DEPaymentHandler     ETH fee collection and distribution
-    DERandomness         Seeded randomness (prevrandao + nonce)
+    DealersAreaRegistry      Areas, drug pricing, dealer locations
+    DealersDrugRegistry      Drug definitions, supply tracking
+    DealersPaymentHandler    ETH fee collection and distribution
+    DealersRandomness        Seeded randomness (prevrandao + nonce)
 ```
 
-All game modules are authorized in `DealersExeCore` via `onlyAuthorized`. State lives in Core; modules are swappable.
+All game modules are authorized in `DealersCore` via `onlyAuthorized`. State lives in Core; modules are swappable.
 
 ## Build
 

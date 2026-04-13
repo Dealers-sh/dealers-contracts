@@ -8,7 +8,7 @@ interface INFT {
     function tokenURI(uint256 tokenId) external view returns (string memory);
     function contractRendererSVG() external view returns (address);
     function contractRendererHTML() external view returns (address);
-    function dealersExeCore() external view returns (address);
+    function dealersCore() external view returns (address);
 }
 
 interface ISVGRenderer {
@@ -28,7 +28,7 @@ contract DebugTokenUri is Script {
 
         address svgAddr = nft.contractRendererSVG();
         address htmlAddr = nft.contractRendererHTML();
-        address coreAddr = nft.dealersExeCore();
+        address coreAddr = nft.dealersCore();
         console.log("SVG renderer:", svgAddr);
         console.log("HTML renderer:", htmlAddr);
         console.log("Core:", coreAddr);

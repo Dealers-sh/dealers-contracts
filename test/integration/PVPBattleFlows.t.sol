@@ -119,13 +119,13 @@ contract PVPBattleFlowsTest is BaseTest {
         core.updateReputation(brooklynToken, 200);
 
         vm.prank(player1);
-        vm.expectRevert(DealersExePVP.DifferentArea.selector);
+        vm.expectRevert(DealersPVP.DifferentArea.selector);
         pvp.attack(brooklynToken, defenderToken);
     }
 
     function test_pvpFlow_cannotAttackSelf() public {
         vm.prank(player1);
-        vm.expectRevert(DealersExePVP.SameDealer.selector);
+        vm.expectRevert(DealersPVP.SameDealer.selector);
         pvp.attack(attackerToken, attackerToken);
     }
 
@@ -134,7 +134,7 @@ contract PVPBattleFlowsTest is BaseTest {
         core.sendToJail(attackerToken);
 
         vm.prank(player1);
-        vm.expectRevert(DealersExePVP.DealerInJail.selector);
+        vm.expectRevert(DealersPVP.DealerInJail.selector);
         pvp.attack(attackerToken, defenderToken);
     }
 
@@ -150,7 +150,7 @@ contract PVPBattleFlowsTest is BaseTest {
         assertEq(area, SAFE_HOUSE, "Should be in safe house");
 
         vm.prank(player1);
-        vm.expectRevert(DealersExePVP.DealerInSafeHouse.selector);
+        vm.expectRevert(DealersPVP.DealerInSafeHouse.selector);
         pvp.attack(safeToken, defenderToken);
     }
 
@@ -159,7 +159,7 @@ contract PVPBattleFlowsTest is BaseTest {
         core.sendToJail(defenderToken);
 
         vm.prank(player1);
-        vm.expectRevert(DealersExePVP.DealerInJail.selector);
+        vm.expectRevert(DealersPVP.DealerInJail.selector);
         pvp.attack(attackerToken, defenderToken);
     }
 

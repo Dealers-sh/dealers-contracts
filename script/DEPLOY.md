@@ -67,7 +67,7 @@ source .env && forge script script/deploy/DeployAll.s.sol:DeployAll \
   --skip "RendererSVG"
 ```
 
-Contracts deployed: DEDrugRegistry, DEAreaRegistry, DealersExeCore, DEPaymentHandler, DERandomness, DealersExeNFT, DealersExeBoosts, DealersExePVE, DealersExePVP, DealersExeClaims, DealersExeActions, DealersExeMulticall.
+Contracts deployed: DealersDrugRegistry, DealersAreaRegistry, DealersCore, DealersPaymentHandler, DealersRandomness, DealersNFT, DealersBoosts, DealersPVE, DealersPVP, DealersClaims, DealersActions, DealersMulticall.
 
 Addresses auto-saved to `script/data/deployments/testnet.json`.
 
@@ -267,18 +267,18 @@ Each contract has its own deploy script. After deploying, run SetupWiring to re-
 
 | Contract | Script | Constructor Deps |
 |----------|--------|-----------------|
-| DEDrugRegistry | `DeployDrugRegistry.s.sol` | none |
-| DEAreaRegistry | `DeployAreaRegistry.s.sol` | drugRegistry |
-| DealersExeCore | `DeployCore.s.sol` | none |
-| DEPaymentHandler | `DeployPaymentHandler.s.sol` | devWallet, bankVault |
-| DERandomness | `DeployRandomness.s.sol` | none |
-| DealersExeNFT | `DeployNFT.s.sol` | royaltyReceiver |
-| DealersExeBoosts | `DeployBoosts.s.sol` | core, nft, paymentHandler |
-| DealersExePVE | `DeployPVE.s.sol` | core, nft, areaRegistry |
-| DealersExePVP | `DeployPVP.s.sol` | core, nft, areaRegistry |
-| DealersExeClaims | `DeployClaims.s.sol` | core, nft, pve, pvp |
-| DealersExeActions | `DeployActions.s.sol` | core, nft, areaRegistry |
-| DealersExeMulticall | `DeployMulticall.s.sol` | core, pve, pvp, areaRegistry, drugRegistry |
+| DealersDrugRegistry | `DeployDrugRegistry.s.sol` | none |
+| DealersAreaRegistry | `DeployAreaRegistry.s.sol` | drugRegistry |
+| DealersCore | `DeployCore.s.sol` | none |
+| DealersPaymentHandler | `DeployPaymentHandler.s.sol` | devWallet, bankVault |
+| DealersRandomness | `DeployRandomness.s.sol` | none |
+| DealersNFT | `DeployNFT.s.sol` | royaltyReceiver |
+| DealersBoosts | `DeployBoosts.s.sol` | core, nft, paymentHandler |
+| DealersPVE | `DeployPVE.s.sol` | core, nft, areaRegistry |
+| DealersPVP | `DeployPVP.s.sol` | core, nft, areaRegistry |
+| DealersClaims | `DeployClaims.s.sol` | core, nft, pve, pvp |
+| DealersActions | `DeployActions.s.sol` | core, nft, areaRegistry |
+| DealersMulticall | `DeployMulticall.s.sol` | core, pve, pvp, areaRegistry, drugRegistry |
 
 ### Workflow: Deploy + Re-wire
 

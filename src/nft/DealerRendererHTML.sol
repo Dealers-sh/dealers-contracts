@@ -8,8 +8,8 @@ import {LibString} from "solady/src/utils/LibString.sol";
 /**
  * @title DealerRendererHTML - Lightweight Loader HTML Generator
  *
- * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀▀ ▀▄▀ █▀▀
- * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ██▄ █░█ ██▄
+ * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀ █░█
+ * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ▄█ █▀█
  *
  * @dev Generates a lightweight HTML loader (~2-3KB) that fetches SVG and app JS
  *      from chain at runtime via browser-side eth_call RPC requests.
