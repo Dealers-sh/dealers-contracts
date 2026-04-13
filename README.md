@@ -1,57 +1,83 @@
-# Sample Hardhat 3 Beta Project (`node:test` and `viem`)
+# Dealers.exe
 
-This project showcases a Hardhat 3 Beta project using the native Node.js test runner (`node:test`) and the `viem` library for Ethereum interactions.
+On-chain mafia strategy game on [Abstract Chain](https://abs.xyz). PvE hustles, PvP battles, dynamic NFT dealers with fully on-chain SVG + interactive HTML renders.
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+## Architecture
 
-## Project Overview
+```
+src/
+  core/          Game logic
+    DealersExeCore       Central state hub (dealer data, drugs, rep tiers, heat/jail)
+    DealersExePVE        Player vs Environment — buy/sell/intimidate hustles
+    DealersExePVP        Player vs Player — same-area battles with drug/cash theft
+    DealersExeBoosts     Tiered boost system (Grinder → Godfather)
+    DealersExeActions    Player actions (movement, bail, bribe, cash topup)
+    DealersExeClaims     Achievement / reward claims
+    DealersExeMulticall  Batched read API for frontends
 
-This example project includes:
+  nft/           NFT + rendering
+    DealersExeNFT        ERC721 (8,888 supply) with on-chain metadata
+    DealerRendererSVG    Dynamic SVG from per-token traits (SSTORE2)
+    DealerRendererHTML   Interactive HTML via FileStore (animation_url)
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using [`node:test`](nodejs.org/api/test.html), the new Node.js native test runner, and [`viem`](https://viem.sh/).
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+  social/        On-chain chat
+    DEChatFactory        Deploys gated chat rooms
+    DEChatRoom           Per-room messaging
+    DEAreaChatGate       Area-based access control
 
-## Usage
-
-### Running Tests
-
-To run all the tests in the project, execute the following command:
-
-```shell
-npx hardhat test
+  utils/         Shared infrastructure
+    DEAreaRegistry       Areas, drug pricing, dealer locations
+    DEDrugRegistry       Drug definitions, supply tracking
+    DEPaymentHandler     ETH fee collection and distribution
+    DERandomness         Seeded randomness (prevrandao + nonce)
 ```
 
-You can also selectively run the Solidity or `node:test` tests:
+All game modules are authorized in `DealersExeCore` via `onlyAuthorized`. State lives in Core; modules are swappable.
 
-```shell
-npx hardhat test solidity
-npx hardhat test nodejs
+## Build
+
+Requires [foundry-zksync](https://github.com/matter-labs/foundry-zksync).
+
+```bash
+forge build --zksync --skip "RendererSVG"   # game contracts (zkSync native)
+forge build                                  # renderer contracts (EVM bytecode)
 ```
 
-### Make a deployment to Sepolia
+## Test
 
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
-
-To run the deployment to a local chain:
-
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
+```bash
+forge test --zksync --skip "RendererSVG" -vvv
 ```
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
+## Deploy
 
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
+```bash
+# One-time keystore setup
+cast wallet import dealersKeystore --interactive
 
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
+# Deploy all
+./script/deploy-all.sh
 
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+# Individual deploys
+forge script script/deploy/DeployAll.s.sol --zksync --skip "RendererSVG" \
+  --rpc-url https://api.testnet.abs.xyz --account dealersKeystore --broadcast
 ```
 
-After setting the variable, you can run the deployment with the Sepolia network:
+SVG renderer deploys without `--zksync` (uses SSTORE2/EXTCODECOPY — EVM only).
 
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
-```
+## Networks
+
+| Network | Chain ID | RPC |
+|---------|----------|-----|
+| Abstract Mainnet | 2741 | `https://api.mainnet.abs.xyz` |
+| Abstract Testnet | 11124 | `https://api.testnet.abs.xyz` |
+
+## Dependencies
+
+- [OpenZeppelin v5.4.0](https://github.com/OpenZeppelin/openzeppelin-contracts) — ERC721Enumerable, ReentrancyGuard, ECDSA
+- [Solady](https://github.com/Vectorized/solady) — Ownable, LibString, Base64
+- [forge-std](https://github.com/foundry-rs/forge-std) — Testing
+
+## License
+
+All rights reserved. This code is proprietary and may not be copied, modified, or distributed without explicit permission.
