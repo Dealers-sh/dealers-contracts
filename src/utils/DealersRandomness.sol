@@ -118,17 +118,4 @@ contract DealersRandomness is Ownable {
         emit ResolverAuthorized(resolver, authorized);
     }
 
-    /**
-     * @notice Batch authorize multiple resolvers
-     * @param resolvers Array of resolver addresses
-     * @param authorized Authorization status for all
-     */
-    function batchAuthorizeResolvers(address[] calldata resolvers, bool authorized) external onlyOwner {
-        for (uint256 i = 0; i < resolvers.length;) {
-            if (resolvers[i] == address(0)) revert InvalidAddress();
-            authorizedResolvers[resolvers[i]] = authorized;
-            emit ResolverAuthorized(resolvers[i], authorized);
-            unchecked { ++i; }
-        }
-    }
 }
