@@ -378,7 +378,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
 
         try IDealersCore(core).getDealerData(tokenId) returns (
             uint8 currentArea,
-            uint256 reputation,
+            uint256 /* reputation */,
             uint8 /* dailyAttemptsRemaining */,
             uint8 heatLevel,
             uint32 /* lastPlayTimestamp */,
@@ -386,7 +386,8 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         ) {
             if (!isInitialized) return "";
 
-            string memory rank = IDealersCore(core).getReputationTitle(reputation);
+            uint256 totalRep = IDealersCore(core).getTotalReputation(tokenId);
+            string memory rank = IDealersCore(core).getReputationTitle(totalRep);
             string memory areaName = _getAreaName(core, currentArea);
             string memory heat = _heatStars(heatLevel);
             uint256 infamy = IDealersCore(core).getInfamy(tokenId);
@@ -413,7 +414,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
 
         try IDealersCore(core).getDealerData(tokenId) returns (
             uint8 /* currentArea */,
-            uint256 reputation,
+            uint256 /* reputation */,
             uint8 /* dailyAttemptsRemaining */,
             uint8 /* heatLevel */,
             uint32 /* lastPlayTimestamp */,
@@ -426,13 +427,14 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
                 ));
             }
 
-            string memory rank = IDealersCore(core).getReputationTitle(reputation);
+            uint256 totalRep = IDealersCore(core).getTotalReputation(tokenId);
+            string memory rank = IDealersCore(core).getReputationTitle(totalRep);
             uint256 infamy = IDealersCore(core).getInfamy(tokenId);
 
             return string(abi.encodePacked(
                 "Dealer #", tokenId.toString(),
                 " is a ", rank,
-                " (", reputation.toString(), " rep)",
+                " (", totalRep.toString(), " rep)",
                 " with an infamy score of ", infamy.toString(),
                 ". Part of the Dealers.sh collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
             ));

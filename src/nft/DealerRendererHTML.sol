@@ -32,11 +32,13 @@ contract DealerRendererHTML is IDealerRendererHTML, Ownable {
     error InvalidAddress();
     error EmptyString();
 
+    event AppUrlUpdated(string oldUrl, string newUrl);
     event FileStoreUpdated(address indexed oldStore, address indexed newStore);
     event GzipFilenameUpdated(string oldFilename, string newFilename);
     event RpcUrlUpdated(string oldUrl, string newUrl);
     event SvgRendererUpdated(address indexed oldRenderer, address indexed newRenderer);
 
+    string public appUrl;
     string public dealerGzipFilename = "src0.min.js.gz";
     address public fileStore;
     string public rpcUrl;
@@ -71,6 +73,13 @@ contract DealerRendererHTML is IDealerRendererHTML, Ownable {
         string memory oldUrl = rpcUrl;
         rpcUrl = _rpcUrl;
         emit RpcUrlUpdated(oldUrl, _rpcUrl);
+    }
+
+    function setAppUrl(string memory _appUrl) external onlyOwner {
+        if (bytes(_appUrl).length == 0) revert EmptyString();
+        string memory oldUrl = appUrl;
+        appUrl = _appUrl;
+        emit AppUrlUpdated(oldUrl, _appUrl);
     }
 
     function setSvgRendererAddress(address _svgRendererAddress) external onlyOwner {
