@@ -209,7 +209,7 @@ verify_renderer_html() {
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 echo "=============================================="
-echo "  Dealers.Exe Source Code Verification"
+echo "  Dealers.sh Source Code Verification"
 echo "  Chain ID: $CHAIN_ID"
 echo "=============================================="
 echo ""

@@ -110,7 +110,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     // =============================================================
 
     constructor(address _royaltyReceiver)
-        ERC721("dealers.exe", "DEALER")
+        ERC721("dealers.sh", "DEALER")
     {
         _initializeOwner(msg.sender);
         royaltyReceiver = _royaltyReceiver;
@@ -407,7 +407,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         if (core == address(0)) {
             return string(abi.encodePacked(
                 "Dealer #", tokenId.toString(),
-                " is part of the Dealers.exe collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
+                " is part of the Dealers.sh collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
             ));
         }
 
@@ -422,7 +422,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
             if (!isInitialized) {
                 return string(abi.encodePacked(
                     "Dealer #", tokenId.toString(),
-                    " is part of the Dealers.exe collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
+                    " is part of the Dealers.sh collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
                 ));
             }
 
@@ -434,12 +434,12 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
                 " is a ", rank,
                 " (", reputation.toString(), " rep)",
                 " with an infamy score of ", infamy.toString(),
-                ". Part of the Dealers.exe collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
+                ". Part of the Dealers.sh collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
             ));
         } catch {
             return string(abi.encodePacked(
                 "Dealer #", tokenId.toString(),
-                " is part of the Dealers.exe collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
+                " is part of the Dealers.sh collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
             ));
         }
     }

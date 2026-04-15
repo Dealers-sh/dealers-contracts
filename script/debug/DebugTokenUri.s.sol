@@ -28,10 +28,14 @@ contract DebugTokenUri is Script {
 
         address svgAddr = nft.contractRendererSVG();
         address htmlAddr = nft.contractRendererHTML();
-        address coreAddr = nft.dealersCore();
         console.log("SVG renderer:", svgAddr);
         console.log("HTML renderer:", htmlAddr);
-        console.log("Core:", coreAddr);
+
+        try nft.dealersCore() returns (address coreAddr) {
+            console.log("Core:", coreAddr);
+        } catch {
+            console.log("Core: not set or call failed");
+        }
 
         ISVGRenderer svgRenderer = ISVGRenderer(svgAddr);
         IHTMLRenderer htmlRenderer = IHTMLRenderer(htmlAddr);
@@ -77,5 +81,52 @@ contract DebugTokenUri is Script {
             console.log("tokenURI reverted (raw), bytes:");
             console.logBytes(data);
         }
+
+        console.log("\n--- Step 7: Generate viewer.html ---");
+        try nft.tokenJson(1) returns (string memory viewerJson) {
+            string memory viewer = _buildViewer(viewerJson);
+            vm.writeFile("script/data/debug/viewer.html", viewer);
+            console.log("Written to viewer.html");
+        } catch {
+            console.log("Skipped viewer (tokenJson failed)");
+        }
+    }
+
+    function _buildViewer(string memory tokenJson) internal pure returns (string memory) {
+        return string.concat(
+            "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Token Viewer</title>"
+            "<style>"
+            "*{margin:0;padding:0;box-sizing:border-box}"
+            "body{background:#111;color:#eee;font-family:system-ui,sans-serif;padding:24px}"
+            "h1{font-size:18px;margin-bottom:16px;color:#999}"
+            ".grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:20px;align-items:start}"
+            ".col{background:#1a1a1a;border-radius:8px;padding:16px;min-height:200px}"
+            ".col h2{font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}"
+            ".col img{width:100%;border-radius:4px}"
+            ".col iframe{width:100%;height:500px;border:none;border-radius:4px;background:#000}"
+            ".traits{display:grid;grid-template-columns:1fr 1fr;gap:8px}"
+            ".trait{background:#222;border-radius:6px;padding:10px}"
+            ".trait-type{font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.5px}"
+            ".trait-value{font-size:14px;margin-top:4px}"
+            "</style></head><body>",
+            "<h1 id='title'></h1>"
+            "<div class='grid'>"
+            "<div class='col'><h2>Image</h2><img id='img'></div>"
+            "<div class='col'><h2>Animation</h2><iframe id='anim'></iframe></div>"
+            "<div class='col' style='grid-column:span 2'><h2>Metadata</h2><div class='traits' id='traits'></div></div>"
+            "</div>"
+            "<script>const d=", tokenJson, ";"
+            "document.getElementById('title').textContent=d.name;"
+            "document.getElementById('img').src=d.image||'';"
+            "if(d.animation_url){"
+            "var h=atob(d.animation_url.split(',')[1]);"
+            "var b=new Blob([h],{type:'text/html'});"
+            "document.getElementById('anim').src=URL.createObjectURL(b)}"
+            "(d.attributes||[]).forEach(a=>{"
+            "const e=document.createElement('div');e.className='trait';"
+            "e.innerHTML='<div class=\"trait-type\">'+a.trait_type+'</div><div class=\"trait-value\">'+a.value+'</div>';"
+            "document.getElementById('traits').appendChild(e)"
+            "});</script></body></html>"
+        );
     }
 }

@@ -26,7 +26,7 @@ contract DeployAll is DeployBase {
         _requireAddress(royaltyReceiver, "ROYALTY_RECEIVER");
 
         console.log("==============================================");
-        console.log("   Dealers.Exe - Deploy All");
+        console.log("   Dealers.sh - Deploy All");
         console.log("==============================================");
         console.log("");
 

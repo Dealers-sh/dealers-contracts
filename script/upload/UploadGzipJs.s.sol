@@ -1,59 +1,86 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+import {SSTORE2} from "solady/src/utils/SSTORE2.sol";
 import "../../src/nft/IFileStore.sol";
 import "../base/DeployBase.s.sol";
 
 /**
- * @title UploadGzipJs - Build app, upload gzipped JS to FileStore, set on HTML renderer
- * @notice Reads base64(gzip(dealers.js)) from script/data/dealers.js.gz.b64,
- *         uploads to FileStore with a versioned filename, and updates the renderer.
+ * @title UploadGzipJs - Upload gzipped JS to FileStore, then set on HTML renderer
+ * @notice Two-step process due to Abstract Chain's dual VM:
+ *
+ * Step 1: Upload to FileStore (EVM mode — no --zksync):
+ *   forge script script/upload/UploadGzipJs.s.sol:UploadGzipJs \
+ *     --sig "upload()" \
+ *     --rpc-url https://api.testnet.abs.xyz \
+ *     --account dealersKeystore --broadcast
+ *
+ * Step 2: Set filename on renderer (zkSync mode):
+ *   forge script script/upload/UploadGzipJs.s.sol:UploadGzipJs \
+      --sig "setFilename(string)" "dealers-testnet-1776242568.js.gz" \
+      --zksync --skip "RendererSVG" \
+      --rpc-url https://api.testnet.abs.xyz \
+      --account dealersKeystore --broadcast
  *
  * Prerequisites:
  *   cd ../dealers-app && ./build-single-file.sh
- *   (this copies the output to script/data/dealers.js.gz.b64)
- *
- * Usage:
- *   forge script script/upload/UploadGzipJs.s.sol:UploadGzipJs \
- *     --broadcast \
- *     --account dealersKeystore \
- *     --rpc-url https://api.testnet.abs.xyz
+ *   (copies output to script/data/dealers.js.gz.b64)
  */
 contract UploadGzipJs is DeployBase {
     IFileStore constant FILE_STORE = IFileStore(0xFe1411d6864592549AdE050215482e4385dFa0FB);
     uint256 constant CHUNK_SIZE = 24000;
 
-    function run() external {
-        _loadAddresses();
-        _requireAddress(rendererHtml, "RENDERER_HTML");
-
+    function upload() external {
         string memory content = vm.readFile("script/data/dealers.js.gz.b64");
         require(bytes(content).length > 0, "dealers.js.gz.b64 is empty - run build-single-file.sh first");
 
         string memory filename = _buildFilename();
+        string[] memory chunks = _splitIntoChunks(content);
 
         console.log("==============================================");
-        console.log("   Upload Dealers App JS to FileStore");
+        console.log("   Step 1: Upload JS to FileStore (EVM)");
         console.log("==============================================");
-        console.log("Renderer HTML:", rendererHtml);
         console.log("Filename:", filename);
         console.log("Content size:", bytes(content).length, "bytes (base64)");
+        console.log("Chunks:", chunks.length);
 
         vm.startBroadcast();
 
-        string[] memory chunks = _splitIntoChunks(content);
-        console.log("Chunks:", chunks.length);
+        address[] memory pointers = new address[](chunks.length);
+        for (uint256 i = 0; i < chunks.length; i++) {
+            pointers[i] = SSTORE2.write(bytes(chunks[i]));
+            console.log(string.concat("  Chunk ", vm.toString(i), " -> ", vm.toString(pointers[i])));
+        }
 
-        FILE_STORE.createFileFromChunks(filename, chunks);
-        console.log("Uploaded to FileStore");
-
-        (bool ok,) = rendererHtml.call(abi.encodeWithSignature("setDealerGzipFilename(string)", filename));
-        require(ok, "setDealerGzipFilename failed");
-        console.log("Set gzip filename on renderer to:", filename);
+        FILE_STORE.createFileFromPointers(filename, pointers);
 
         vm.stopBroadcast();
 
+        gzipFilename = filename;
+        _saveAddresses();
+
+        console.log("Uploaded to FileStore");
+        console.log("Filename saved to deployments JSON");
         console.log("");
+        console.log("Next step: run setFilename with --zksync using this filename:");
+        console.log(filename);
+    }
+
+    function setFilename(string calldata filename) external {
+        _loadAddresses();
+        _requireAddress(rendererHtml, "RENDERER_HTML");
+
+        console.log("==============================================");
+        console.log("   Step 2: Set filename on renderer (zkSync)");
+        console.log("==============================================");
+        console.log("Renderer HTML:", rendererHtml);
+        console.log("Filename:", filename);
+
+        vm.startBroadcast();
+        (bool ok,) = rendererHtml.call(abi.encodeWithSignature("setDealerGzipFilename(string)", filename));
+        require(ok, "setDealerGzipFilename failed");
+        vm.stopBroadcast();
+
         console.log("Done!");
     }
 

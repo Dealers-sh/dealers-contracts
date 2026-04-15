@@ -168,6 +168,9 @@ abstract contract DeployBase is Script {
     address public multicall;
     address public chatFactory;
 
+    // Config values
+    string public gzipFilename;
+
     // Wallet addresses
     address public devWallet;
     address public bankVault;
@@ -202,6 +205,9 @@ abstract contract DeployBase is Script {
             rendererHtml = _jsonAddrOr(json, ".rendererHtml", "RENDERER_HTML");
             multicall = _jsonAddrOr(json, ".multicall", "DEALER_MULTICALL");
             chatFactory = _jsonAddrOr(json, ".chatFactory", "CHAT_FACTORY");
+            try vm.parseJsonString(json, ".gzipFilename") returns (string memory val) {
+                gzipFilename = val;
+            } catch {}
         } catch {
             drugRegistry = vm.envOr("DRUG_REGISTRY", address(0));
             areaRegistry = vm.envOr("AREA_REGISTRY", address(0));
@@ -250,6 +256,9 @@ abstract contract DeployBase is Script {
         vm.serializeAddress(obj, "rendererSvg", rendererSvg);
         vm.serializeAddress(obj, "rendererHtml", rendererHtml);
         vm.serializeAddress(obj, "multicall", multicall);
+        if (bytes(gzipFilename).length > 0) {
+            vm.serializeString(obj, "gzipFilename", gzipFilename);
+        }
         string memory json = vm.serializeAddress(obj, "chatFactory", chatFactory);
 
         string memory path = _getDeploymentPath();

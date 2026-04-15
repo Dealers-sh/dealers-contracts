@@ -107,7 +107,7 @@ contract DealersPaymentHandlerTest is BaseTest {
     }
 
     function test_processMovementFee_revertAmountTooSmall() public {
-        uint256 amount = 0.0001 ether;
+        uint256 amount = 0.00009 ether;
 
         vm.prank(authorizedCaller);
         vm.expectRevert(DealersPaymentHandler.AmountTooSmall.selector);

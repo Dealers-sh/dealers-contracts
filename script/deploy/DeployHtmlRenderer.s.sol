@@ -16,10 +16,10 @@ interface INFTSetRenderer {
  *
  * Usage:
  *   forge script script/deploy/DeployHtmlRenderer.s.sol:DeployHtmlRenderer \
- *     --zksync --skip "RendererSVG" \
- *     --rpc-url https://api.testnet.abs.xyz \
- *     --account dealersKeystore \
- *     --broadcast
+      --zksync --skip "RendererSVG" \
+      --rpc-url https://api.testnet.abs.xyz \
+      --account dealersKeystore \
+      --broadcast
  *
  * @author Berny0x
  */
@@ -32,7 +32,7 @@ contract DeployHtmlRenderer is DeployBase {
         _requireAddress(rendererSvg, "RENDERER_SVG");
 
         string memory targetRpcUrl = _getRpcUrl();
-        string memory gzipFilename = _getGzipFilename();
+        require(bytes(gzipFilename).length > 0, "gzipFilename not set in deployments JSON - run upload first");
 
         vm.startBroadcast();
 
@@ -85,10 +85,4 @@ contract DeployHtmlRenderer is DeployBase {
         revert("Unsupported chain");
     }
 
-    function _getGzipFilename() internal view returns (string memory) {
-        uint256 chainId = block.chainid;
-        if (chainId == 2741) return "src1.min.js.gz";
-        if (chainId == 11124) return "src0.min.js.gz";
-        revert("Unsupported chain");
-    }
 }

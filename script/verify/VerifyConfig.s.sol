@@ -113,7 +113,7 @@ contract VerifyConfig is DeployBase {
 
         console.log("");
         console.log("================================================================================");
-        console.log("                    DEALERS.EXE CONFIGURATION VERIFICATION");
+        console.log("                    DEALERS.SH CONFIGURATION VERIFICATION");
         console.log("================================================================================");
         console.log("");
 

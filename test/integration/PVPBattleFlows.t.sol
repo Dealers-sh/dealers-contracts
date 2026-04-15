@@ -76,11 +76,7 @@ contract PVPBattleFlowsTest is BaseTest {
 
         uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
 
-        assertLt(attackerWeedAfter, attackerWeedBefore, "Attacker should lose drugs");
-
-        uint256 stolen = attackerWeedBefore - attackerWeedAfter;
-        uint256 expected = _ceilDiv(attackerWeedBefore * 2, 100);
-        assertEq(stolen, expected, "Should lose 2% of weed (rounded up)");
+        assertEq(attackerWeedAfter, attackerWeedBefore, "Attacker should not lose drugs when defender wins");
     }
 
     function test_pvpFlow_attackerArrestedMidFight() public {
