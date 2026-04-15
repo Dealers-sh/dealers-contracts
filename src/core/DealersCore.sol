@@ -515,7 +515,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
     /**
      * @notice Get total reputation including stash bonus
      */
-    function getTotalReputation(uint256 tokenId) internal view dealerExists(tokenId) returns (uint256) {
+    function getTotalReputation(uint256 tokenId) public view dealerExists(tokenId) returns (uint256) {
         return dealers[tokenId].reputation + getStashBonus(tokenId);
     }
 

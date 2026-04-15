@@ -98,6 +98,8 @@ interface IDealersCore {
     /// @notice Check if a dealer is initialized (cheap single-field getter)
     function isInitialized(uint256 tokenId) external view returns (bool);
 
+    function getTotalReputation(uint256 tokenId) external view returns (uint256);
+
     function getDealerData(uint256 tokenId) external view returns (
         uint8 currentArea,
         uint256 reputation,
