@@ -32,7 +32,7 @@ contract DeployHtmlRenderer is DeployBase {
         _requireAddress(rendererSvg, "RENDERER_SVG");
 
         string memory targetRpcUrl = _getRpcUrl();
-        require(bytes(gzipFilename).length > 0, "gzipFilename not set in deployments JSON - run upload first");
+        string memory gzip = bytes(gzipFilename).length > 0 ? gzipFilename : "placeholder.js.gz";
 
         vm.startBroadcast();
 
@@ -59,8 +59,8 @@ contract DeployHtmlRenderer is DeployBase {
         html.setSvgRendererAddress(rendererSvg);
         console.log("  SVG renderer:", rendererSvg);
 
-        html.setDealerGzipFilename(gzipFilename);
-        console.log("  Gzip filename:", gzipFilename);
+        html.setDealerGzipFilename(gzip);
+        console.log("  Gzip filename:", gzip);
 
         INFTSetRenderer nftContract = INFTSetRenderer(nft);
         if (nftContract.contractRendererHTML() != rendererHtml) {

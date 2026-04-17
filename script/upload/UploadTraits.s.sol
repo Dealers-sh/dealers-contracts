@@ -131,13 +131,15 @@ contract UploadTraits is DeployBase {
 
         uint256 uploadCount = 0;
         uint256 skipCount = 0;
-        uint256 registerCount = 0;
 
         uint8[] memory characterTypes = new uint8[](traits.length);
         uint8[] memory categories = new uint8[](traits.length);
         string[] memory names = new string[](traits.length);
         uint16[] memory probabilities = new uint16[](traits.length);
         address[] memory pointers = new address[](traits.length);
+
+        uint256[] memory uploadedIndices = new uint256[](traits.length);
+        address[] memory uploadedPointers = new address[](traits.length);
 
         for (uint256 i = 0; i < traits.length; i++) {
             TraitJson memory t = traits[i];
@@ -150,10 +152,11 @@ contract UploadTraits is DeployBase {
             } else {
                 string memory uniqueName = _generateUniqueName(charType, t.category, t.name);
                 (pointer,) = FILE_STORE.createFile(uniqueName, t.content);
-                uploadCount++;
                 console.log(string.concat("  Uploaded: ", t.name, " -> ", vm.toString(pointer)));
 
-                _updatePointerInJson(jsonPath, typeKey, i, pointer);
+                uploadedIndices[uploadCount] = i;
+                uploadedPointers[uploadCount] = pointer;
+                uploadCount++;
             }
 
             characterTypes[i] = charType;
@@ -161,10 +164,9 @@ contract UploadTraits is DeployBase {
             names[i] = t.name;
             probabilities[i] = t.probability;
             pointers[i] = pointer;
-            registerCount++;
         }
 
-        if (registerCount > 0) {
+        if (traits.length > 0) {
             IDealerRendererSVG(renderer).batchAddTraits(
                 characterTypes,
                 categories,
@@ -172,7 +174,12 @@ contract UploadTraits is DeployBase {
                 probabilities,
                 pointers
             );
-            console.log(string.concat("Registered ", vm.toString(registerCount), " traits with renderer"));
+            console.log(string.concat("Registered ", vm.toString(traits.length), " traits with renderer"));
+        }
+
+        for (uint256 i = 0; i < uploadCount; i++) {
+            string memory key = string.concat(".", typeKey, "[", vm.toString(uploadedIndices[i]), "].pointer");
+            vm.writeJson(vm.toString(uploadedPointers[i]), jsonPath, key);
         }
 
         console.log("");
@@ -197,6 +204,9 @@ contract UploadTraits is DeployBase {
         string[] memory names = new string[](traits.length);
         address[] memory pointers = new address[](traits.length);
 
+        uint256[] memory uploadedIndices = new uint256[](traits.length);
+        address[] memory uploadedPointers = new address[](traits.length);
+
         for (uint256 i = 0; i < traits.length; i++) {
             OneOfOneJson memory t = traits[i];
 
@@ -208,10 +218,11 @@ contract UploadTraits is DeployBase {
             } else {
                 string memory uniqueName = string.concat("dealers-oneofone-", t.name, "-", vm.toString(block.timestamp));
                 (pointer,) = FILE_STORE.createFile(uniqueName, t.content);
-                uploadCount++;
                 console.log(string.concat("  Uploaded: ", t.name, " -> ", vm.toString(pointer)));
 
-                _updateOneOfOnePointerInJson(jsonPath, i, pointer);
+                uploadedIndices[uploadCount] = i;
+                uploadedPointers[uploadCount] = pointer;
+                uploadCount++;
             }
 
             tids[i] = tokenIds[i];
@@ -222,6 +233,11 @@ contract UploadTraits is DeployBase {
         if (traits.length > 0) {
             IDealerRendererSVG(renderer).batchSetOneOfOnes(tids, names, pointers);
             console.log(string.concat("Registered ", vm.toString(traits.length), " one-of-ones with renderer"));
+        }
+
+        for (uint256 i = 0; i < uploadCount; i++) {
+            string memory key = string.concat(".oneofone[", vm.toString(uploadedIndices[i]), "].pointer");
+            vm.writeJson(vm.toString(uploadedPointers[i]), jsonPath, key);
         }
 
         console.log("");
@@ -257,108 +273,7 @@ contract UploadTraits is DeployBase {
     }
 
     function _updatePlaceholderPointerInJson(string memory jsonPath, address pointer) internal {
-        string memory json = vm.readFile(jsonPath);
-
-        string memory searchPattern = '"placeholder"';
-        uint256 typeStart = _findInString(json, searchPattern, 0);
-        if (typeStart == type(uint256).max) return;
-
-        uint256 objStart = _findInString(json, "{", typeStart);
-        if (objStart == type(uint256).max) return;
-
-        uint256 pointerKeyStart = _findInString(json, '"pointer"', objStart);
-        if (pointerKeyStart == type(uint256).max) return;
-
-        uint256 colonPos = _findInString(json, ":", pointerKeyStart);
-        if (colonPos == type(uint256).max) return;
-
-        uint256 valueStart = colonPos + 1;
-        while (valueStart < bytes(json).length && (bytes(json)[valueStart] == " " || bytes(json)[valueStart] == "\n")) {
-            valueStart++;
-        }
-
-        uint256 valueEnd = valueStart;
-        if (bytes(json)[valueStart] == "n") {
-            valueEnd = valueStart + 4;
-        } else if (bytes(json)[valueStart] == '"') {
-            valueEnd = _findInString(json, '"', valueStart + 1) + 1;
-        }
-
-        string memory newValue = string.concat('"', vm.toString(pointer), '"');
-        string memory newJson = string.concat(
-            _substring(json, 0, valueStart),
-            newValue,
-            _substring(json, valueEnd, bytes(json).length)
-        );
-
-        vm.writeFile(jsonPath, newJson);
-    }
-
-
-    function _updatePointerInJson(
-        string memory jsonPath,
-        string memory typeKey,
-        uint256 index,
-        address pointer
-    ) internal {
-        string memory json = vm.readFile(jsonPath);
-
-        string memory searchPattern = string.concat('"', typeKey, '"');
-        uint256 typeStart = _findInString(json, searchPattern, 0);
-        if (typeStart == type(uint256).max) return;
-
-        uint256 arrayStart = _findInString(json, "[", typeStart);
-        if (arrayStart == type(uint256).max) return;
-
-        uint256 currentIndex = 0;
-        uint256 pos = arrayStart + 1;
-
-        while (currentIndex < index) {
-            pos = _findInString(json, "{", pos);
-            if (pos == type(uint256).max) return;
-            pos = _findMatchingBrace(json, pos);
-            if (pos == type(uint256).max) return;
-            pos++;
-            currentIndex++;
-        }
-
-        uint256 objStart = _findInString(json, "{", pos);
-        if (objStart == type(uint256).max) return;
-
-        uint256 pointerKeyStart = _findInString(json, '"pointer"', objStart);
-        if (pointerKeyStart == type(uint256).max) return;
-
-        uint256 colonPos = _findInString(json, ":", pointerKeyStart);
-        if (colonPos == type(uint256).max) return;
-
-        uint256 valueStart = colonPos + 1;
-        while (valueStart < bytes(json).length && (bytes(json)[valueStart] == " " || bytes(json)[valueStart] == "\n")) {
-            valueStart++;
-        }
-
-        uint256 valueEnd = valueStart;
-        if (bytes(json)[valueStart] == "n") {
-            valueEnd = valueStart + 4;
-        } else if (bytes(json)[valueStart] == '"') {
-            valueEnd = _findInString(json, '"', valueStart + 1) + 1;
-        }
-
-        string memory newValue = string.concat('"', vm.toString(pointer), '"');
-        string memory newJson = string.concat(
-            _substring(json, 0, valueStart),
-            newValue,
-            _substring(json, valueEnd, bytes(json).length)
-        );
-
-        vm.writeFile(jsonPath, newJson);
-    }
-
-    function _updateOneOfOnePointerInJson(
-        string memory jsonPath,
-        uint256 index,
-        address pointer
-    ) internal {
-        _updatePointerInJson(jsonPath, "oneofone", index, pointer);
+        vm.writeJson(vm.toString(pointer), jsonPath, ".placeholder.pointer");
     }
 
     function _generateUniqueName(
@@ -371,46 +286,6 @@ contract UploadTraits is DeployBase {
         return string.concat(prefix, "-", categoryName, "-", traitName, "-", vm.toString(block.timestamp));
     }
 
-    function _findInString(string memory haystack, string memory needle, uint256 start) internal pure returns (uint256) {
-        bytes memory h = bytes(haystack);
-        bytes memory n = bytes(needle);
-
-        if (n.length == 0 || h.length < n.length + start) return type(uint256).max;
-
-        for (uint256 i = start; i <= h.length - n.length; i++) {
-            bool found = true;
-            for (uint256 j = 0; j < n.length; j++) {
-                if (h[i + j] != n[j]) {
-                    found = false;
-                    break;
-                }
-            }
-            if (found) return i;
-        }
-        return type(uint256).max;
-    }
-
-    function _findMatchingBrace(string memory json, uint256 openPos) internal pure returns (uint256) {
-        bytes memory b = bytes(json);
-        uint256 depth = 1;
-        for (uint256 i = openPos + 1; i < b.length; i++) {
-            if (b[i] == "{") depth++;
-            else if (b[i] == "}") {
-                depth--;
-                if (depth == 0) return i;
-            }
-        }
-        return type(uint256).max;
-    }
-
-    function _substring(string memory str, uint256 start, uint256 end) internal pure returns (string memory) {
-        bytes memory b = bytes(str);
-        bytes memory result = new bytes(end - start);
-        for (uint256 i = start; i < end; i++) {
-            result[i - start] = b[i];
-        }
-        return string(result);
-    }
 }
 
 struct TraitJson {

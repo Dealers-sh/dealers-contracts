@@ -241,7 +241,6 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     ) external onlyOwner {
         if (characterType > uint8(CharacterType.ONE_OF_ONE)) revert InvalidCharacterType();
         if (category >= CATEGORY_COUNT) revert InvalidCategory();
-        if (probability == 0) revert InvalidProbability();
         if (fileStorePointer == address(0)) revert InvalidPointer();
 
         TraitConfig[] storage arr = traits[characterType][category];
@@ -270,7 +269,6 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
             uint8 cat = categories[i];
             if (ctype > uint8(CharacterType.ONE_OF_ONE)) revert InvalidCharacterType();
             if (cat >= CATEGORY_COUNT) revert InvalidCategory();
-            if (probabilities[i] == 0) revert InvalidProbability();
             if (fileStorePointers[i] == address(0)) revert InvalidPointer();
 
             TraitConfig[] storage arr = traits[ctype][cat];

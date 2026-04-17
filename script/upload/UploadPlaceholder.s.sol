@@ -78,69 +78,7 @@ contract UploadPlaceholder is DeployBase {
     }
 
     function _updatePlaceholderPointerInJson(string memory jsonPath, address pointer) internal {
-        string memory json = vm.readFile(jsonPath);
-
-        string memory searchPattern = '"placeholder"';
-        uint256 typeStart = _findInString(json, searchPattern, 0);
-        if (typeStart == type(uint256).max) return;
-
-        uint256 objStart = _findInString(json, "{", typeStart);
-        if (objStart == type(uint256).max) return;
-
-        uint256 pointerKeyStart = _findInString(json, '"pointer"', objStart);
-        if (pointerKeyStart == type(uint256).max) return;
-
-        uint256 colonPos = _findInString(json, ":", pointerKeyStart);
-        if (colonPos == type(uint256).max) return;
-
-        uint256 valueStart = colonPos + 1;
-        while (valueStart < bytes(json).length && (bytes(json)[valueStart] == " " || bytes(json)[valueStart] == "\n")) {
-            valueStart++;
-        }
-
-        uint256 valueEnd = valueStart;
-        if (bytes(json)[valueStart] == "n") {
-            valueEnd = valueStart + 4;
-        } else if (bytes(json)[valueStart] == '"') {
-            valueEnd = _findInString(json, '"', valueStart + 1) + 1;
-        }
-
-        string memory newValue = string.concat('"', vm.toString(pointer), '"');
-        string memory newJson = string.concat(
-            _substring(json, 0, valueStart),
-            newValue,
-            _substring(json, valueEnd, bytes(json).length)
-        );
-
-        vm.writeFile(jsonPath, newJson);
-    }
-
-    function _findInString(string memory haystack, string memory needle, uint256 start) internal pure returns (uint256) {
-        bytes memory h = bytes(haystack);
-        bytes memory n = bytes(needle);
-
-        if (n.length == 0 || h.length < n.length + start) return type(uint256).max;
-
-        for (uint256 i = start; i <= h.length - n.length; i++) {
-            bool found = true;
-            for (uint256 j = 0; j < n.length; j++) {
-                if (h[i + j] != n[j]) {
-                    found = false;
-                    break;
-                }
-            }
-            if (found) return i;
-        }
-        return type(uint256).max;
-    }
-
-    function _substring(string memory str, uint256 start, uint256 end) internal pure returns (string memory) {
-        bytes memory b = bytes(str);
-        bytes memory result = new bytes(end - start);
-        for (uint256 i = start; i < end; i++) {
-            result[i - start] = b[i];
-        }
-        return string(result);
+        vm.writeJson(vm.toString(pointer), jsonPath, ".placeholder.pointer");
     }
 
     function _splitIntoChunks(string memory content) internal pure returns (string[] memory) {

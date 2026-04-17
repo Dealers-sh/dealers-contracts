@@ -50,6 +50,7 @@ DEALERS_PVP="${DEALERS_PVP:-$(_addr pvp)}"
 DEALERS_CLAIMS="${DEALERS_CLAIMS:-$(_addr claims)}"
 DEALERS_ACTIONS="${DEALERS_ACTIONS:-$(_addr actions)}"
 DEALERS_MULTICALL="${DEALERS_MULTICALL:-$(_addr multicall)}"
+CHAT_FACTORY="${CHAT_FACTORY:-$(_addr chatFactory)}"
 RENDERER_SVG="${RENDERER_SVG:-$(_addr rendererSvg)}"
 RENDERER_HTML="${RENDERER_HTML:-$(_addr rendererHtml)}"
 
@@ -127,71 +128,77 @@ verify_contract() {
 
 verify_drug_registry() {
     verify_contract "$DRUG_REGISTRY" \
-        "src/utils/DEDrugRegistry.sol:DEDrugRegistry" "" "true"
+        "src/utils/DealersDrugRegistry.sol:DealersDrugRegistry" "" "true"
 }
 
 verify_area_registry() {
     local args=$(cast abi-encode "constructor(address)" "$DRUG_REGISTRY")
     verify_contract "$AREA_REGISTRY" \
-        "src/utils/DEAreaRegistry.sol:DEAreaRegistry" "$args" "true"
+        "src/utils/DealersAreaRegistry.sol:DealersAreaRegistry" "$args" "true"
 }
 
 verify_core() {
     verify_contract "$DEALERS_CORE" \
-        "src/core/DealersExeCore.sol:DealersExeCore" "" "true"
+        "src/core/DealersCore.sol:DealersCore" "" "true"
 }
 
 verify_payment_handler() {
     local args=$(cast abi-encode "constructor(address,address)" "$DEV_WALLET" "$BANK_VAULT")
     verify_contract "$PAYMENT_HANDLER" \
-        "src/utils/DEPaymentHandler.sol:DEPaymentHandler" "$args" "true"
+        "src/utils/DealersPaymentHandler.sol:DealersPaymentHandler" "$args" "true"
 }
 
 verify_randomness() {
     verify_contract "$RANDOMNESS" \
-        "src/utils/DERandomness.sol:DERandomness" "" "true"
+        "src/utils/DealersRandomness.sol:DealersRandomness" "" "true"
 }
 
 verify_nft() {
     local args=$(cast abi-encode "constructor(address)" "$ROYALTY_RECEIVER")
     verify_contract "$DEALERS_NFT" \
-        "src/nft/DealersExeNFT.sol:DealersExeNFT" "$args" "true"
+        "src/nft/DealersNFT.sol:DealersNFT" "$args" "true"
 }
 
 verify_boosts() {
     local args=$(cast abi-encode "constructor(address,address,address)" "$DEALERS_CORE" "$DEALERS_NFT" "$PAYMENT_HANDLER")
     verify_contract "$DEALERS_BOOSTS" \
-        "src/core/DealersExeBoosts.sol:DealersExeBoosts" "$args" "true"
+        "src/core/DealersBoosts.sol:DealersBoosts" "$args" "true"
 }
 
 verify_pve() {
     local args=$(cast abi-encode "constructor(address,address,address)" "$DEALERS_CORE" "$DEALERS_NFT" "$AREA_REGISTRY")
     verify_contract "$DEALERS_PVE" \
-        "src/core/DealersExePVE.sol:DealersExePVE" "$args" "true"
+        "src/core/DealersPVE.sol:DealersPVE" "$args" "true"
 }
 
 verify_pvp() {
     local args=$(cast abi-encode "constructor(address,address,address)" "$DEALERS_CORE" "$DEALERS_NFT" "$AREA_REGISTRY")
     verify_contract "$DEALERS_PVP" \
-        "src/core/DealersExePVP.sol:DealersExePVP" "$args" "true"
+        "src/core/DealersPVP.sol:DealersPVP" "$args" "true"
 }
 
 verify_claims() {
     local args=$(cast abi-encode "constructor(address,address,address,address)" "$DEALERS_CORE" "$DEALERS_NFT" "$DEALERS_PVE" "$DEALERS_PVP")
     verify_contract "$DEALERS_CLAIMS" \
-        "src/core/DealersExeClaims.sol:DealersExeClaims" "$args" "true"
+        "src/core/DealersClaims.sol:DealersClaims" "$args" "true"
 }
 
 verify_actions() {
     local args=$(cast abi-encode "constructor(address,address,address)" "$DEALERS_CORE" "$DEALERS_NFT" "$AREA_REGISTRY")
     verify_contract "$DEALERS_ACTIONS" \
-        "src/core/DealersExeActions.sol:DealersExeActions" "$args" "true"
+        "src/core/DealersActions.sol:DealersActions" "$args" "true"
 }
 
 verify_multicall() {
     local args=$(cast abi-encode "constructor(address,address,address,address,address)" "$DEALERS_CORE" "$DEALERS_PVE" "$DEALERS_PVP" "$AREA_REGISTRY" "$DRUG_REGISTRY")
     verify_contract "$DEALERS_MULTICALL" \
-        "src/core/DealersExeMulticall.sol:DealersExeMulticall" "$args" "true"
+        "src/core/DealersMulticall.sol:DealersMulticall" "$args" "true"
+}
+
+verify_chat_factory() {
+    local args=$(cast abi-encode "constructor(address)" "$DEALERS_NFT")
+    verify_contract "$CHAT_FACTORY" \
+        "src/social/DealersChatFactory.sol:DealersChatFactory" "$args" "true"
 }
 
 verify_renderer_svg() {
@@ -203,7 +210,7 @@ verify_renderer_html() {
     local filestore="0xFe1411d6864592549AdE050215482e4385dFa0FB"
     local args=$(cast abi-encode "constructor(address)" "$filestore")
     verify_contract "$RENDERER_HTML" \
-        "src/nft/DealerRendererHTML.sol:DealerRendererHTML" "$args" "false"
+        "src/nft/DealerRendererHTML.sol:DealerRendererHTML" "$args" "true"
 }
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -214,7 +221,7 @@ echo "  Chain ID: $CHAIN_ID"
 echo "=============================================="
 echo ""
 
-ALL_GAME=(drug_registry area_registry core payment_handler randomness nft boosts pve pvp claims actions multicall)
+ALL_GAME=(drug_registry area_registry core payment_handler randomness nft boosts pve pvp claims actions multicall chat_factory)
 ALL_RENDERERS=(renderer_svg renderer_html)
 
 if [ $# -eq 0 ]; then
@@ -238,6 +245,7 @@ else
             claim*|CL*)  targets+=(claims) ;;
             action*|AC*) targets+=(actions) ;;
             multi*|MC*)  targets+=(multicall) ;;
+            chat*|CF*)   targets+=(chat_factory) ;;
             svg)         targets+=(renderer_svg) ;;
             html)        targets+=(renderer_html) ;;
             *)           echo -e "${RED}Unknown target: $arg${NC}"; exit 1 ;;
@@ -262,6 +270,7 @@ for target in "${targets[@]}"; do
         claims)          verify_claims ;;
         actions)         verify_actions ;;
         multicall)       verify_multicall ;;
+        chat_factory)    verify_chat_factory ;;
         renderer_svg)    verify_renderer_svg ;;
         renderer_html)   verify_renderer_html ;;
     esac

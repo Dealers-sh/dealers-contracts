@@ -146,6 +146,13 @@ interface IMulticallContract {
     function drugRegistry() external view returns (address);
 }
 
+interface IChatFactory {
+    enum RoomType { WORLD, AREA, GANG, DM }
+    function createRoom(RoomType roomType, uint8 id, address gate) external returns (address room);
+    function getRoomInfo(bytes32 roomKey) external view returns (address room, address gate, uint8 roomId);
+    function roomKey(RoomType roomType, uint8 id) external pure returns (bytes32);
+}
+
 // =============================================================================
 //                              BASE CONTRACT
 // =============================================================================

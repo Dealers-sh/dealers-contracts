@@ -4,9 +4,9 @@ pragma solidity ^0.8.28;
 import "../base/DeployBase.s.sol";
 
 /**
- * @title DeployAll - Deploy all game contracts + configure drugs/areas + wire + setup tiers
+ * @title DeployAll - Deploy all game contracts + full setup
  * @dev Deploys in dependency order, skipping contracts that already have an address in .env.
- *      After deploying, runs SetupWiring logic and reputation tier setup.
+ *      After deploying: drugs, areas, wiring, tiers, claims, chat rooms.
  *
  * Required env vars: DEV_WALLET, BANK_VAULT, ROYALTY_RECEIVER
  * Optional env vars: DRUG_REGISTRY, AREA_REGISTRY, DEALERS_CORE, PAYMENT_HANDLER,
@@ -44,6 +44,12 @@ contract DeployAll is DeployBase {
 
         // 4. Setup reputation tiers
         _setupTiers();
+
+        // 5. Setup achievements
+        _setupClaims();
+
+        // 6. Setup chat rooms
+        _setupChat();
 
         vm.stopBroadcast();
 
@@ -185,6 +191,17 @@ contract DeployAll is DeployBase {
             console.log("DealersMulticall deployed:", multicall);
         } else {
             console.log("DealersMulticall: skipped (exists)");
+        }
+
+        if (chatFactory == address(0)) {
+            _requireAddress(nft, "DEALERS_NFT");
+            chatFactory = _zkCreate(abi.encodePacked(
+                vm.getCode("DealersChatFactory.sol:DealersChatFactory"),
+                abi.encode(nft)
+            ));
+            console.log("DealersChatFactory deployed:", chatFactory);
+        } else {
+            console.log("DealersChatFactory: skipped (exists)");
         }
 
         console.log("");
@@ -390,6 +407,119 @@ contract DeployAll is DeployBase {
     }
 
     // =========================================================================
+    //                           CLAIMS
+    // =========================================================================
+
+    uint8 constant PVE_WINS = 1;
+    uint8 constant PVE_LOSSES = 2;
+    uint8 constant PVE_TIES = 3;
+    uint8 constant PVE_TOTAL = 4;
+    uint8 constant PVP_ATTACK_WINS = 5;
+    uint8 constant PVP_DEFEND_WINS = 6;
+    uint8 constant PVP_TOTAL_WINS = 7;
+    uint8 constant REPUTATION = 8;
+    uint8 constant PVE_DEAL_CHOICES = 11;
+    uint8 constant PVE_THREATEN_CHOICES = 12;
+    uint8 constant PVE_BAIL_CHOICES = 13;
+
+    uint8 constant REWARD_REP = 0;
+    uint8 constant REWARD_CASH = 1;
+    uint8 constant REWARD_DRUG = 2;
+
+    function _setupClaims() internal {
+        IClaimsContract c = IClaimsContract(claims);
+
+        if (c.achievementCount() > 0) {
+            console.log("Claims: already configured");
+            return;
+        }
+
+        console.log("Configuring 24 achievements...");
+
+        c.setAchievement(0, _ach(PVE_TOTAL, 0, 1, REWARD_CASH, 0, 25));
+        c.setAchievement(1, _ach(PVE_TOTAL, 0, 10, REWARD_CASH, 0, 50));
+        c.setAchievement(2, _ach(PVE_WINS, 0, 10, REWARD_DRUG, 5, 2));
+        c.setAchievement(3, _ach(PVE_TIES, 0, 10, REWARD_DRUG, 5, 2));
+        c.setAchievement(4, _ach(PVE_LOSSES, 0, 10, REWARD_CASH, 0, 50));
+        c.setAchievement(5, _ach(PVE_DEAL_CHOICES, 0, 10, REWARD_DRUG, 7, 1));
+        c.setAchievement(6, _ach(PVE_THREATEN_CHOICES, 0, 10, REWARD_DRUG, 7, 1));
+        c.setAchievement(7, _ach(PVE_BAIL_CHOICES, 0, 10, REWARD_DRUG, 7, 1));
+        c.setAchievement(8, _ach(PVP_TOTAL_WINS, 0, 1, REWARD_REP, 0, 10));
+        c.setAchievement(9, _ach(PVP_ATTACK_WINS, 0, 10, REWARD_DRUG, 1, 1));
+        c.setAchievement(10, _ach(PVP_DEFEND_WINS, 0, 10, REWARD_DRUG, 1, 1));
+        c.setAchievement(11, _ach(REPUTATION, 0, 100, REWARD_DRUG, 4, 20));
+        c.setAchievement(12, _ach(REPUTATION, 0, 50, REWARD_CASH, 0, 50));
+        c.setAchievement(13, _ach(REPUTATION, 0, 150, REWARD_CASH, 0, 150));
+        c.setAchievement(14, _ach(REPUTATION, 0, 300, REWARD_CASH, 0, 300));
+        c.setAchievement(15, _ach(REPUTATION, 0, 700, REWARD_CASH, 0, 700));
+        c.setAchievement(16, _ach(REPUTATION, 0, 1250, REWARD_CASH, 0, 1250));
+        c.setAchievement(17, _ach(REPUTATION, 0, 1900, REWARD_CASH, 0, 1900));
+        c.setAchievement(18, _ach(REPUTATION, 0, 2600, REWARD_CASH, 0, 2600));
+        c.setAchievement(19, _ach(REPUTATION, 0, 3500, REWARD_CASH, 0, 3500));
+        c.setAchievement(20, _ach(REPUTATION, 0, 5000, REWARD_CASH, 0, 5000));
+        c.setAchievement(21, _ach(REPUTATION, 0, 250, REWARD_DRUG, 8, 1));
+        c.setAchievement(22, _ach(PVP_TOTAL_WINS, 0, 1, REWARD_DRUG, 1, 1));
+        c.setAchievement(23, _ach(PVP_TOTAL_WINS, 0, 10, REWARD_DRUG, 2, 1));
+
+        console.log("  24 achievements configured");
+        console.log("");
+    }
+
+    function _ach(
+        uint8 conditionType,
+        uint256 conditionValue,
+        uint256 threshold,
+        uint8 rewardType,
+        uint256 rewardId,
+        uint256 rewardAmount
+    ) private pure returns (IClaimsContract.Achievement memory) {
+        return IClaimsContract.Achievement({
+            conditionType: conditionType,
+            conditionValue: conditionValue,
+            threshold: threshold,
+            rewardType: rewardType,
+            rewardId: rewardId,
+            rewardAmount: rewardAmount,
+            active: true
+        });
+    }
+
+    // =========================================================================
+    //                           CHAT ROOMS
+    // =========================================================================
+
+    function _setupChat() internal {
+        IChatFactory factory = IChatFactory(chatFactory);
+
+        bytes32 worldKey = factory.roomKey(IChatFactory.RoomType.WORLD, 0);
+        (address existingWorld,,) = factory.getRoomInfo(worldKey);
+
+        if (existingWorld != address(0)) {
+            console.log("Chat rooms: already configured");
+            return;
+        }
+
+        console.log("Setting up chat rooms...");
+
+        address worldRoom = factory.createRoom(IChatFactory.RoomType.WORLD, 0, address(0));
+        console.log("  WORLD room:", worldRoom);
+
+        address gate = _zkCreate(abi.encodePacked(
+            vm.getCode("DealersAreaChatGate.sol:DealersAreaChatGate"),
+            abi.encode(core)
+        ));
+        console.log("  AreaChatGate:", gate);
+
+        uint8[8] memory areas = [uint8(1), 2, 3, 4, 5, 6, 254, 255];
+        for (uint256 i = 0; i < areas.length; ++i) {
+            factory.createRoom(IChatFactory.RoomType.AREA, areas[i], gate);
+            console.log("  Area", areas[i], "room: created");
+        }
+
+        console.log("");
+    }
+
+    // =========================================================================
     //                           SUMMARY
     // =========================================================================
 
@@ -410,10 +540,12 @@ contract DeployAll is DeployBase {
         console.log("DEALERS_CLAIMS=", claims);
         console.log("DEALERS_ACTIONS=", actions);
         console.log("DEALER_MULTICALL=", multicall);
+        console.log("CHAT_FACTORY=", chatFactory);
         console.log("");
         console.log("Remaining:");
-        console.log("  1. Deploy renderers (EVM mode, no --zksync)");
-        console.log("  2. Set renderers on NFT");
-        console.log("  3. Enable minting: cast send $DEALERS_NFT \"setMintStatus(uint8)\" 3");
+        console.log("  1. Deploy SVG renderer (EVM mode, no --zksync)");
+        console.log("  2. Deploy HTML renderer (--zksync)");
+        console.log("  3. Upload gzip JS + set gzip filename on HTML renderer");
+        console.log("  4. Enable minting: cast send $DEALERS_NFT \"setMintStatus(uint8)\" 3");
     }
 }
