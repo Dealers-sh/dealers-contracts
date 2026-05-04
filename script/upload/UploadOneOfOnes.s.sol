@@ -97,7 +97,7 @@ contract UploadOneOfOnes is DeployBase {
                 string memory filePath = string.concat(folderPath, "/", filename);
                 string memory svgContent = vm.readFile(filePath);
 
-                string memory uniqueName = _generateUniqueName(characterName);
+                string memory uniqueName = _generateUniqueName(characterName, i);
                 (address pointer,) = FILE_STORE.createFile(uniqueName, svgContent);
 
                 _savePointerToJson(pointerJsonPath, characterName, pointer);
@@ -445,7 +445,10 @@ contract UploadOneOfOnes is DeployBase {
         return string(nameBytes);
     }
 
-    function _generateUniqueName(string memory characterName) internal view returns (string memory) {
-        return string.concat("dealers-oneofone-", characterName, "-", vm.toString(block.timestamp));
+    function _generateUniqueName(string memory characterName, uint256 index) internal view returns (string memory) {
+        return string.concat(
+            "dealers-oneofone-", characterName, "-",
+            vm.toString(block.timestamp), "-", vm.toString(index)
+        );
     }
 }

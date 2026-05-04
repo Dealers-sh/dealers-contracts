@@ -15,6 +15,7 @@ contract DealerRendererSVGTest is Test {
 
     event TraitsStored(uint256 indexed tokenId);
     event TraitUpdated(uint256 indexed tokenId, uint8 indexed category, uint8 traitIndex);
+    event TraitPointerUpdated(uint8 indexed characterType, uint8 indexed category, uint256 indexed traitIndex, address newPointer);
 
     function setUp() public {
         owner = address(this);
@@ -675,6 +676,92 @@ contract DealerRendererSVGTest is Test {
         vm.prank(nonOwner);
         vm.expectRevert();
         renderer.addTrait(0, 0, "Test", 100, ptr);
+    }
+
+    // =============================================================
+    //                  updateTraitPointer TESTS
+    // =============================================================
+
+    function test_updateTraitPointer_swapsRenderedBytes() public {
+        address newPtr = _createFileStorePointer(bytes("<text>updated</text>"));
+        renderer.updateTraitPointer(0, 0, 1, newPtr);
+
+        uint256[] memory ids = new uint256[](1);
+        bytes32[] memory packed = new bytes32[](1);
+        ids[0] = 1;
+        packed[0] = _packTraits([uint8(1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        renderer.batchSetTraits(ids, packed);
+        renderer.reveal();
+
+        string memory svg = renderer.getSVG(1);
+        assertEq(svg, _wrapSvg(1, "<text>updated</text>"));
+    }
+
+    function test_updateTraitPointer_emitsEvent() public {
+        address newPtr = _createFileStorePointer(bytes("<text>x</text>"));
+
+        vm.expectEmit(true, true, true, true);
+        emit TraitPointerUpdated(0, 3, 2, newPtr);
+
+        renderer.updateTraitPointer(0, 3, 2, newPtr);
+    }
+
+    function test_updateTraitPointer_revertsInvalidPointer() public {
+        vm.expectRevert(IDealerRendererSVG.InvalidPointer.selector);
+        renderer.updateTraitPointer(0, 0, 1, address(0));
+    }
+
+    function test_updateTraitPointer_revertsTraitIndexZero() public {
+        address ptr = _createFileStorePointer(bytes("<rect/>"));
+        vm.expectRevert(DealerRendererSVG.InvalidTraitIndex.selector);
+        renderer.updateTraitPointer(0, 0, 0, ptr);
+    }
+
+    function test_updateTraitPointer_revertsTraitIndexOutOfBounds() public {
+        address ptr = _createFileStorePointer(bytes("<rect/>"));
+        vm.expectRevert(DealerRendererSVG.InvalidTraitIndex.selector);
+        renderer.updateTraitPointer(0, 0, 6, ptr);
+    }
+
+    function test_updateTraitPointer_revertsInvalidCategory() public {
+        address ptr = _createFileStorePointer(bytes("<rect/>"));
+        vm.expectRevert(DealerRendererSVG.InvalidCategory.selector);
+        renderer.updateTraitPointer(0, 12, 1, ptr);
+    }
+
+    function test_updateTraitPointer_revertsInvalidCharacterType() public {
+        address ptr = _createFileStorePointer(bytes("<rect/>"));
+        vm.expectRevert(DealerRendererSVG.InvalidCharacterType.selector);
+        renderer.updateTraitPointer(3, 0, 1, ptr);
+    }
+
+    function test_updateTraitPointer_revertsNonOwner() public {
+        address ptr = _createFileStorePointer(bytes("<rect/>"));
+        vm.prank(nonOwner);
+        vm.expectRevert();
+        renderer.updateTraitPointer(0, 0, 1, ptr);
+    }
+
+    // =============================================================
+    //                      traitCount TESTS
+    // =============================================================
+
+    function test_traitCount_matchesAddedTraits() public view {
+        for (uint8 cat; cat < 12; cat++) {
+            assertEq(renderer.traitCount(0, cat), 5);
+        }
+    }
+
+    function test_traitCount_zeroForUnconfigured() public view {
+        for (uint8 cat; cat < 12; cat++) {
+            assertEq(renderer.traitCount(1, cat), 0);
+        }
+    }
+
+    function test_traitCount_growsAfterAdd() public {
+        address ptr = _createFileStorePointer(bytes("<rect/>"));
+        renderer.addTrait(0, 5, "Extra", 100, ptr);
+        assertEq(renderer.traitCount(0, 5), 6);
     }
 
     // =============================================================

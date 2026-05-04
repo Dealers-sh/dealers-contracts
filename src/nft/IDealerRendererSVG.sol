@@ -58,6 +58,8 @@ interface IDealerRendererSVG {
 
     function isTraitStored(uint256 tokenId) external view returns (bool);
 
+    function traitCount(uint8 characterType, uint8 category) external view returns (uint256);
+
     // =============================================================
     //                    STATE-MODIFYING FUNCTIONS
     // =============================================================
@@ -84,6 +86,13 @@ interface IDealerRendererSVG {
         string[] calldata names,
         uint16[] calldata probabilities,
         address[] calldata fileStorePointers
+    ) external;
+
+    function updateTraitPointer(
+        uint8 characterType,
+        uint8 category,
+        uint256 traitIndex,
+        address newFileStorePointer
     ) external;
 
     function setOneOfOne(

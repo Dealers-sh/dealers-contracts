@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+import {SSTORE2} from "solady/src/utils/SSTORE2.sol";
 import "../../src/nft/IDealerRendererSVG.sol";
 import "../../src/nft/IFileStore.sol";
 import "../base/DeployBase.s.sol";
@@ -46,6 +47,7 @@ contract UploadTraits is DeployBase {
     IFileStore constant FILE_STORE = IFileStore(0xFe1411d6864592549AdE050215482e4385dFa0FB);
 
     string constant TRAITS_JSON_PATH = "script/data/traits.json";
+    uint256 constant CHUNK_SIZE = 24000;
 
     string[12] categoryNames = [
         "backdrop", "head", "expression", "eyes", "nose", "eartip",
@@ -63,7 +65,7 @@ contract UploadTraits is DeployBase {
         console.log("Renderer:", rendererSvg);
         console.log("");
 
-        _uploadTraitsFromJson(rendererSvg, 0);
+        _uploadTraitsFromJsonRange(rendererSvg, 0, 0, type(uint256).max);
 
         vm.stopBroadcast();
     }
@@ -79,7 +81,77 @@ contract UploadTraits is DeployBase {
         console.log("Renderer:", rendererSvg);
         console.log("");
 
-        _uploadTraitsFromJson(rendererSvg, 1);
+        _uploadTraitsFromJsonRange(rendererSvg, 1, 0, type(uint256).max);
+
+        vm.stopBroadcast();
+    }
+
+    function uploadNormalRange(uint256 start, uint256 count) external {
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
+
+        vm.startBroadcast();
+        console.log("==============================================");
+        console.log("   Uploading Normal Traits (range)");
+        console.log("==============================================");
+        console.log("Renderer:", rendererSvg);
+        console.log("start:", start);
+        console.log("count:", count);
+        console.log("");
+
+        _uploadTraitsFromJsonRange(rendererSvg, 0, start, count);
+
+        vm.stopBroadcast();
+    }
+
+    function uploadSpecialRange(uint256 start, uint256 count) external {
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
+
+        vm.startBroadcast();
+        console.log("==============================================");
+        console.log("   Uploading Special Traits (range)");
+        console.log("==============================================");
+        console.log("Renderer:", rendererSvg);
+        console.log("start:", start);
+        console.log("count:", count);
+        console.log("");
+
+        _uploadTraitsFromJsonRange(rendererSvg, 1, start, count);
+
+        vm.stopBroadcast();
+    }
+
+    function uploadFirstNormalPerCategory(uint256 perCat) external {
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
+
+        vm.startBroadcast();
+        console.log("==============================================");
+        console.log("   Uploading first N Normal traits per category");
+        console.log("==============================================");
+        console.log("Renderer:", rendererSvg);
+        console.log("perCat:", perCat);
+        console.log("");
+
+        _uploadTraitsCapped(rendererSvg, 0, perCat);
+
+        vm.stopBroadcast();
+    }
+
+    function uploadFirstSpecialPerCategory(uint256 perCat) external {
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
+
+        vm.startBroadcast();
+        console.log("==============================================");
+        console.log("   Uploading first N Special traits per category");
+        console.log("==============================================");
+        console.log("Renderer:", rendererSvg);
+        console.log("perCat:", perCat);
+        console.log("");
+
+        _uploadTraitsCapped(rendererSvg, 1, perCat);
 
         vm.stopBroadcast();
     }
@@ -118,7 +190,93 @@ contract UploadTraits is DeployBase {
     }
 
 
-    function _uploadTraitsFromJson(address renderer, uint8 charType) internal {
+    struct TraitsCtx {
+        address renderer;
+        uint8 charType;
+        TraitJson[] traits;
+        uint8[] addCharacterTypes;
+        uint8[] addCategories;
+        string[] addNames;
+        uint16[] addProbabilities;
+        address[] addPointers;
+        uint256[] writePointerIndices;
+        address[] writePointerValues;
+        uint256[12] onchainCount;
+        uint256[12] positionInCat;
+        uint256 addCount;
+        uint256 writePointerCount;
+        uint256 uploadCount;
+        uint256 skipCount;
+        uint256 updateCount;
+        uint256 perCatCap;
+    }
+
+    function _uploadTraitsCapped(address renderer, uint8 charType, uint256 perCat) internal {
+        string memory jsonPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
+        string memory json = vm.readFile(jsonPath);
+
+        string memory typeKey = charType == 0 ? "normal" : "special";
+        bytes memory traitsArray = vm.parseJson(json, string.concat(".", typeKey));
+        TraitJson[] memory traits = abi.decode(traitsArray, (TraitJson[]));
+
+        console.log(string.concat(
+            "Found ", vm.toString(traits.length), " ", typeKey,
+            " traits; capping to first ", vm.toString(perCat), " per category"
+        ));
+
+        TraitsCtx memory ctx;
+        ctx.renderer = renderer;
+        ctx.charType = charType;
+        ctx.traits = traits;
+        ctx.addCharacterTypes = new uint8[](traits.length);
+        ctx.addCategories = new uint8[](traits.length);
+        ctx.addNames = new string[](traits.length);
+        ctx.addProbabilities = new uint16[](traits.length);
+        ctx.addPointers = new address[](traits.length);
+        ctx.writePointerIndices = new uint256[](traits.length);
+        ctx.writePointerValues = new address[](traits.length);
+        ctx.perCatCap = perCat;
+
+        for (uint8 c = 0; c < 12; c++) {
+            ctx.onchainCount[c] = IDealerRendererSVG(renderer).traitCount(charType, c);
+        }
+
+        for (uint256 i = 0; i < traits.length; i++) {
+            _processTraitEntry(ctx, i);
+        }
+
+        if (ctx.addCount > 0) {
+            uint256 finalAddCount = ctx.addCount;
+            uint8[] memory addCT = ctx.addCharacterTypes;
+            uint8[] memory addCat = ctx.addCategories;
+            string[] memory addNm = ctx.addNames;
+            uint16[] memory addPr = ctx.addProbabilities;
+            address[] memory addPt = ctx.addPointers;
+            assembly {
+                mstore(addCT, finalAddCount)
+                mstore(addCat, finalAddCount)
+                mstore(addNm, finalAddCount)
+                mstore(addPr, finalAddCount)
+                mstore(addPt, finalAddCount)
+            }
+            IDealerRendererSVG(renderer).batchAddTraits(addCT, addCat, addNm, addPr, addPt);
+            console.log(string.concat("Registered ", vm.toString(finalAddCount), " new traits with renderer"));
+        }
+
+        for (uint256 i = 0; i < ctx.writePointerCount; i++) {
+            string memory key = string.concat(".", typeKey, "[", vm.toString(ctx.writePointerIndices[i]), "].pointer");
+            vm.writeJson(vm.toString(ctx.writePointerValues[i]), jsonPath, key);
+        }
+
+        console.log("");
+        console.log(string.concat(
+            "Summary: uploaded ", vm.toString(ctx.uploadCount),
+            " (", vm.toString(ctx.updateCount), " re-uploads), added ",
+            vm.toString(ctx.addCount), ", skipped ", vm.toString(ctx.skipCount)
+        ));
+    }
+
+    function _uploadTraitsFromJsonRange(address renderer, uint8 charType, uint256 start, uint256 count) internal {
         string memory jsonPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
         string memory json = vm.readFile(jsonPath);
 
@@ -127,63 +285,164 @@ contract UploadTraits is DeployBase {
 
         TraitJson[] memory traits = abi.decode(traitsArray, (TraitJson[]));
 
-        console.log(string.concat("Found ", vm.toString(traits.length), " ", typeKey, " traits"));
+        if (start > traits.length) start = traits.length;
+        uint256 end = start + count;
+        if (end < start || end > traits.length) end = traits.length;
+        uint256 sliceLen = end - start;
 
-        uint256 uploadCount = 0;
-        uint256 skipCount = 0;
+        console.log(string.concat(
+            "Found ", vm.toString(traits.length), " ", typeKey,
+            " traits; processing [", vm.toString(start), ", ", vm.toString(end), ")"
+        ));
 
-        uint8[] memory characterTypes = new uint8[](traits.length);
-        uint8[] memory categories = new uint8[](traits.length);
-        string[] memory names = new string[](traits.length);
-        uint16[] memory probabilities = new uint16[](traits.length);
-        address[] memory pointers = new address[](traits.length);
+        TraitsCtx memory ctx;
+        ctx.renderer = renderer;
+        ctx.charType = charType;
+        ctx.traits = traits;
+        ctx.addCharacterTypes = new uint8[](sliceLen);
+        ctx.addCategories = new uint8[](sliceLen);
+        ctx.addNames = new string[](sliceLen);
+        ctx.addProbabilities = new uint16[](sliceLen);
+        ctx.addPointers = new address[](sliceLen);
+        ctx.writePointerIndices = new uint256[](sliceLen);
+        ctx.writePointerValues = new address[](sliceLen);
+        ctx.perCatCap = type(uint256).max;
 
-        uint256[] memory uploadedIndices = new uint256[](traits.length);
-        address[] memory uploadedPointers = new address[](traits.length);
+        for (uint8 c = 0; c < 12; c++) {
+            ctx.onchainCount[c] = IDealerRendererSVG(renderer).traitCount(charType, c);
+        }
 
-        for (uint256 i = 0; i < traits.length; i++) {
-            TraitJson memory t = traits[i];
+        for (uint256 j = 0; j < start; j++) {
+            ctx.positionInCat[traits[j].category]++;
+        }
 
-            address pointer;
-            if (t.pointer != address(0)) {
-                pointer = t.pointer;
-                skipCount++;
-                console.log(string.concat("  Skip (cached): ", t.name));
-            } else {
-                string memory uniqueName = _generateUniqueName(charType, t.category, t.name);
-                (pointer,) = FILE_STORE.createFile(uniqueName, t.content);
-                console.log(string.concat("  Uploaded: ", t.name, " -> ", vm.toString(pointer)));
+        for (uint256 i = start; i < end; i++) {
+            _processTraitEntry(ctx, i);
+        }
 
-                uploadedIndices[uploadCount] = i;
-                uploadedPointers[uploadCount] = pointer;
-                uploadCount++;
+        if (ctx.addCount > 0) {
+            uint256 finalAddCount = ctx.addCount;
+            uint8[] memory addCT = ctx.addCharacterTypes;
+            uint8[] memory addCat = ctx.addCategories;
+            string[] memory addNm = ctx.addNames;
+            uint16[] memory addPr = ctx.addProbabilities;
+            address[] memory addPt = ctx.addPointers;
+            assembly {
+                mstore(addCT, finalAddCount)
+                mstore(addCat, finalAddCount)
+                mstore(addNm, finalAddCount)
+                mstore(addPr, finalAddCount)
+                mstore(addPt, finalAddCount)
             }
-
-            characterTypes[i] = charType;
-            categories[i] = t.category;
-            names[i] = t.name;
-            probabilities[i] = t.probability;
-            pointers[i] = pointer;
+            IDealerRendererSVG(renderer).batchAddTraits(addCT, addCat, addNm, addPr, addPt);
+            console.log(string.concat("Registered ", vm.toString(finalAddCount), " new traits with renderer"));
         }
 
-        if (traits.length > 0) {
-            IDealerRendererSVG(renderer).batchAddTraits(
-                characterTypes,
-                categories,
-                names,
-                probabilities,
-                pointers
-            );
-            console.log(string.concat("Registered ", vm.toString(traits.length), " traits with renderer"));
-        }
-
-        for (uint256 i = 0; i < uploadCount; i++) {
-            string memory key = string.concat(".", typeKey, "[", vm.toString(uploadedIndices[i]), "].pointer");
-            vm.writeJson(vm.toString(uploadedPointers[i]), jsonPath, key);
+        for (uint256 i = 0; i < ctx.writePointerCount; i++) {
+            string memory key = string.concat(".", typeKey, "[", vm.toString(ctx.writePointerIndices[i]), "].pointer");
+            vm.writeJson(vm.toString(ctx.writePointerValues[i]), jsonPath, key);
         }
 
         console.log("");
-        console.log(string.concat("Summary: uploaded ", vm.toString(uploadCount), ", skipped ", vm.toString(skipCount)));
+        console.log(string.concat(
+            "Summary: uploaded ", vm.toString(ctx.uploadCount),
+            " (",  vm.toString(ctx.updateCount), " re-uploads via updateTraitPointer), added ",
+            vm.toString(ctx.addCount), ", skipped ", vm.toString(ctx.skipCount)
+        ));
+    }
+
+    function _processTraitEntry(TraitsCtx memory ctx, uint256 i) internal {
+        TraitJson memory t = ctx.traits[i];
+        ctx.positionInCat[t.category]++;
+        uint256 pos = ctx.positionInCat[t.category];
+
+        if (pos > ctx.perCatCap) return;
+
+        if (pos <= ctx.onchainCount[t.category]) {
+            if (t.pointer != address(0)) {
+                ctx.skipCount++;
+                console.log(string.concat("  Skip (registered): ", t.name));
+                return;
+            }
+
+            address newPointer = _uploadTraitContent(ctx.charType, t.category, t.name, t.content, i);
+            console.log(string.concat("  Re-uploaded: ", t.name, " -> ", vm.toString(newPointer)));
+
+            IDealerRendererSVG(ctx.renderer).updateTraitPointer(ctx.charType, t.category, pos, newPointer);
+            console.log(string.concat("  updateTraitPointer cat=", vm.toString(t.category), " pos=", vm.toString(pos)));
+
+            ctx.writePointerIndices[ctx.writePointerCount] = i;
+            ctx.writePointerValues[ctx.writePointerCount] = newPointer;
+            ctx.writePointerCount++;
+            ctx.uploadCount++;
+            ctx.updateCount++;
+            return;
+        }
+
+        address pointer;
+        if (t.pointer != address(0)) {
+            pointer = t.pointer;
+            console.log(string.concat("  Use cached pointer: ", t.name));
+        } else {
+            pointer = _uploadTraitContent(ctx.charType, t.category, t.name, t.content, i);
+            console.log(string.concat("  Uploaded: ", t.name, " -> ", vm.toString(pointer)));
+
+            ctx.writePointerIndices[ctx.writePointerCount] = i;
+            ctx.writePointerValues[ctx.writePointerCount] = pointer;
+            ctx.writePointerCount++;
+            ctx.uploadCount++;
+        }
+
+        ctx.addCharacterTypes[ctx.addCount] = ctx.charType;
+        ctx.addCategories[ctx.addCount] = t.category;
+        ctx.addNames[ctx.addCount] = t.name;
+        ctx.addProbabilities[ctx.addCount] = t.probability;
+        ctx.addPointers[ctx.addCount] = pointer;
+        ctx.addCount++;
+    }
+
+    function _uploadTraitContent(
+        uint8 charType,
+        uint8 category,
+        string memory name,
+        string memory content,
+        uint256 index
+    ) internal returns (address pointer) {
+        string memory uniqueName = _generateUniqueName(charType, category, name, index);
+        address[] memory chunkPointers = _writeChunkPointers(content);
+        (pointer,) = FILE_STORE.createFileFromPointers(uniqueName, chunkPointers);
+    }
+
+    function _writeChunkPointers(string memory content) internal returns (address[] memory) {
+        bytes memory contentBytes = bytes(content);
+        uint256 numChunks = (contentBytes.length + CHUNK_SIZE - 1) / CHUNK_SIZE;
+        if (numChunks == 0) numChunks = 1;
+
+        address[] memory pointers = new address[](numChunks);
+        for (uint256 i = 0; i < numChunks; i++) {
+            uint256 start = i * CHUNK_SIZE;
+            uint256 end = start + CHUNK_SIZE;
+            if (end > contentBytes.length) end = contentBytes.length;
+
+            bytes memory chunk = new bytes(end - start);
+            for (uint256 j = start; j < end; j++) {
+                chunk[j - start] = contentBytes[j];
+            }
+            pointers[i] = SSTORE2.write(chunk);
+        }
+        return pointers;
+    }
+
+
+    struct OneOfOneCtx {
+        OneOfOneJson[] traits;
+        uint256[] tids;
+        string[] names;
+        address[] pointers;
+        uint256[] uploadedIndices;
+        address[] uploadedPointers;
+        uint256 uploadCount;
+        uint256 skipCount;
     }
 
     function _uploadOneOfOnesFromJson(address renderer, uint256[] calldata tokenIds) internal {
@@ -197,51 +456,59 @@ contract UploadTraits is DeployBase {
 
         require(tokenIds.length == traits.length, "Token IDs count must match one-of-ones count");
 
-        uint256 uploadCount = 0;
-        uint256 skipCount = 0;
-
-        uint256[] memory tids = new uint256[](traits.length);
-        string[] memory names = new string[](traits.length);
-        address[] memory pointers = new address[](traits.length);
-
-        uint256[] memory uploadedIndices = new uint256[](traits.length);
-        address[] memory uploadedPointers = new address[](traits.length);
+        OneOfOneCtx memory ctx = OneOfOneCtx({
+            traits: traits,
+            tids: new uint256[](traits.length),
+            names: new string[](traits.length),
+            pointers: new address[](traits.length),
+            uploadedIndices: new uint256[](traits.length),
+            uploadedPointers: new address[](traits.length),
+            uploadCount: 0,
+            skipCount: 0
+        });
 
         for (uint256 i = 0; i < traits.length; i++) {
-            OneOfOneJson memory t = traits[i];
-
-            address pointer;
-            if (t.pointer != address(0)) {
-                pointer = t.pointer;
-                skipCount++;
-                console.log(string.concat("  Skip (cached): ", t.name));
-            } else {
-                string memory uniqueName = string.concat("dealers-oneofone-", t.name, "-", vm.toString(block.timestamp));
-                (pointer,) = FILE_STORE.createFile(uniqueName, t.content);
-                console.log(string.concat("  Uploaded: ", t.name, " -> ", vm.toString(pointer)));
-
-                uploadedIndices[uploadCount] = i;
-                uploadedPointers[uploadCount] = pointer;
-                uploadCount++;
-            }
-
-            tids[i] = tokenIds[i];
-            names[i] = t.name;
-            pointers[i] = pointer;
+            _processOneOfOneEntry(ctx, i, tokenIds[i]);
         }
 
         if (traits.length > 0) {
-            IDealerRendererSVG(renderer).batchSetOneOfOnes(tids, names, pointers);
+            IDealerRendererSVG(renderer).batchSetOneOfOnes(ctx.tids, ctx.names, ctx.pointers);
             console.log(string.concat("Registered ", vm.toString(traits.length), " one-of-ones with renderer"));
         }
 
-        for (uint256 i = 0; i < uploadCount; i++) {
-            string memory key = string.concat(".oneofone[", vm.toString(uploadedIndices[i]), "].pointer");
-            vm.writeJson(vm.toString(uploadedPointers[i]), jsonPath, key);
+        for (uint256 i = 0; i < ctx.uploadCount; i++) {
+            string memory key = string.concat(".oneofone[", vm.toString(ctx.uploadedIndices[i]), "].pointer");
+            vm.writeJson(vm.toString(ctx.uploadedPointers[i]), jsonPath, key);
         }
 
         console.log("");
-        console.log(string.concat("Summary: uploaded ", vm.toString(uploadCount), ", skipped ", vm.toString(skipCount)));
+        console.log(string.concat("Summary: uploaded ", vm.toString(ctx.uploadCount), ", skipped ", vm.toString(ctx.skipCount)));
+    }
+
+    function _processOneOfOneEntry(OneOfOneCtx memory ctx, uint256 i, uint256 tokenId) internal {
+        OneOfOneJson memory t = ctx.traits[i];
+        address pointer;
+        if (t.pointer != address(0)) {
+            pointer = t.pointer;
+            ctx.skipCount++;
+            console.log(string.concat("  Skip (cached): ", t.name));
+        } else {
+            string memory uniqueName = string.concat(
+                "dealers-oneofone-", t.name, "-",
+                vm.toString(block.timestamp), "-", vm.toString(i)
+            );
+            address[] memory chunkPointers = _writeChunkPointers(t.content);
+            (pointer,) = FILE_STORE.createFileFromPointers(uniqueName, chunkPointers);
+            console.log(string.concat("  Uploaded: ", t.name, " -> ", vm.toString(pointer)));
+
+            ctx.uploadedIndices[ctx.uploadCount] = i;
+            ctx.uploadedPointers[ctx.uploadCount] = pointer;
+            ctx.uploadCount++;
+        }
+
+        ctx.tids[i] = tokenId;
+        ctx.names[i] = t.name;
+        ctx.pointers[i] = pointer;
     }
 
     function _uploadPlaceholderFromJson(address renderer) internal {
@@ -262,7 +529,8 @@ contract UploadTraits is DeployBase {
             console.log("Placeholder already uploaded:", pointer);
         } else {
             string memory uniqueName = string.concat("dealers-placeholder-", vm.toString(block.timestamp));
-            (pointer,) = FILE_STORE.createFile(uniqueName, p.content);
+            address[] memory chunkPointers = _writeChunkPointers(p.content);
+            (pointer,) = FILE_STORE.createFileFromPointers(uniqueName, chunkPointers);
             console.log("Uploaded placeholder:", pointer);
 
             _updatePlaceholderPointerInJson(jsonPath, pointer);
@@ -279,11 +547,15 @@ contract UploadTraits is DeployBase {
     function _generateUniqueName(
         uint8 charType,
         uint8 category,
-        string memory traitName
+        string memory traitName,
+        uint256 index
     ) internal view returns (string memory) {
         string memory prefix = charType == 0 ? "dealers-normal" : "dealers-special";
         string memory categoryName = categoryNames[category];
-        return string.concat(prefix, "-", categoryName, "-", traitName, "-", vm.toString(block.timestamp));
+        return string.concat(
+            prefix, "-", categoryName, "-", traitName, "-",
+            vm.toString(block.timestamp), "-", vm.toString(index)
+        );
     }
 
 }

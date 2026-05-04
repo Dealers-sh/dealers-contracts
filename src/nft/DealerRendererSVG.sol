@@ -86,6 +86,7 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     // =============================================================
 
     event TraitAdded(uint8 indexed characterType, uint8 indexed category, uint256 traitIndex, string name, uint16 probability);
+    event TraitPointerUpdated(uint8 indexed characterType, uint8 indexed category, uint256 indexed traitIndex, address newPointer);
     event OneOfOneSet(uint256 indexed tokenId, string characterName);
     event PlaceholderSvgSet(address indexed pointer);
     event Revealed();
@@ -279,6 +280,23 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         }
     }
 
+    function updateTraitPointer(
+        uint8 characterType,
+        uint8 category,
+        uint256 traitIndex,
+        address newFileStorePointer
+    ) external onlyOwner {
+        if (characterType > uint8(CharacterType.ONE_OF_ONE)) revert InvalidCharacterType();
+        if (category >= CATEGORY_COUNT) revert InvalidCategory();
+        if (newFileStorePointer == address(0)) revert InvalidPointer();
+
+        TraitConfig[] storage arr = traits[characterType][category];
+        if (traitIndex == 0 || traitIndex > arr.length) revert InvalidTraitIndex();
+
+        arr[traitIndex - 1].svgContract = newFileStorePointer;
+        emit TraitPointerUpdated(characterType, category, traitIndex, newFileStorePointer);
+    }
+
     function setOneOfOne(
         uint256 tokenId,
         string calldata characterName,
@@ -350,6 +368,10 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     {
         OneOfOneData storage ooo = oneOfOnes[tokenId];
         return (ooo.characterName, ooo.completeSvgContract, ooo.exists);
+    }
+
+    function traitCount(uint8 characterType, uint8 category) external view returns (uint256) {
+        return traits[characterType][category].length;
     }
 
     // =============================================================
