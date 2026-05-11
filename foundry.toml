@@ -6,7 +6,7 @@ fallback_oz = true
 is_system = false
 mode = "3"
 optimizer = true
-optimizer_runs = 200
+optimizer_runs = 100
 via_ir = true
 solc = "0.8.28"
 

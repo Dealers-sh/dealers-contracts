@@ -48,7 +48,7 @@ contract PlayerJourneyTest is BaseTest {
             uint256 prevrandao = attemptCount * 12345;
             vm.prevrandao(bytes32(prevrandao));
 
-            try pve.playGame(
+            try pve.commitGame(
                 tokenId,
                 0,
                 IDealersPVE.HustleType.BUY,
@@ -96,7 +96,7 @@ contract PlayerJourneyTest is BaseTest {
 
         for (uint8 i = 0; i < 3; i++) {
             vm.prevrandao(bytes32(uint256(i * 999 + 50)));
-            try pve.playGame(
+            try pve.commitGame(
                 tokenId,
                 0,
                 IDealersPVE.HustleType.BUY,
@@ -123,7 +123,7 @@ contract PlayerJourneyTest is BaseTest {
         }
 
         vm.prevrandao(bytes32(uint256(12345)));
-        try pve.playGame(
+        try pve.commitGame(
             tokenId,
             0,
             IDealersPVE.HustleType.BUY,
@@ -155,7 +155,7 @@ contract PlayerJourneyTest is BaseTest {
 
             uint256 snapshotId = vm.snapshotState();
 
-            try pvp.attack(token1, token2) {
+            try pvp.commitAttack(token1, token2) {
                 if (!core.getGameState(token1).isJailed) {
                     attackSucceeded = true;
                     break;
@@ -183,7 +183,7 @@ contract PlayerJourneyTest is BaseTest {
 
         vm.prank(player1);
         vm.prevrandao(bytes32(uint256(88888)));
-        pvp.attack(token1, token2);
+        pvp.commitAttack(token1, token2);
     }
 
     function test_journey_multipleNFTsPerPlayer() public {

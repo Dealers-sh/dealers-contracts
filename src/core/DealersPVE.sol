@@ -8,6 +8,7 @@ import "./IDealersCore.sol";
 import "../utils/IAreaRegistry.sol";
 import "../utils/IERC721Minimal.sol";
 import "../utils/IDealersRandomness.sol";
+import {IActionsArrest} from "../utils/IActionsArrest.sol";
 
 /**
  * @title DealersPVE - Player vs Environment Game Module
@@ -29,6 +30,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     IERC721Minimal public dealersNFT;
     IAreaRegistry public areaRegistry;
     IDealersRandomness public randomness;
+    IActionsArrest public actions;
 
     uint8 public tieChance = 50;
     uint8 public winChance = 20;
@@ -38,6 +40,21 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     bool public paused;
 
     mapping(uint256 => PveStats) public dealerPveStats;
+
+    struct PveRound {
+        uint256 tokenId;
+        address player;
+        uint8 choice;
+        HustleType hustleType;
+        uint256 drugId;
+        uint256 amount;
+        uint256 buyPrice;
+        uint256 sellPrice;
+        uint8 areaAtCommit;
+    }
+
+    mapping(uint64 => PveRound) public pendingRounds;
+    mapping(uint256 => uint64) public activePveRoundOf;
 
     // =============================================================
     //                            EVENTS
@@ -55,7 +72,9 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         int256 cashChange,
         int256 reputationChange,
         int256 drugBalanceChange,
-        uint8 newHeatLevel
+        uint8 newHeatLevel,
+        uint256 stakedCash,
+        uint256 stakedDrug
     );
 
     event DealerArrested(
@@ -64,10 +83,25 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         uint16 jailChance
     );
 
+    event GameCommitted(
+        uint64 indexed seq,
+        uint256 indexed tokenId,
+        address indexed player,
+        uint8 choice,
+        HustleType hustleType,
+        uint256 drugId,
+        uint256 amount,
+        uint256 price,
+        int256 cashDelta,
+        int256 drugDelta
+    );
+    event GameExpired(uint64 indexed seq, uint256 indexed tokenId);
+
     event CoreContractUpdated(address indexed oldCore, address indexed newCore);
     event NFTContractUpdated(address indexed oldNFT, address indexed newNFT);
     event AreaRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
     event RandomnessUpdated(address indexed oldRandomness, address indexed newRandomness);
+    event ActionsUpdated(address indexed oldActions, address indexed newActions);
 
     event Paused(address account);
     event Unpaused(address account);
@@ -95,6 +129,8 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     error InvalidDivisor();
     error NoAttemptsRemaining();
     error DealerInBlackMarket();
+    error RoundPending();
+    error UnknownRound();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -116,7 +152,8 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
             address(dealersCore) == address(0) ||
             address(dealersNFT) == address(0) ||
             address(areaRegistry) == address(0) ||
-            address(randomness) == address(0)
+            address(randomness) == address(0) ||
+            address(actions) == address(0)
         ) {
             revert ContractNotSet();
         }
@@ -143,14 +180,15 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     // =============================================================
 
     /**
-     * @notice Play a hustle round — pick a move, buy or sell drugs, and face the house
+     * @notice Commit to a hustle round — debits stake + attempt; outcome resolved later.
      * @param tokenId The dealer NFT token ID
      * @param choice Player's move: 0 = DEAL, 1 = THREATEN, 2 = BAIL
      * @param hustleType Whether the dealer is buying or selling drugs
      * @param drugId The drug being traded
      * @param amount Quantity of drugs to stake
+     * @return seq Sequence number to pass to resolveGame
      */
-    function playGame(
+    function commitGame(
         uint256 tokenId,
         uint8 choice,
         HustleType hustleType,
@@ -163,7 +201,10 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         contractsSet
         validChoice(choice)
         onlyDealerOwner(tokenId)
+        returns (uint64 seq)
     {
+        if (activePveRoundOf[tokenId] != 0) revert RoundPending();
+
         IDealersCore.GameState memory state = dealersCore.getGameState(tokenId);
 
         if (!state.isInitialized) revert DealerNotInitialized();
@@ -176,120 +217,146 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         (uint256 buyPrice, uint256 sellPrice, bool found) = _getDrugPricing(state.currentArea, drugId);
         if (!found) revert DrugNotAvailableInArea();
 
-        uint256 stakeValue;
+        IDealersCore.GameOutcome memory commitOutcome;
+        commitOutcome.useAttempt = true;
+        commitOutcome.drugId = drugId;
+
         if (hustleType == HustleType.BUY) {
-            stakeValue = amount * buyPrice;
+            uint256 stakeValue = amount * buyPrice;
             if (state.cashBalance < stakeValue) revert InsufficientCash();
+            commitOutcome.cashDelta = -int256(stakeValue);
         } else {
             if (dealersCore.getDrugBalance(tokenId, drugId) < amount) revert InsufficientDrugs();
-            stakeValue = amount * sellPrice;
+            commitOutcome.drugDelta = -int256(amount);
         }
 
-        bytes32 seed = keccak256(abi.encodePacked(tokenId, msg.sender, block.timestamp));
-        uint256[] memory rngValues = randomness.getRandomValues(seed, 2);
-        if (rngValues[0] == 0) revert RandomnessError();
+        dealersCore.applyGameOutcome(tokenId, commitOutcome);
 
-        if (_checkAndProcessArrest(tokenId, state, rngValues[0], hustleType, drugId, amount, stakeValue)) {
+        seq = randomness.commit();
+        pendingRounds[seq] = PveRound({
+            tokenId: tokenId,
+            player: msg.sender,
+            choice: choice,
+            hustleType: hustleType,
+            drugId: drugId,
+            amount: amount,
+            buyPrice: buyPrice,
+            sellPrice: sellPrice,
+            areaAtCommit: state.currentArea
+        });
+        activePveRoundOf[tokenId] = seq;
+
+        emit GameCommitted(
+            seq,
+            tokenId,
+            msg.sender,
+            choice,
+            hustleType,
+            drugId,
+            amount,
+            hustleType == HustleType.BUY ? buyPrice : sellPrice,
+            commitOutcome.cashDelta,
+            commitOutcome.drugDelta
+        );
+    }
+
+    /**
+     * @notice Resolve a previously committed round. Anyone may call.
+     * @dev On expiry the stake is fully refunded; the attempt is forfeit.
+     */
+    function resolveGame(uint64 seq) external nonReentrant {
+        PveRound memory r = pendingRounds[seq];
+        if (r.tokenId == 0) revert UnknownRound();
+
+        delete pendingRounds[seq];
+        delete activePveRoundOf[r.tokenId];
+
+        if (randomness.isExpired(seq)) {
+            if (r.hustleType == HustleType.BUY) {
+                dealersCore.addCash(r.tokenId, r.amount * r.buyPrice);
+            } else {
+                dealersCore.updateDrugBalance(r.tokenId, r.drugId, int256(r.amount));
+            }
+            emit GameExpired(seq, r.tokenId);
             return;
         }
 
-        _processHustleGame(tokenId, state, choice, hustleType, drugId, amount, buyPrice, sellPrice, rngValues[1]);
-    }
+        uint256 rand = randomness.reveal(seq);
+        uint256 arrestRng = rand & 0xFFFF;
+        uint256 outcomeRng = (rand >> 16) & 0xFFFF;
+        uint256 confiscRng = (rand >> 64) & 0xFFFF;
 
-    function _checkAndProcessArrest(
-        uint256 tokenId,
-        IDealersCore.GameState memory state,
-        uint256 rng,
-        HustleType hustleType,
-        uint256 drugId,
-        uint256 amount,
-        uint256 stakeValue
-    ) private returns (bool) {
-        if (dealersCore.rollJailCheck(tokenId, rng)) {
-            IDealersCore.GameOutcome memory outcome;
-            outcome.useAttempt = true;
-            outcome.incrementHeat = true;
-            outcome.sendToJail = true;
-
-            if (hustleType == HustleType.BUY) {
-                outcome.cashDelta = -int256(stakeValue);
-            } else {
-                outcome.drugId = drugId;
-                outcome.drugDelta = -int256(amount);
-            }
-
-            dealersCore.applyGameOutcome(tokenId, outcome);
-
-            emit DealerArrested(tokenId, msg.sender, state.jailChance);
-            return true;
+        if (dealersCore.rollJailCheck(r.tokenId, arrestRng)) {
+            uint16 jailChanceAtResolve = dealersCore.getGameState(r.tokenId).jailChance;
+            actions.arrest(r.tokenId, confiscRng);
+            emit DealerArrested(r.tokenId, r.player, jailChanceAtResolve);
+            return;
         }
-        return false;
-    }
 
-    function _processHustleGame(
-        uint256 tokenId,
-        IDealersCore.GameState memory state,
-        uint8 choice,
-        HustleType hustleType,
-        uint256 drugId,
-        uint256 amount,
-        uint256 buyPrice,
-        uint256 sellPrice,
-        uint256 rng
-    ) private {
-        uint8 roll = uint8(rng % 100);
-        (uint8 houseChoice, uint8 gameOutcome) = _calculateBiasedHouseChoice(roll, choice);
+        IDealersCore.GameState memory live = dealersCore.getGameState(r.tokenId);
+        uint8 roll = uint8(outcomeRng % 100);
+        (uint8 houseChoice, uint8 gameOutcome) = _calculateBiasedHouseChoice(roll, r.choice);
 
         unchecked {
-            PveStats storage stats = dealerPveStats[tokenId];
+            PveStats storage stats = dealerPveStats[r.tokenId];
             if (gameOutcome == 0) stats.wins++;
             else if (gameOutcome == 1) stats.ties++;
             else stats.losses++;
-            if (choice == 0) stats.dealChoices++;
-            else if (choice == 1) stats.threatenChoices++;
+            if (r.choice == 0) stats.dealChoices++;
+            else if (r.choice == 1) stats.threatenChoices++;
             else stats.bailChoices++;
         }
-
-        IDealersCore.GameOutcome memory outcome;
-        outcome.useAttempt = true;
-        outcome.incrementHeat = true;
-        outcome.drugId = drugId;
 
         int256 repChange;
         int256 cashChange;
         int256 drugChange;
 
-        if (hustleType == HustleType.BUY) {
-            (repChange, cashChange, drugChange) = _computeBuyOutcome(
-                state, gameOutcome, amount, buyPrice
-            );
+        if (r.hustleType == HustleType.BUY) {
+            (repChange, cashChange, drugChange) = _computeBuyOutcome(live, gameOutcome, r.amount, r.buyPrice);
+            // Stake was debited at commit. On WIN we keep cash (refund stake);
+            // on TIE/LOSS the stake stays gone, so the post-commit cash debit becomes 0.
+            if (gameOutcome == 0) {
+                cashChange = int256(r.amount * r.buyPrice);
+            } else {
+                cashChange = 0;
+            }
         } else {
-            (repChange, cashChange, drugChange) = _computeSellOutcome(
-                state, gameOutcome, amount, sellPrice
-            );
+            (repChange, cashChange, drugChange) = _computeSellOutcome(live, gameOutcome, r.amount, r.sellPrice);
+            // Drugs were debited at commit. On LOSS, drugs stay gone; on WIN we keep drugs (refund).
+            // _computeSellOutcome returns drugChange = 0 (WIN) or -amount (TIE/LOSS).
+            if (drugChange == 0) {
+                drugChange = int256(r.amount);
+            } else {
+                drugChange = 0;
+            }
         }
 
+        IDealersCore.GameOutcome memory outcome;
+        outcome.incrementHeat = true;
+        outcome.drugId = r.drugId;
         outcome.repDelta = repChange;
         outcome.cashDelta = cashChange;
         outcome.drugDelta = drugChange;
 
-        dealersCore.applyGameOutcome(tokenId, outcome);
+        dealersCore.applyGameOutcome(r.tokenId, outcome);
 
-        uint8 newHeatLevel = dealersCore.getEffectiveHeat(tokenId);
+        uint8 newHeatLevel = dealersCore.getEffectiveHeat(r.tokenId);
 
         emit GamePlayed(
-            tokenId,
-            msg.sender,
-            choice,
+            r.tokenId,
+            r.player,
+            r.choice,
             houseChoice,
             gameOutcome,
-            hustleType,
-            drugId,
-            amount,
+            r.hustleType,
+            r.drugId,
+            r.amount,
             cashChange,
             repChange,
             drugChange,
-            newHeatLevel
+            newHeatLevel,
+            r.hustleType == HustleType.BUY ? r.amount * r.buyPrice : 0,
+            r.hustleType == HustleType.BUY ? 0 : r.amount
         );
     }
 
@@ -505,6 +572,17 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         address old = address(randomness);
         randomness = IDealersRandomness(_randomness);
         emit RandomnessUpdated(old, _randomness);
+    }
+
+    /**
+     * @notice Set the DealersActions contract used to delegate arrest policy
+     * @param _actions Address of the DealersActions contract
+     */
+    function setActions(address _actions) external onlyOwner {
+        if (_actions == address(0)) revert InvalidAddress();
+        address old = address(actions);
+        actions = IActionsArrest(_actions);
+        emit ActionsUpdated(old, _actions);
     }
 
     /**

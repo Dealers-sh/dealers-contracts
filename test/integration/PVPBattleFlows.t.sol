@@ -26,17 +26,9 @@ contract PVPBattleFlowsTest is BaseTest {
         vm.warp(1 hours + 1);
     }
 
-    function _mockRandomValues(uint256 jailRng, uint256 winRng, uint256 drugRng) internal {
-        uint256[] memory values = new uint256[](4);
-        values[0] = jailRng;
-        values[1] = winRng;
-        values[2] = drugRng;
-        values[3] = 0; // no drop
-        vm.mockCall(
-            address(randomness),
-            abi.encodeWithSignature("getRandomValues(bytes32,uint8)"),
-            abi.encode(values)
-        );
+    function _execAttack(uint16 jailRng, uint16 winRng, uint16 drugRng) internal {
+        uint256 rand = _packRand(jailRng, winRng, drugRng, 0, 0);
+        _commitAndResolvePvp(player1, attackerToken, defenderToken, rand);
     }
 
     function test_pvpFlow_attackerWins() public {
@@ -46,10 +38,7 @@ contract PVPBattleFlowsTest is BaseTest {
         uint256 defenderWeedBefore = core.getDrugBalance(defenderToken, DRUG_WEED);
         uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
 
-        _mockRandomValues(50, 0, 10);
-
-        vm.prank(player1);
-        pvp.attack(attackerToken, defenderToken);
+        _execAttack(999, 0, 10);
 
         uint256 defenderWeedAfter = core.getDrugBalance(defenderToken, DRUG_WEED);
         uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
@@ -69,10 +58,7 @@ contract PVPBattleFlowsTest is BaseTest {
 
         uint256 attackerWeedBefore = core.getDrugBalance(attackerToken, DRUG_WEED);
 
-        _mockRandomValues(50, 99, 10);
-
-        vm.prank(player1);
-        pvp.attack(attackerToken, defenderToken);
+        _execAttack(999, 99, 10);
 
         uint256 attackerWeedAfter = core.getDrugBalance(attackerToken, DRUG_WEED);
 
@@ -85,12 +71,9 @@ contract PVPBattleFlowsTest is BaseTest {
             core.incrementHeatLevel(attackerToken);
         }
 
-        _mockRandomValues(0, 0, 0);
-
         uint256 defenderWeedBefore = core.getDrugBalance(defenderToken, DRUG_WEED);
 
-        vm.prank(player1);
-        pvp.attack(attackerToken, defenderToken);
+        _execAttack(0, 0, 0);
 
         assertTrue(core.getGameState(attackerToken).isJailed, "Attacker should be in jail");
         assertEq(
@@ -116,22 +99,22 @@ contract PVPBattleFlowsTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVP.DifferentArea.selector);
-        pvp.attack(brooklynToken, defenderToken);
+        pvp.commitAttack(brooklynToken, defenderToken);
     }
 
     function test_pvpFlow_cannotAttackSelf() public {
         vm.prank(player1);
         vm.expectRevert(DealersPVP.SameDealer.selector);
-        pvp.attack(attackerToken, attackerToken);
+        pvp.commitAttack(attackerToken, attackerToken);
     }
 
     function test_pvpFlow_cannotAttackFromJail() public {
         vm.prank(owner);
-        core.sendToJail(attackerToken);
+        core.forceMove(attackerToken, core.JAIL_AREA());
 
         vm.prank(player1);
         vm.expectRevert(DealersPVP.DealerInJail.selector);
-        pvp.attack(attackerToken, defenderToken);
+        pvp.commitAttack(attackerToken, defenderToken);
     }
 
     function test_pvpFlow_cannotAttackFromSafeHouse() public {
@@ -147,16 +130,16 @@ contract PVPBattleFlowsTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVP.DealerInSafeHouse.selector);
-        pvp.attack(safeToken, defenderToken);
+        pvp.commitAttack(safeToken, defenderToken);
     }
 
     function test_pvpFlow_cannotAttackJailedDealer() public {
         vm.prank(owner);
-        core.sendToJail(defenderToken);
+        core.forceMove(defenderToken, core.JAIL_AREA());
 
         vm.prank(player1);
         vm.expectRevert(DealersPVP.DealerInJail.selector);
-        pvp.attack(attackerToken, defenderToken);
+        pvp.commitAttack(attackerToken, defenderToken);
     }
 
     function test_pvpFlow_winChanceCalculation() public {
@@ -181,10 +164,7 @@ contract PVPBattleFlowsTest is BaseTest {
     function test_pvpFlow_reputationChanges() public {
         (, uint256 attackerRepBefore, , , , ) = core.getDealerData(attackerToken);
 
-        _mockRandomValues(50, 0, 10);
-
-        vm.prank(player1);
-        pvp.attack(attackerToken, defenderToken);
+        _execAttack(999, 0, 10);
 
         (, uint256 attackerRepAfter, , , , ) = core.getDealerData(attackerToken);
         assertTrue(attackerRepAfter != attackerRepBefore, "Reputation should change after battle");

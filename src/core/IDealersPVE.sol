@@ -53,11 +53,15 @@ interface IDealersPVE {
     //                    STATE-MODIFYING FUNCTIONS
     // =============================================================
 
-    function playGame(
+    /// @notice Commit a hustle round; outcome is revealed in a later tx
+    function commitGame(
         uint256 tokenId,
         uint8 choice,
         HustleType hustleType,
         uint256 drugId,
         uint256 amount
-    ) external;
+    ) external returns (uint64 seq);
+
+    /// @notice Resolve a previously committed hustle round (anyone may call)
+    function resolveGame(uint64 seq) external;
 }

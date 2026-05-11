@@ -78,7 +78,6 @@ interface IDealersCore {
         int256 drugDelta;
         int256 cashDelta;
         bool incrementHeat;
-        bool sendToJail;
         bool useAttempt;
     }
 
@@ -173,11 +172,12 @@ interface IDealersCore {
     /// @notice Increment a dealer's heat level
     function incrementHeatLevel(uint256 tokenId) external;
 
-    /// @notice Send a dealer to jail
-    function sendToJail(uint256 tokenId) external;
-
     /// @notice Set a dealer's threat and armor stats
     function setDealerStats(uint256 tokenId, uint8 threat, uint8 armor) external;
+
+    /// @notice Pick one drug a dealer is currently holding, indexed by `rng`
+    /// @dev Returns (0, 0) if the dealer holds no drugs. Caller supplies entropy.
+    function pickHeldDrugByRng(uint256 tokenId, uint256 rng) external view returns (uint256 drugId, uint256 balance);
 
     /// @notice Apply a boost to a dealer, returns the expiry timestamp
     function applyBoost(

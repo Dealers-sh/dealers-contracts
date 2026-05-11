@@ -20,7 +20,6 @@ interface IVerifyCore {
     function areaRegistry() external view returns (address);
     function nftContract() external view returns (address);
     function paymentHandler() external view returns (address);
-    function randomness() external view returns (address);
     function authorizedContracts(address) external view returns (bool);
     function owner() external view returns (address);
 }
@@ -59,6 +58,7 @@ interface IVerifyPVP {
     function areaRegistry() external view returns (address);
     function drugRegistry() external view returns (address);
     function randomness() external view returns (address);
+    function actions() external view returns (address);
     function owner() external view returns (address);
 }
 
@@ -67,6 +67,7 @@ interface IVerifyPVE {
     function dealersNFT() external view returns (address);
     function areaRegistry() external view returns (address);
     function randomness() external view returns (address);
+    function actions() external view returns (address);
     function owner() external view returns (address);
 }
 
@@ -80,6 +81,7 @@ interface IVerifyBoosts {
 interface IVerifyActions {
     function paymentHandler() external view returns (address);
     function randomness() external view returns (address);
+    function authorizedJailers(address) external view returns (bool);
     function owner() external view returns (address);
 }
 
@@ -150,7 +152,7 @@ contract VerifyConfig is DeployBase {
         _checkRef("    areaRegistry", c.areaRegistry(), areaRegistry);
         _checkRef("    nftContract", c.nftContract(), nft);
         _checkRef("    paymentHandler", c.paymentHandler(), paymentHandler);
-        _checkRef("    randomness", c.randomness(), randomness);
+        // Note: Core no longer references randomness post commit-reveal migration
 
         console.log("  Authorizations:");
         _checkAuth("    PVE", c.authorizedContracts(pve), pve);
@@ -270,6 +272,7 @@ contract VerifyConfig is DeployBase {
         _checkRef("    dealersNFT", p.dealersNFT(), nft);
         _checkRef("    areaRegistry", p.areaRegistry(), areaRegistry);
         _checkRef("    randomness", p.randomness(), randomness);
+        _checkRef("    actions", p.actions(), actions);
 
         console.log("  Owner:", p.owner());
         console.log("");
@@ -293,6 +296,7 @@ contract VerifyConfig is DeployBase {
         _checkRef("    areaRegistry", p.areaRegistry(), areaRegistry);
         _checkRef("    drugRegistry", p.drugRegistry(), drugRegistry);
         _checkRef("    randomness", p.randomness(), randomness);
+        _checkRef("    actions", p.actions(), actions);
 
         console.log("  Owner:", p.owner());
         console.log("");
@@ -335,6 +339,10 @@ contract VerifyConfig is DeployBase {
         _checkRef("    paymentHandler", a.paymentHandler(), paymentHandler);
         _checkRef("    randomness", a.randomness(), randomness);
 
+        console.log("  Jailer Authorizations:");
+        if (pve != address(0)) _checkAuth("    PVE", a.authorizedJailers(pve), pve);
+        if (pvp != address(0)) _checkAuth("    PVP", a.authorizedJailers(pvp), pvp);
+
         console.log("  Owner:", a.owner());
         console.log("");
     }
@@ -373,8 +381,7 @@ contract VerifyConfig is DeployBase {
 
         IVerifyRandomness r = IVerifyRandomness(randomness);
 
-        console.log("  Authorizations:");
-        _checkAuth("    Core", r.isAuthorizedResolver(core), core);
+        console.log("  Authorizations (Core no longer consumes randomness post-migration):");
         _checkAuth("    PVE", r.isAuthorizedResolver(pve), pve);
         _checkAuth("    PVP", r.isAuthorizedResolver(pvp), pvp);
         if (actions != address(0)) _checkAuth("    Actions", r.isAuthorizedResolver(actions), actions);

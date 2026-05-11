@@ -221,7 +221,6 @@ contract DeployAll is DeployBase {
         _setIfDifferent(c.areaRegistry(), areaRegistry, c.setAreaRegistry);
         _setIfDifferent(c.nftContract(), nft, c.setNFTContract);
         _setIfDifferent(c.paymentHandler(), paymentHandler, c.setPaymentHandler);
-        _setIfDifferent(c.randomness(), randomness, c.setRandomness);
 
         // Core authorizations
         _authorizeIfNeeded(c, pve);
@@ -245,12 +244,18 @@ contract DeployAll is DeployBase {
         IAreaRegistry areaReg = IAreaRegistry(areaRegistry);
         if (areaReg.coreContract() != core) areaReg.setCoreContract(core);
 
-        // Randomness authorizations
+        // Randomness authorizations (Core no longer consumes randomness)
         IRandomness rng = IRandomness(randomness);
-        if (!rng.isAuthorizedResolver(core)) rng.authorizeResolver(core, true);
         if (!rng.isAuthorizedResolver(pve)) rng.authorizeResolver(pve, true);
         if (!rng.isAuthorizedResolver(pvp)) rng.authorizeResolver(pvp, true);
         if (actions != address(0) && !rng.isAuthorizedResolver(actions)) rng.authorizeResolver(actions, true);
+
+        // DealersActions jailer authorizations (centralized arrest policy)
+        if (actions != address(0)) {
+            IActionsContract actionsAuth = IActionsContract(actions);
+            if (!actionsAuth.authorizedJailers(pve)) actionsAuth.authorizeJailer(pve, true);
+            if (!actionsAuth.authorizedJailers(pvp)) actionsAuth.authorizeJailer(pvp, true);
+        }
 
         // Module references
         IDealersNFT nftC = IDealersNFT(nft);
@@ -265,12 +270,18 @@ contract DeployAll is DeployBase {
         _setIfDifferent(pveC.dealersCore(), core, pveC.setDealersCore);
         _setIfDifferent(pveC.areaRegistry(), areaRegistry, pveC.setAreaRegistry);
         _setIfDifferent(pveC.randomness(), randomness, pveC.setRandomness);
+        if (actions != address(0)) {
+            _setIfDifferent(pveC.actions(), actions, pveC.setActions);
+        }
 
         IPVPContract pvpC = IPVPContract(pvp);
         _setIfDifferent(pvpC.core(), core, pvpC.setCore);
         _setIfDifferent(pvpC.areaRegistry(), areaRegistry, pvpC.setAreaRegistry);
         _setIfDifferent(pvpC.drugRegistry(), drugRegistry, pvpC.setDrugRegistry);
         _setIfDifferent(pvpC.randomness(), randomness, pvpC.setRandomness);
+        if (actions != address(0)) {
+            _setIfDifferent(pvpC.actions(), actions, pvpC.setActions);
+        }
 
         if (claims != address(0)) {
             IClaimsContract claimsC = IClaimsContract(claims);

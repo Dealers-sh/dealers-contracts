@@ -11,6 +11,7 @@ import "../../src/utils/DealersDrugRegistry.sol";
 import "../../src/utils/DealersAreaRegistry.sol";
 import "../../src/utils/DealersPaymentHandler.sol";
 import "../../src/utils/DealersRandomness.sol";
+import "../../src/utils/IDealersRandomness.sol";
 import "../../src/core/DealersActions.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
@@ -81,10 +82,10 @@ contract DealersPVETest is Test, IERC721Receiver {
         core.setPaymentHandler(address(paymentHandler));
         core.setDrugRegistry(address(drugRegistry));
         core.setAreaRegistry(address(areaRegistry));
-        core.setRandomness(address(randomness));
 
         nft.setDealersCore(address(core));
         pve.setRandomness(address(randomness));
+        pve.setActions(address(actions));
 
         core.authorizeContract(address(nft), true);
         core.authorizeContract(address(pve), true);
@@ -93,9 +94,9 @@ contract DealersPVETest is Test, IERC721Receiver {
         areaRegistry.setCoreContract(address(core));
         paymentHandler.authorizeContract(address(core), true);
         paymentHandler.authorizeContract(address(actions), true);
-        randomness.authorizeResolver(address(core), true);
         randomness.authorizeResolver(address(pve), true);
         randomness.authorizeResolver(address(actions), true);
+        actions.authorizeJailer(address(pve), true);
 
         _setupReputationTiers();
 
@@ -105,6 +106,110 @@ contract DealersPVETest is Test, IERC721Receiver {
 
     function _isInJail(uint256 tokenId) internal view returns (bool) {
         return core.getGameState(tokenId).isJailed;
+    }
+
+    // =========================================================================
+    //              COMMIT-REVEAL HELPERS (local copy of BaseTest)
+    // =========================================================================
+
+    uint16 internal constant ARREST_RNG_NO  = 999;
+    uint16 internal constant ARREST_RNG_YES = 0;
+    uint16 internal constant OUTCOME_RNG_TIE  = 30;
+    uint16 internal constant OUTCOME_RNG_WIN  = 60;
+    uint16 internal constant OUTCOME_RNG_LOSS = 99;
+
+    function _packRand(
+        uint16 arrestRng,
+        uint16 outcomeRng,
+        uint16 drugRng,
+        uint16 dropRng,
+        uint16 confiscRng
+    ) internal pure returns (uint256) {
+        return uint256(arrestRng)
+            | (uint256(outcomeRng) << 16)
+            | (uint256(drugRng) << 32)
+            | (uint256(dropRng) << 48)
+            | (uint256(confiscRng) << 64);
+    }
+
+    function _randPveOutcome(uint16 outcomeRng) internal pure returns (uint256) {
+        return _packRand(ARREST_RNG_NO, outcomeRng, 0, 0, 0);
+    }
+
+    function _randPveArrest() internal pure returns (uint256) {
+        return _packRand(ARREST_RNG_YES, 0, 0, 0, 0);
+    }
+
+    function _advanceToRevealable(uint64 /*seq*/) internal {
+        vm.roll(block.number + uint256(randomness.REVEAL_OFFSET()) + 1);
+    }
+
+    function _mockReveal(uint64 seq, uint256 mockedRand) internal {
+        vm.mockCall(
+            address(randomness),
+            abi.encodeWithSelector(IDealersRandomness.reveal.selector, seq),
+            abi.encode(mockedRand)
+        );
+    }
+
+    function _commitAndResolvePve(
+        address player,
+        uint256 tokenId,
+        uint8 choice,
+        IDealersPVE.HustleType ht,
+        uint256 drugId,
+        uint256 amount,
+        uint256 mockedRand
+    ) internal returns (uint64 seq) {
+        vm.prank(player);
+        seq = pve.commitGame(tokenId, choice, ht, drugId, amount);
+        _mockReveal(seq, mockedRand);
+        _advanceToRevealable(seq);
+        pve.resolveGame(seq);
+    }
+
+    function _pveWin(
+        address player,
+        uint256 tokenId,
+        uint8 choice,
+        IDealersPVE.HustleType ht,
+        uint256 drugId,
+        uint256 amount
+    ) internal returns (uint64) {
+        return _commitAndResolvePve(player, tokenId, choice, ht, drugId, amount, _randPveOutcome(OUTCOME_RNG_WIN));
+    }
+
+    function _pveTie(
+        address player,
+        uint256 tokenId,
+        uint8 choice,
+        IDealersPVE.HustleType ht,
+        uint256 drugId,
+        uint256 amount
+    ) internal returns (uint64) {
+        return _commitAndResolvePve(player, tokenId, choice, ht, drugId, amount, _randPveOutcome(OUTCOME_RNG_TIE));
+    }
+
+    function _pveLoss(
+        address player,
+        uint256 tokenId,
+        uint8 choice,
+        IDealersPVE.HustleType ht,
+        uint256 drugId,
+        uint256 amount
+    ) internal returns (uint64) {
+        return _commitAndResolvePve(player, tokenId, choice, ht, drugId, amount, _randPveOutcome(OUTCOME_RNG_LOSS));
+    }
+
+    function _pveArrest(
+        address player,
+        uint256 tokenId,
+        uint8 choice,
+        IDealersPVE.HustleType ht,
+        uint256 drugId,
+        uint256 amount
+    ) internal returns (uint64) {
+        return _commitAndResolvePve(player, tokenId, choice, ht, drugId, amount, _randPveArrest());
     }
 
     function _setupReputationTiers() internal {
@@ -213,7 +318,7 @@ contract DealersPVETest is Test, IERC721Receiver {
 
     function _sendDealerToJail(uint256 tokenId) internal {
         core.authorizeContract(address(this), true);
-        core.sendToJail(tokenId);
+        core.forceMove(tokenId, core.JAIL_AREA());
         core.authorizeContract(address(this), false);
     }
 
@@ -360,39 +465,21 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         uint8 playerChoice = 0; // DEAL
         uint256 amount = 10;
-        uint256 buyPrice = BUY_PRICE_WEED;
-        uint256 stakeCost = amount * buyPrice;
 
         uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
         uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
         (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
 
-        vm.prank(player1);
-        pve.playGame(DEALER_ID_1, playerChoice, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
+        // Force WIN outcome via mocked rand
+        _pveWin(player1, DEALER_ID_1, playerChoice, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
 
         uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
         uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
         (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
 
-        bool gotArrested = _isInJail(DEALER_ID_1);
-        if (gotArrested) {
-            assertEq(cashAfter, cashBefore - stakeCost, "Arrested should lose stake");
-            return;
-        }
-
-        bool isWin = (cashAfter == cashBefore) && (drugsAfter > drugsBefore);
-        bool isTie = (cashAfter == cashBefore - stakeCost) && (drugsAfter > drugsBefore);
-        bool isLoss = (cashAfter == cashBefore - stakeCost) && (drugsAfter == drugsBefore);
-
-        assertTrue(isWin || isTie || isLoss, "BUY outcome should match one of WIN/TIE/LOSS patterns");
-
-        if (isWin) {
-            assertGt(repAfter, repBefore, "WIN should gain big reputation");
-        } else if (isTie) {
-            assertGt(repAfter, repBefore, "TIE should gain small reputation");
-        } else {
-            assertLt(repAfter, repBefore, "LOSS should lose reputation");
-        }
+        assertEq(cashAfter, cashBefore, "WIN: Keep cash");
+        assertGt(drugsAfter, drugsBefore, "WIN: Gain drugs");
+        assertGt(repAfter, repBefore, "WIN should gain reputation");
     }
 
     function test_calculateGameOutcome_threatenBeatsBail() public {
@@ -400,121 +487,57 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         uint8 playerChoice = 1; // THREATEN
         uint256 amount = 10;
-        uint256 buyPrice = BUY_PRICE_WEED;
-        uint256 stakeCost = amount * buyPrice;
 
         uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
         uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
 
-        vm.prank(player1);
-        pve.playGame(DEALER_ID_1, playerChoice, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
+        _pveWin(player1, DEALER_ID_1, playerChoice, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
 
         uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
         uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
 
-        bool gotArrested = _isInJail(DEALER_ID_1);
-        if (gotArrested) {
-            assertEq(cashAfter, cashBefore - stakeCost, "Arrested should lose stake");
-            return;
-        }
-
-        bool isWin = (cashAfter == cashBefore) && (drugsAfter > drugsBefore);
-        bool isTie = (cashAfter == cashBefore - stakeCost) && (drugsAfter > drugsBefore);
-        bool isLoss = (cashAfter == cashBefore - stakeCost) && (drugsAfter == drugsBefore);
-
-        assertTrue(isWin || isTie || isLoss, "BUY outcome should match one of WIN/TIE/LOSS patterns");
+        assertEq(cashAfter, cashBefore, "WIN: Keep cash");
+        assertGt(drugsAfter, drugsBefore, "WIN: Gain drugs");
     }
 
     function test_calculateGameOutcome_winOutcome() public {
         _setupDealerForPlay(DEALER_ID_1);
 
-        uint8 playerChoice = 0;
         uint256 amount = 10;
+        uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
+        uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+        (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
 
-        bool foundWin = false;
-        for (uint256 i = 0; i < 200; i++) {
-            if (_isInJail(DEALER_ID_1)) {
-                core.authorizeContract(address(this), true);
-                core.moveToArea(DEALER_ID_1, AREA_MANHATTAN);
-                core.authorizeContract(address(this), false);
-            }
+        _pveWin(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
 
-            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
-            if (attempts == 0) {
-                vm.prank(player1);
-                actions.purchaseAttemptReset{value: 0.001 ether}(DEALER_ID_1);
-            }
+        (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
+        uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
+        uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
 
-            _addCashToDealer(DEALER_ID_1, amount * BUY_PRICE_WEED);
-            (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
-            uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
-
-            (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
-            uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-
-            // WIN: Keep cash, gain drugs, gain rep
-            if (cashAfter == cashBefore && drugsAfter > drugsBefore && repAfter > repBefore) {
-                foundWin = true;
-                assertGt(repAfter, repBefore, "WIN should gain rep");
-                break;
-            }
-        }
-
-        assertTrue(foundWin, "Should find WIN outcome within 200 attempts");
+        assertEq(cashAfter, cashBefore, "WIN keeps cash");
+        assertGt(drugsAfter, drugsBefore, "WIN gains drugs");
+        assertGt(repAfter, repBefore, "WIN should gain rep");
     }
 
     function test_calculateGameOutcome_tieOutcome() public {
         _setupDealerForPlay(DEALER_ID_1);
 
-        uint8 playerChoice = 0;
         uint256 amount = 10;
         uint256 stakeCost = amount * BUY_PRICE_WEED;
 
-        bool foundTie = false;
-        for (uint256 i = 0; i < 200; i++) {
-            if (_isInJail(DEALER_ID_1)) {
-                core.authorizeContract(address(this), true);
-                core.moveToArea(DEALER_ID_1, AREA_MANHATTAN);
-                core.authorizeContract(address(this), false);
-            }
+        uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
+        uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+        (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
 
-            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
-            if (attempts == 0) {
-                vm.prank(player1);
-                actions.purchaseAttemptReset{value: 0.001 ether}(DEALER_ID_1);
-            }
+        _pveTie(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
 
-            _addCashToDealer(DEALER_ID_1, stakeCost);
-            uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
+        uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
+        uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+        (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
 
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
-
-            if (_isInJail(DEALER_ID_1)) continue;
-
-            uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
-
-            bool isTie = (cashAfter == cashBefore - stakeCost) && (drugsAfter > drugsBefore);
-            if (isTie) {
-                assertLt(cashAfter, cashBefore, "TIE BUY should spend cash");
-                assertGt(repAfter, repBefore, "TIE should still gain small rep");
-                foundTie = true;
-                break;
-            }
-        }
-
-        assertTrue(foundTie, "Should find a TIE outcome within 200 attempts");
+        assertEq(cashAfter, cashBefore - stakeCost, "TIE BUY should spend cash");
+        assertGt(drugsAfter, drugsBefore, "TIE BUY should gain drugs");
+        assertGt(repAfter, repBefore, "TIE should gain small rep");
     }
 
     // =============================================================
@@ -524,142 +547,58 @@ contract DealersPVETest is Test, IERC721Receiver {
     function test_playGame_buyWin_keepCashGetDrugs() public {
         _setupDealerForPlay(DEALER_ID_1);
 
-        uint8 playerChoice = 0; // DEAL
         uint256 amount = 10;
+        uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
+        uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+        (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
 
-        bool foundWin = false;
-        for (uint256 i = 0; i < 100; i++) {
-            if (_isInJail(DEALER_ID_1)) {
-                core.authorizeContract(address(this), true);
-                core.moveToArea(DEALER_ID_1, AREA_MANHATTAN);
-                core.authorizeContract(address(this), false);
-            }
+        _pveWin(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
 
-            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
-            if (attempts == 0) {
-                vm.warp(block.timestamp + 1 days);
-            }
-
-            uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
-
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
-
-            if (_isInJail(DEALER_ID_1)) continue;
-
-            uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
-
-            bool isWin = (cashAfter == cashBefore) && (drugsAfter > drugsBefore);
-            if (isWin) {
-                assertEq(cashAfter, cashBefore, "WIN: Keep cash");
-                assertEq(drugsAfter, drugsBefore + amount, "WIN: Get drugs");
-                assertGt(repAfter, repBefore, "WIN: Big rep gain");
-                foundWin = true;
-                break;
-            }
-        }
-
-        assertTrue(foundWin, "Should find a WIN outcome within 100 attempts");
+        assertEq(core.getCashBalance(DEALER_ID_1), cashBefore, "WIN: Keep cash");
+        assertEq(core.getDrugBalance(DEALER_ID_1, DRUG_WEED), drugsBefore + amount, "WIN: Get drugs");
+        (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
+        assertGt(repAfter, repBefore, "WIN: Big rep gain");
     }
 
     function test_playGame_buyTie_loseCashGetDrugs() public {
         _setupDealerForPlay(DEALER_ID_1);
 
-        uint8 playerChoice = 0;
         uint256 amount = 10;
         uint256 expectedCost = amount * BUY_PRICE_WEED;
 
-        bool foundTie = false;
-        for (uint256 i = 0; i < 200; i++) {
-            if (_isInJail(DEALER_ID_1)) {
-                core.authorizeContract(address(this), true);
-                core.moveToArea(DEALER_ID_1, AREA_MANHATTAN);
-                core.authorizeContract(address(this), false);
-            }
+        uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
+        uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+        (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
 
-            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
-            if (attempts == 0) {
-                vm.prank(player1);
-                actions.purchaseAttemptReset{value: 0.001 ether}(DEALER_ID_1);
-            }
+        _pveTie(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
 
-            _addCashToDealer(DEALER_ID_1, expectedCost);
-            uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
-
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
-
-            if (_isInJail(DEALER_ID_1)) continue;
-
-            uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
-
-            bool isTie = (cashAfter == cashBefore - expectedCost) && (drugsAfter > drugsBefore);
-            if (isTie) {
-                assertEq(cashAfter, cashBefore - expectedCost, "TIE: Lose cash");
-                assertEq(drugsAfter, drugsBefore + amount, "TIE: Get drugs");
-                assertGt(repAfter, repBefore, "TIE: Small rep gain");
-                foundTie = true;
-                break;
-            }
-        }
-
-        assertTrue(foundTie, "Should find a TIE outcome within 200 attempts");
+        assertEq(core.getCashBalance(DEALER_ID_1), cashBefore - expectedCost, "TIE: Lose cash");
+        assertEq(core.getDrugBalance(DEALER_ID_1, DRUG_WEED), drugsBefore + amount, "TIE: Get drugs");
+        (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
+        assertGt(repAfter, repBefore, "TIE: Small rep gain");
     }
 
     function test_playGame_buyLoss_loseCashNoDrugs() public {
         _setupDealerForPlay(DEALER_ID_1);
 
-        uint8 playerChoice = 0;
         uint256 amount = 10;
         uint256 expectedCost = amount * BUY_PRICE_WEED;
 
-        bool foundLoss = false;
+        // Bump rep so LOSS penalty has room to deduct (penalty applied via _calculateScaledRep)
+        core.authorizeContract(address(this), true);
+        core.updateReputation(DEALER_ID_1, 200);
+        core.authorizeContract(address(this), false);
 
-        for (uint256 i = 0; i < 500; i++) {
-            uint256 snapshotId = vm.snapshotState();
+        uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
+        uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+        (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
 
-            uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
+        _pveLoss(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
 
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
-
-            if (_isInJail(DEALER_ID_1)) {
-                vm.revertToState(snapshotId);
-                continue;
-            }
-
-            uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
-
-            bool isLoss = (cashAfter == cashBefore - expectedCost) && (drugsAfter == drugsBefore);
-            if (isLoss) {
-                assertEq(cashAfter, cashBefore - expectedCost, "LOSS: Lose cash");
-                assertEq(drugsAfter, drugsBefore, "LOSS: No drugs");
-                assertLt(repAfter, repBefore, "LOSS: Lose rep");
-                foundLoss = true;
-                break;
-            }
-
-            vm.revertToState(snapshotId);
-        }
-
-        if (!foundLoss) {
-            emit log("Note: BUY LOSS outcome not found within iteration limit - test inconclusive");
-        }
+        assertEq(core.getCashBalance(DEALER_ID_1), cashBefore - expectedCost, "LOSS: Lose cash");
+        assertEq(core.getDrugBalance(DEALER_ID_1, DRUG_WEED), drugsBefore, "LOSS: No drugs");
+        (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
+        assertLt(repAfter, repBefore, "LOSS: Lose rep");
     }
 
     function test_playGame_buyInsufficientCash() public {
@@ -667,7 +606,7 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.InsufficientCash.selector);
-        pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_XTC, 1000);
+        pve.commitGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_XTC, 1000);
     }
 
     function test_playGame_buyZeroAmount_reverts() public {
@@ -675,7 +614,7 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.InvalidAmount.selector);
-        pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 0);
+        pve.commitGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 0);
     }
 
     // =============================================================
@@ -685,143 +624,59 @@ contract DealersPVETest is Test, IERC721Receiver {
     function test_playGame_sellWin_keepDrugsGetCash() public {
         _setupDealerForPlay(DEALER_ID_1);
 
-        uint8 playerChoice = 0; // DEAL
         uint256 amount = 10;
         uint256 expectedCash = amount * SELL_PRICE_WEED;
 
-        bool foundWin = false;
-        for (uint256 i = 0; i < 100; i++) {
-            if (_isInJail(DEALER_ID_1)) {
-                core.authorizeContract(address(this), true);
-                core.moveToArea(DEALER_ID_1, AREA_MANHATTAN);
-                core.authorizeContract(address(this), false);
-            }
+        uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
+        uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+        (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
 
-            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
-            if (attempts == 0) {
-                vm.warp(block.timestamp + 1 days);
-            }
+        _pveWin(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, amount);
 
-            _addDrugsToDealer(DEALER_ID_1, DRUG_WEED, amount);
-            uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
-
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, IDealersPVE.HustleType.SELL, DRUG_WEED, amount);
-
-            if (_isInJail(DEALER_ID_1)) continue;
-
-            uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
-
-            bool isWin = (cashAfter == cashBefore + expectedCash) && (drugsAfter == drugsBefore);
-            if (isWin) {
-                assertEq(cashAfter, cashBefore + expectedCash, "WIN: Get cash");
-                assertEq(drugsAfter, drugsBefore, "WIN: Keep drugs");
-                assertGt(repAfter, repBefore, "WIN: Big rep gain");
-                foundWin = true;
-                break;
-            }
-        }
-
-        assertTrue(foundWin, "Should find a WIN outcome within 100 attempts");
+        assertEq(core.getCashBalance(DEALER_ID_1), cashBefore + expectedCash, "WIN: Get cash");
+        assertEq(core.getDrugBalance(DEALER_ID_1, DRUG_WEED), drugsBefore, "WIN: Keep drugs");
+        (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
+        assertGt(repAfter, repBefore, "WIN: Big rep gain");
     }
 
     function test_playGame_sellTie_loseDrugsGetCash() public {
         _setupDealerForPlay(DEALER_ID_1);
 
-        uint8 playerChoice = 0;
         uint256 amount = 10;
         uint256 expectedCash = amount * SELL_PRICE_WEED;
 
-        bool foundTie = false;
-        for (uint256 i = 0; i < 200; i++) {
-            if (_isInJail(DEALER_ID_1)) {
-                core.authorizeContract(address(this), true);
-                core.moveToArea(DEALER_ID_1, AREA_MANHATTAN);
-                core.authorizeContract(address(this), false);
-            }
+        uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
+        uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+        (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
 
-            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
-            if (attempts == 0) {
-                vm.prank(player1);
-                actions.purchaseAttemptReset{value: 0.001 ether}(DEALER_ID_1);
-            }
+        _pveTie(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, amount);
 
-            _addDrugsToDealer(DEALER_ID_1, DRUG_WEED, amount);
-            uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
-
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, IDealersPVE.HustleType.SELL, DRUG_WEED, amount);
-
-            if (_isInJail(DEALER_ID_1)) continue;
-
-            uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
-
-            bool isTie = (cashAfter == cashBefore + expectedCash) && (drugsAfter == drugsBefore - amount);
-            if (isTie) {
-                assertEq(cashAfter, cashBefore + expectedCash, "TIE: Get cash");
-                assertEq(drugsAfter, drugsBefore - amount, "TIE: Lose drugs");
-                assertGt(repAfter, repBefore, "TIE: Small rep gain");
-                foundTie = true;
-                break;
-            }
-        }
-
-        assertTrue(foundTie, "Should find a TIE outcome within 200 attempts");
+        assertEq(core.getCashBalance(DEALER_ID_1), cashBefore + expectedCash, "TIE: Get cash");
+        assertEq(core.getDrugBalance(DEALER_ID_1, DRUG_WEED), drugsBefore - amount, "TIE: Lose drugs");
+        (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
+        assertGt(repAfter, repBefore, "TIE: Small rep gain");
     }
 
     function test_playGame_sellLoss_loseDrugsNoCash() public {
         _setupDealerForPlay(DEALER_ID_1);
 
-        uint8 playerChoice = 0;
         uint256 amount = 10;
 
-        bool foundLoss = false;
+        // Bump rep so LOSS penalty has room to deduct
+        core.authorizeContract(address(this), true);
+        core.updateReputation(DEALER_ID_1, 200);
+        core.authorizeContract(address(this), false);
 
-        for (uint256 i = 0; i < 500; i++) {
-            uint256 snapshotId = vm.snapshotState();
+        uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
+        uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+        (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
 
-            uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
+        _pveLoss(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, amount);
 
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, IDealersPVE.HustleType.SELL, DRUG_WEED, amount);
-
-            if (_isInJail(DEALER_ID_1)) {
-                vm.revertToState(snapshotId);
-                continue;
-            }
-
-            uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
-
-            bool isLoss = (cashAfter == cashBefore) && (drugsAfter == drugsBefore - amount);
-            if (isLoss) {
-                assertEq(cashAfter, cashBefore, "LOSS: No cash");
-                assertEq(drugsAfter, drugsBefore - amount, "LOSS: Lose drugs");
-                assertLt(repAfter, repBefore, "LOSS: Lose rep");
-                foundLoss = true;
-                break;
-            }
-
-            vm.revertToState(snapshotId);
-        }
-
-        if (!foundLoss) {
-            emit log("Note: SELL LOSS outcome not found within iteration limit - test inconclusive");
-        }
+        assertEq(core.getCashBalance(DEALER_ID_1), cashBefore, "LOSS: No cash");
+        assertEq(core.getDrugBalance(DEALER_ID_1, DRUG_WEED), drugsBefore - amount, "LOSS: Lose drugs");
+        (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
+        assertLt(repAfter, repBefore, "LOSS: Lose rep");
     }
 
     function test_playGame_sellInsufficientDrugs() public {
@@ -830,7 +685,7 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.InsufficientDrugs.selector);
-        pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, 1000);
+        pve.commitGame(DEALER_ID_1, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, 1000);
     }
 
     function test_playGame_sellZeroAmount_reverts() public {
@@ -838,7 +693,7 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.InvalidAmount.selector);
-        pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, 0);
+        pve.commitGame(DEALER_ID_1, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, 0);
     }
 
     // =============================================================
@@ -850,31 +705,9 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         _setHeatLevel(DEALER_ID_1, 5);
 
-        bool arrested = false;
-        for (uint256 i = 0; i < 100; i++) {
-            if (_isInJail(DEALER_ID_1)) {
-                core.authorizeContract(address(this), true);
-                core.moveToArea(DEALER_ID_1, AREA_MANHATTAN);
-                core.authorizeContract(address(this), false);
-            }
+        _pveArrest(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
 
-            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
-            if (attempts == 0) {
-                vm.prank(player1);
-                actions.purchaseAttemptReset{value: 0.001 ether}(DEALER_ID_1);
-            }
-
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
-
-            if (_isInJail(DEALER_ID_1)) {
-                arrested = true;
-                break;
-            }
-        }
-
-        assertTrue(arrested, "Dealer should be in jail after arrest (within 100 attempts)");
+        assertTrue(_isInJail(DEALER_ID_1), "Dealer should be in jail after arrest");
     }
 
     function test_playGame_arrestLosesStake_buy() public {
@@ -885,36 +718,13 @@ contract DealersPVETest is Test, IERC721Receiver {
         uint256 amount = 10;
         uint256 stakeCost = amount * BUY_PRICE_WEED;
 
-        bool arrested = false;
-        for (uint256 i = 0; i < 100; i++) {
-            if (_isInJail(DEALER_ID_1)) {
-                core.authorizeContract(address(this), true);
-                core.moveToArea(DEALER_ID_1, AREA_MANHATTAN);
-                core.authorizeContract(address(this), false);
-            }
+        _addCashToDealer(DEALER_ID_1, stakeCost);
+        uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
 
-            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
-            if (attempts == 0) {
-                vm.prank(player1);
-                actions.purchaseAttemptReset{value: 0.001 ether}(DEALER_ID_1);
-            }
+        _pveArrest(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
 
-            _addCashToDealer(DEALER_ID_1, stakeCost);
-            uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
-
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
-
-            if (_isInJail(DEALER_ID_1)) {
-                uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
-                assertEq(cashAfter, cashBefore - stakeCost, "Arrested BUY loses staked cash");
-                arrested = true;
-                break;
-            }
-        }
-
-        assertTrue(arrested, "Dealer should be in jail (within 100 attempts)");
+        assertTrue(_isInJail(DEALER_ID_1), "Dealer should be in jail");
+        assertEq(core.getCashBalance(DEALER_ID_1), cashBefore - stakeCost, "Arrested BUY loses staked cash");
     }
 
     function test_playGame_arrestLosesStake_sell() public {
@@ -924,36 +734,14 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         uint256 amount = 10;
 
-        bool arrested = false;
-        for (uint256 i = 0; i < 100; i++) {
-            if (_isInJail(DEALER_ID_1)) {
-                core.authorizeContract(address(this), true);
-                core.moveToArea(DEALER_ID_1, AREA_MANHATTAN);
-                core.authorizeContract(address(this), false);
-            }
+        _addDrugsToDealer(DEALER_ID_1, DRUG_WEED, amount);
+        uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
 
-            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
-            if (attempts == 0) {
-                vm.prank(player1);
-                actions.purchaseAttemptReset{value: 0.001 ether}(DEALER_ID_1);
-            }
+        _pveArrest(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, amount);
 
-            _addDrugsToDealer(DEALER_ID_1, DRUG_WEED, amount);
-            uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, amount);
-
-            if (_isInJail(DEALER_ID_1)) {
-                uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-                assertLe(drugsAfter, drugsBefore - amount, "Arrested SELL loses at least staked drugs (+ possible confiscation)");
-                arrested = true;
-                break;
-            }
-        }
-
-        assertTrue(arrested, "Dealer should be in jail (within 100 attempts)");
+        assertTrue(_isInJail(DEALER_ID_1), "Dealer should be in jail");
+        uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+        assertLe(drugsAfter, drugsBefore - amount, "Arrested SELL loses at least staked drugs (+ possible confiscation)");
     }
 
     // =============================================================
@@ -965,43 +753,17 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         _applyBoost(DEALER_ID_1, 1 days, 200, 100, 0, false, false, 100);
 
-        uint8 playerChoice = 0;
         uint256 amount = 10;
         uint256 boostedAmount = (amount * 200) / 100;
 
-        bool foundWin = false;
-        for (uint256 i = 0; i < 200; i++) {
-            if (_isInJail(DEALER_ID_1)) {
-                core.authorizeContract(address(this), true);
-                core.moveToArea(DEALER_ID_1, AREA_MANHATTAN);
-                core.authorizeContract(address(this), false);
-            }
+        _addCashToDealer(DEALER_ID_1, amount * BUY_PRICE_WEED);
+        uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+        uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
 
-            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
-            if (attempts == 0) {
-                vm.prank(player1);
-                actions.purchaseAttemptReset{value: 0.001 ether}(DEALER_ID_1);
-            }
+        _pveWin(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
 
-            _addCashToDealer(DEALER_ID_1, amount * BUY_PRICE_WEED);
-            uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
-
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
-
-            uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
-
-            // WIN: Keep cash, gain boosted drugs
-            if (cashAfter == cashBefore && drugsAfter == drugsBefore + boostedAmount) {
-                foundWin = true;
-                break;
-            }
-        }
-
-        assertTrue(foundWin, "Should find WIN with 2x drug multiplier within 200 attempts");
+        assertEq(core.getCashBalance(DEALER_ID_1), cashBefore, "WIN: Keep cash");
+        assertEq(core.getDrugBalance(DEALER_ID_1, DRUG_WEED), drugsBefore + boostedAmount, "WIN: 2x drugs");
     }
 
     function test_playGame_repMultiplierApplied() public {
@@ -1009,50 +771,17 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         _applyBoost(DEALER_ID_1, 1 days, 100, 200, 0, false, false, 100);
 
-        uint8 playerChoice = 0;
         uint256 amount = 50;
 
-        bool foundWin = false;
-        for (uint256 i = 0; i < 200; i++) {
-            if (_isInJail(DEALER_ID_1)) {
-                core.authorizeContract(address(this), true);
-                core.moveToArea(DEALER_ID_1, AREA_MANHATTAN);
-                core.authorizeContract(address(this), false);
-            }
+        _addCashToDealer(DEALER_ID_1, amount * BUY_PRICE_WEED);
+        (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
 
-            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
-            if (attempts == 0) {
-                vm.prank(player1);
-                actions.purchaseAttemptReset{value: 0.001 ether}(DEALER_ID_1);
-            }
+        _pveWin(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
 
-            _addCashToDealer(DEALER_ID_1, amount * BUY_PRICE_WEED);
-            uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
-
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
-
-            if (_isInJail(DEALER_ID_1)) continue;
-
-            uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
-            uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
-
-            // WIN: keep cash + get drugs
-            bool isWin = (cashAfter == cashBefore) && (drugsAfter > drugsBefore);
-            if (isWin) {
-                uint256 repGain = repAfter - repBefore;
-                // stakeValue=50, divisor=50 → 1x scale. base=10, 2x boost → 20 rep
-                assertEq(repGain, 20, "2x rep multiplier with full stake should give 2x base rep");
-                foundWin = true;
-                break;
-            }
-        }
-
-        assertTrue(foundWin, "Should find a WIN outcome to test rep multiplier");
+        (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
+        uint256 repGain = repAfter - repBefore;
+        // stakeValue=50, divisor=50 → 1x scale. base=10, 2x boost → 20 rep
+        assertEq(repGain, 20, "2x rep multiplier with full stake should give 2x base rep");
     }
 
     function test_playGame_cashMultiplierApplied() public {
@@ -1060,84 +789,32 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         _applyBoost(DEALER_ID_1, 1 days, 100, 100, 0, false, false, 200);
 
-        uint8 playerChoice = 0;
         uint256 amount = 10;
         uint256 boostedCash = (amount * SELL_PRICE_WEED * 200) / 100;
 
-        bool foundWin = false;
-        for (uint256 i = 0; i < 200; i++) {
-            if (_isInJail(DEALER_ID_1)) {
-                core.authorizeContract(address(this), true);
-                core.moveToArea(DEALER_ID_1, AREA_MANHATTAN);
-                core.authorizeContract(address(this), false);
-            }
+        _addDrugsToDealer(DEALER_ID_1, DRUG_WEED, amount);
+        uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+        uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
 
-            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
-            if (attempts == 0) {
-                vm.prank(player1);
-                actions.purchaseAttemptReset{value: 0.001 ether}(DEALER_ID_1);
-            }
+        _pveWin(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, amount);
 
-            _addDrugsToDealer(DEALER_ID_1, DRUG_WEED, amount);
-            uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
-
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, IDealersPVE.HustleType.SELL, DRUG_WEED, amount);
-
-            uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
-
-            // WIN SELL: Keep drugs, gain boosted cash
-            if (drugsAfter == drugsBefore && cashAfter == cashBefore + boostedCash) {
-                foundWin = true;
-                break;
-            }
-        }
-
-        assertTrue(foundWin, "Should find WIN with 2x cash multiplier within 200 attempts");
+        assertEq(core.getDrugBalance(DEALER_ID_1, DRUG_WEED), drugsBefore, "WIN: Keep drugs");
+        assertEq(core.getCashBalance(DEALER_ID_1), cashBefore + boostedCash, "WIN: 2x cash");
     }
 
     function test_playGame_noMultiplierWithoutBoost() public {
         _setupDealerForPlay(DEALER_ID_1);
 
-        uint8 playerChoice = 0;
         uint256 amount = 10;
 
-        bool foundWin = false;
-        for (uint256 i = 0; i < 200; i++) {
-            if (_isInJail(DEALER_ID_1)) {
-                core.authorizeContract(address(this), true);
-                core.moveToArea(DEALER_ID_1, AREA_MANHATTAN);
-                core.authorizeContract(address(this), false);
-            }
+        _addCashToDealer(DEALER_ID_1, amount * BUY_PRICE_WEED);
+        uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+        uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
 
-            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
-            if (attempts == 0) {
-                vm.prank(player1);
-                actions.purchaseAttemptReset{value: 0.001 ether}(DEALER_ID_1);
-            }
+        _pveWin(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
 
-            _addCashToDealer(DEALER_ID_1, amount * BUY_PRICE_WEED);
-            uint256 drugsBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
-
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, playerChoice, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
-
-            uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-            uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
-
-            // WIN: Keep cash, gain exact amount (no multiplier)
-            if (cashAfter == cashBefore && drugsAfter == drugsBefore + amount) {
-                foundWin = true;
-                break;
-            }
-        }
-
-        assertTrue(foundWin, "Should find WIN without boost within 200 attempts");
+        assertEq(core.getCashBalance(DEALER_ID_1), cashBefore, "WIN: Keep cash");
+        assertEq(core.getDrugBalance(DEALER_ID_1, DRUG_WEED), drugsBefore + amount, "WIN: exact drugs (no multiplier)");
     }
 
     // =============================================================
@@ -1149,7 +826,7 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.DealerInJail.selector);
-        pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
+        pve.commitGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
     }
 
     function test_playGame_revertInSafeHouse() public {
@@ -1159,7 +836,7 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.DealerInSafeHouse.selector);
-        pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
+        pve.commitGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
     }
 
     function test_playGame_revertDrugNotInArea() public {
@@ -1168,7 +845,7 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.DrugNotAvailableInArea.selector);
-        pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, 999, 10);
+        pve.commitGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, 999, 10);
     }
 
     function test_playGame_revertNonExistentToken() public {
@@ -1176,7 +853,7 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert();
-        pve.playGame(nonExistentToken, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
+        pve.commitGame(nonExistentToken, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
     }
 
     // =============================================================
@@ -1188,11 +865,7 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         (,, uint8 attemptsBefore,,,) = core.getDealerData(DEALER_ID_1);
 
-        uint256 prevrandao = _getPrevrandaoNoArrest(DEALER_ID_1, 0);
-        vm.prevrandao(bytes32(prevrandao));
-
-        vm.prank(player1);
-        pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
+        _pveWin(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
 
         (,, uint8 attemptsAfter,,,) = core.getDealerData(DEALER_ID_1);
 
@@ -1206,7 +879,7 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert();
-        pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
+        pve.commitGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
     }
 
     function test_playGame_incrementsHeat() public {
@@ -1214,11 +887,8 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         (,,, uint8 heatBefore,,) = core.getDealerData(DEALER_ID_1);
 
-        uint256 prevrandao = _getPrevrandaoNoArrest(DEALER_ID_1, heatBefore + 1);
-        vm.prevrandao(bytes32(prevrandao));
-
-        vm.prank(player1);
-        pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
+        // Win path increments heat
+        _pveWin(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
 
         (,,, uint8 heatAfter,,) = core.getDealerData(DEALER_ID_1);
 
@@ -1292,7 +962,7 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.ContractPaused.selector);
-        pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
+        pve.commitGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
     }
 
     function test_pause_unpause_allowsPlay() public {
@@ -1302,7 +972,7 @@ contract DealersPVETest is Test, IERC721Receiver {
         pve.unpause();
 
         vm.prank(player1);
-        pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
+        pve.commitGame(DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
     }
 
     function test_pause_onlyOwner() public {
@@ -1342,27 +1012,24 @@ contract DealersPVETest is Test, IERC721Receiver {
     function test_pveStats_accumulateAcrossGames() public {
         _setupDealerForPlay(DEALER_ID_1);
 
-        uint32 totalPlayed = 0;
-        for (uint256 i = 0; i < 20; i++) {
-            if (_isInJail(DEALER_ID_1)) {
-                core.authorizeContract(address(this), true);
-                core.moveToArea(DEALER_ID_1, AREA_MANHATTAN);
-                core.authorizeContract(address(this), false);
-            }
-
+        uint16[3] memory outcomes = [OUTCOME_RNG_WIN, OUTCOME_RNG_TIE, OUTCOME_RNG_LOSS];
+        for (uint256 i = 0; i < 5; i++) {
             (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
             if (attempts == 0) {
                 vm.warp(block.timestamp + 1 days);
             }
-
+            _addCashToDealer(DEALER_ID_1, BUY_PRICE_WEED);
             uint8 choice = uint8(i % 3);
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, choice, IDealersPVE.HustleType.BUY, DRUG_WEED, 1);
-
-            if (!_isInJail(DEALER_ID_1)) {
-                totalPlayed++;
-            }
+            uint16 outcomeRng = outcomes[i % 3];
+            _commitAndResolvePve(
+                player1,
+                DEALER_ID_1,
+                choice,
+                IDealersPVE.HustleType.BUY,
+                DRUG_WEED,
+                1,
+                _randPveOutcome(outcomeRng)
+            );
         }
 
         IDealersPVE.PveStats memory stats = pve.getDealerPveStats(DEALER_ID_1);
@@ -1386,40 +1053,17 @@ contract DealersPVETest is Test, IERC721Receiver {
         (uint8 area,,,,,) = core.getDealerData(DEALER_ID_1);
         assertEq(area, AREA_AMSTERDAM);
 
-        bool foundWin = false;
-        for (uint256 i = 0; i < 200; i++) {
-            if (_isInJail(DEALER_ID_1)) {
-                // Bail out and travel back to Amsterdam
-                vm.prank(player1);
-                actions.payBail{value: 0.001 ether}(DEALER_ID_1);
-                vm.prank(player1);
-                actions.travel{value: 0.001 ether}(DEALER_ID_1, AREA_AMSTERDAM);
-            }
+        _addDrugsToDealer(DEALER_ID_1, DRUG_WEED, 50);
+        uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
+        uint256 weedBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
 
-            (,, uint8 attempts,,,) = core.getDealerData(DEALER_ID_1);
-            if (attempts == 0) vm.warp(block.timestamp + 1 days);
+        _pveWin(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, 10);
 
-            _addDrugsToDealer(DEALER_ID_1, DRUG_WEED, 50);
-            uint256 cashBefore = core.getCashBalance(DEALER_ID_1);
-            uint256 weedBefore = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
+        uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
+        uint256 weedAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
 
-            vm.prevrandao(bytes32(i));
-            vm.prank(player1);
-            pve.playGame(DEALER_ID_1, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, 10);
-
-            if (_isInJail(DEALER_ID_1)) continue;
-
-            uint256 cashAfter = core.getCashBalance(DEALER_ID_1);
-            uint256 weedAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-
-            // WIN on SELL: keep drugs + get cash at sellPrice=2
-            if (cashAfter > cashBefore && weedAfter == weedBefore) {
-                assertGe(cashAfter - cashBefore, 10 * 2, "Amsterdam weed sell should pay at sellPrice=2");
-                foundWin = true;
-                break;
-            }
-        }
-        assertTrue(foundWin, "Should find a SELL WIN in Amsterdam");
+        assertEq(weedAfter, weedBefore, "WIN SELL keeps drugs");
+        assertGe(cashAfter - cashBefore, 10 * 2, "Amsterdam weed sell should pay at sellPrice=2");
     }
 
     function test_amsterdam_buyShroomsAndHeroin() public {

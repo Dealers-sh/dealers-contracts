@@ -15,6 +15,7 @@ import {IDrugRegistry} from "../../src/utils/IDrugRegistry.sol";
 import {DealersAreaRegistry} from "../../src/utils/DealersAreaRegistry.sol";
 import {DealersPaymentHandler} from "../../src/utils/DealersPaymentHandler.sol";
 import {DealersRandomness} from "../../src/utils/DealersRandomness.sol";
+import {IDealersRandomness} from "../../src/utils/IDealersRandomness.sol";
 import {IDealersCore} from "../../src/core/IDealersCore.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
@@ -100,14 +101,15 @@ abstract contract BaseTest is Test, IERC721Receiver {
         core.setPaymentHandler(address(paymentHandler));
         core.setDrugRegistry(address(drugRegistry));
         core.setAreaRegistry(address(areaRegistry));
-        core.setRandomness(address(randomness));
 
         nft.setDealersCore(address(core));
         nft.setMintStatus(DealersNFT.MintStatus.PUBLIC);
 
         pve.setRandomness(address(randomness));
+        pve.setActions(address(actions));
         pvp.setRandomness(address(randomness));
         pvp.setDrugRegistry(address(drugRegistry));
+        pvp.setActions(address(actions));
     }
 
     function _setupDrugsAndAreas() internal {
@@ -168,10 +170,75 @@ abstract contract BaseTest is Test, IERC721Receiver {
         paymentHandler.authorizeContract(address(boosts), true);
         paymentHandler.authorizeContract(address(actions), true);
 
-        randomness.authorizeResolver(address(core), true);
         randomness.authorizeResolver(address(pve), true);
         randomness.authorizeResolver(address(pvp), true);
         randomness.authorizeResolver(address(actions), true);
+
+        actions.authorizeJailer(address(pve), true);
+        actions.authorizeJailer(address(pvp), true);
+    }
+
+    // =========================================================================
+    //                  COMMIT-REVEAL HELPERS (commit-reveal migration)
+    // =========================================================================
+
+    function _advanceToRevealable() internal {
+        vm.roll(block.number + uint256(randomness.REVEAL_OFFSET()) + 1);
+    }
+
+    function _advanceToExpired() internal {
+        vm.roll(block.number + uint256(randomness.REVEAL_OFFSET()) + uint256(randomness.EXPIRY_WINDOW()) + 1);
+    }
+
+    function _mockReveal(uint64 seq, uint256 mockedRand) internal {
+        vm.mockCall(
+            address(randomness),
+            abi.encodeWithSelector(IDealersRandomness.reveal.selector, seq),
+            abi.encode(mockedRand)
+        );
+    }
+
+    function _packRand(
+        uint16 arrestRng,
+        uint16 outcomeRng,
+        uint16 drugRng,
+        uint16 dropRng,
+        uint16 confiscRng
+    ) internal pure returns (uint256) {
+        return uint256(arrestRng)
+            | (uint256(outcomeRng) << 16)
+            | (uint256(drugRng) << 32)
+            | (uint256(dropRng) << 48)
+            | (uint256(confiscRng) << 64);
+    }
+
+    function _commitAndResolvePve(
+        address player,
+        uint256 tokenId,
+        uint8 choice,
+        IDealersPVE.HustleType ht,
+        uint256 drugId,
+        uint256 amount,
+        uint256 mockedRand
+    ) internal returns (uint64 seq) {
+        vm.prank(player);
+        seq = pve.commitGame(tokenId, choice, ht, drugId, amount);
+        _mockReveal(seq, mockedRand);
+        _advanceToRevealable();
+        pve.resolveGame(seq);
+    }
+
+    function _commitAndResolvePvp(
+        address attackerOwner,
+        uint256 attackerId,
+        uint256 defenderId,
+        uint256 mockedRand
+    ) internal returns (uint64 seq) {
+        vm.prank(attackerOwner);
+        seq = pvp.commitAttack(attackerId, defenderId);
+        _mockReveal(seq, mockedRand);
+        _advanceToRevealable();
+        pvp.resolveAttack(seq);
     }
 
     function _setupReputationTiers() internal {

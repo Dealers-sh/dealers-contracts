@@ -33,6 +33,9 @@ contract DealersActions is ReentrancyGuard, Ownable {
     IAreaRegistry public areaRegistry;
     IDealersRandomness public randomness;
 
+    /// @dev Modules permitted to call arrest() — typically PVE and PVP
+    mapping(address => bool) public authorizedJailers;
+
 
     // =============================================================
     //                            EVENTS
@@ -45,6 +48,14 @@ contract DealersActions is ReentrancyGuard, Ownable {
     event CashPurchased(uint256 indexed tokenId, uint256 amount, uint256 ethPaid);
     event DealerTraveled(uint256 indexed tokenId, uint8 fromArea, uint8 toArea, uint256 feePaid, bool wasFreeMovement);
     event DropsConverted(uint256 indexed tokenId, uint256 indexed drugId, uint256 amount, uint256 cashEarned);
+    event JailerAuthorized(address indexed module, bool authorized);
+    event DealerJailed(
+        uint256 indexed tokenId,
+        uint8 fromArea,
+        uint256 repLoss,
+        uint256 confiscatedDrugId,
+        uint256 confiscatedAmount
+    );
 
     // =============================================================
     //                            ERRORS
@@ -68,6 +79,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     error InvalidAmount();
     error AlreadyInArea();
     error InsufficientInfamy();
+    error NotAuthorizedJailer();
 
     // =============================================================
     //                          CONSTRUCTOR
@@ -138,16 +150,35 @@ contract DealersActions is ReentrancyGuard, Ownable {
         emit DealerBailed(tokenId, bail, returnArea);
     }
 
+    // =============================================================
+    //                    BREAKOUT (commit-reveal)
+    // =============================================================
+
+    struct BreakoutRound {
+        uint256 tokenId;
+        uint8 returnArea;
+    }
+
+    mapping(uint64 => BreakoutRound) public pendingBreakouts;
+    mapping(uint256 => uint64) public activeBreakoutOf;
+
+    error RoundPending();
+    error UnknownRound();
+
+    event BreakoutCommitted(uint64 indexed seq, uint256 indexed tokenId);
+    event BreakoutExpired(uint64 indexed seq, uint256 indexed tokenId);
+
     /**
-     * @notice Attempt a free jailbreak once per day with a random success chance
-     * @param tokenId The dealer NFT token ID
+     * @notice Commit to a free daily jailbreak attempt; the outcome is revealed in a later tx.
      */
-    function attemptBreakout(uint256 tokenId)
+    function commitBreakout(uint256 tokenId)
         external
         nonReentrant
         onlyDealerOwner(tokenId)
+        returns (uint64 seq)
     {
         if (address(randomness) == address(0)) revert ContractNotSet();
+        if (activeBreakoutOf[tokenId] != 0) revert RoundPending();
 
         IDealersCore.GameState memory gs = core.getGameState(tokenId);
         if (!gs.isJailed) revert NotInJail();
@@ -157,22 +188,49 @@ contract DealersActions is ReentrancyGuard, Ownable {
 
         core.setLastBreakoutAttempt(tokenId, uint32(block.timestamp));
 
-        bytes32 seed = keccak256(abi.encodePacked(tokenId, "BREAKOUT", block.timestamp, block.prevrandao));
-        uint256 roll = randomness.getRandomness(seed) % 100;
-
-        (, , , , , , , , uint8 breakoutSuccessChance, , , ) = core.config();
-        bool success = roll < breakoutSuccessChance;
-
         uint8 returnArea = gs.previousArea;
         if (!areaRegistry.isValidArea(returnArea) || areaRegistry.isJail(returnArea)) {
             returnArea = 1;
         }
 
-        if (success) {
-            core.forceMove(tokenId, returnArea);
+        seq = randomness.commit();
+        pendingBreakouts[seq] = BreakoutRound({tokenId: tokenId, returnArea: returnArea});
+        activeBreakoutOf[tokenId] = seq;
+
+        emit BreakoutCommitted(seq, tokenId);
+    }
+
+    /**
+     * @notice Resolve a previously committed breakout. Anyone may call.
+     * @dev If the reveal block has expired, the daily lockout still stands; this is a
+     *      locked design decision (no attempt refund on expiry).
+     */
+    function resolveBreakout(uint64 seq) external nonReentrant {
+        BreakoutRound memory r = pendingBreakouts[seq];
+        if (r.tokenId == 0) revert UnknownRound();
+
+        delete pendingBreakouts[seq];
+        delete activeBreakoutOf[r.tokenId];
+
+        if (randomness.isExpired(seq)) {
+            emit BreakoutExpired(seq, r.tokenId);
+            return;
         }
 
-        emit BreakoutAttempted(tokenId, success, success ? returnArea : core.JAIL_AREA());
+        uint256 rand = randomness.reveal(seq);
+        ( , , , , , , , , uint8 breakoutSuccessChance, , , ) = core.config();
+        bool success = (rand % 100) < breakoutSuccessChance;
+
+        // If the dealer paid bail (or otherwise left jail) between commit and resolve,
+        // skip the teleport — a successful breakout shouldn't yank them out of wherever
+        // they chose to be.
+        uint8 jailArea = core.JAIL_AREA();
+        bool stillJailed = core.getGameState(r.tokenId).currentArea == jailArea;
+        if (success && stillJailed) {
+            core.forceMove(r.tokenId, r.returnArea);
+        }
+
+        emit BreakoutAttempted(r.tokenId, success, success && stillJailed ? r.returnArea : jailArea);
     }
 
     /**
@@ -269,34 +327,70 @@ contract DealersActions is ReentrancyGuard, Ownable {
         emit CopBribed(tokenId, bribeCopFee);
     }
 
+    // =============================================================
+    //                  WANTED POSTER (commit-reveal)
+    // =============================================================
+
+    struct WantedPosterRound {
+        uint256 tokenId;
+    }
+
+    mapping(uint64 => WantedPosterRound) public pendingWantedPosters;
+    mapping(uint256 => uint64) public activeWantedPosterOf;
+
+    event WantedPosterCommitted(uint64 indexed seq, uint256 indexed tokenId);
+    event WantedPosterExpired(uint64 indexed seq, uint256 indexed tokenId);
+
     /**
-     * @notice Spend an attempt to randomly clear heat (no ETH cost)
-     * @param tokenId The dealer NFT token ID
+     * @notice Commit to spending an attempt to randomly clear heat. Outcome revealed later.
      */
-    function removeWantedPoster(uint256 tokenId)
+    function commitWantedPoster(uint256 tokenId)
         external
         nonReentrant
         onlyDealerOwner(tokenId)
+        returns (uint64 seq)
     {
         if (address(randomness) == address(0)) revert ContractNotSet();
+        if (activeWantedPosterOf[tokenId] != 0) revert RoundPending();
 
         IDealersCore.GameState memory gs = core.getGameState(tokenId);
+        if (gs.isJailed) revert DealerInJail();
         if (gs.dailyAttemptsRemaining == 0) revert NoAttemptsRemaining();
         if (gs.heatLevel == 0) revert NoHeatToReduce();
 
         core.useAttempt(tokenId);
 
-        bytes32 seed = keccak256(abi.encodePacked(tokenId, "WANTED_POSTER", block.timestamp, block.prevrandao));
-        uint256 roll = randomness.getRandomness(seed) % 100;
+        seq = randomness.commit();
+        pendingWantedPosters[seq] = WantedPosterRound({tokenId: tokenId});
+        activeWantedPosterOf[tokenId] = seq;
 
-        (, , , , , , , uint8 wantedPosterSuccessChance, , , , ) = core.config();
+        emit WantedPosterCommitted(seq, tokenId);
+    }
 
-        if (roll < wantedPosterSuccessChance) {
-            core.setHeatLevel(tokenId, 0);
-            emit WantedPosterRemoved(tokenId, true);
-        } else {
-            emit WantedPosterRemoved(tokenId, false);
+    /**
+     * @notice Resolve a previously committed wanted-poster round. Anyone may call.
+     * @dev On expiry the attempt is forfeit (locked decision).
+     */
+    function resolveWantedPoster(uint64 seq) external nonReentrant {
+        WantedPosterRound memory r = pendingWantedPosters[seq];
+        if (r.tokenId == 0) revert UnknownRound();
+
+        delete pendingWantedPosters[seq];
+        delete activeWantedPosterOf[r.tokenId];
+
+        if (randomness.isExpired(seq)) {
+            emit WantedPosterExpired(seq, r.tokenId);
+            return;
         }
+
+        uint256 rand = randomness.reveal(seq);
+        ( , , , , , , , uint8 wantedPosterSuccessChance, , , , ) = core.config();
+        bool success = (rand % 100) < wantedPosterSuccessChance;
+
+        if (success) {
+            core.setHeatLevel(r.tokenId, 0);
+        }
+        emit WantedPosterRemoved(r.tokenId, success);
     }
 
     /**
@@ -386,8 +480,66 @@ contract DealersActions is ReentrancyGuard, Ownable {
     }
 
     // =============================================================
+    //                       ARREST (centralized)
+    // =============================================================
+
+    /**
+     * @notice Apply jail policy to a dealer: rep loss, drug confiscation, move to jail
+     * @dev Auth-gated to modules registered via authorizeJailer (typically PVE/PVP).
+     *      Heat is incremented as part of the jail outcome. Stake handling is the caller's
+     *      responsibility (already debited at commit in PVE; not relevant for PVP).
+     * @param tokenId Dealer being arrested
+     * @param confiscRng Caller-supplied entropy used to pick a held drug for confiscation
+     * @return confiscDrugId Drug confiscated (0 if none)
+     * @return confiscAmt Amount confiscated
+     */
+    function arrest(uint256 tokenId, uint256 confiscRng)
+        external
+        nonReentrant
+        returns (uint256 confiscDrugId, uint256 confiscAmt)
+    {
+        if (!authorizedJailers[msg.sender]) revert NotAuthorizedJailer();
+
+        IDealersCore.GameState memory s = core.getGameState(tokenId);
+        if (s.currentArea == core.JAIL_AREA()) return (0, 0);
+
+        ( , , , , , uint8 jailRepPct, uint256 jailRepCap, , , uint8 jailDrugPct, , ) = core.config();
+
+        uint256 repLoss = (s.reputation * jailRepPct) / 100;
+        if (repLoss > jailRepCap) repLoss = jailRepCap;
+
+        IDealersCore.GameOutcome memory ao;
+        ao.repDelta = -int256(repLoss);
+        ao.incrementHeat = true;
+
+        if (jailDrugPct > 0) {
+            (uint256 drugId, uint256 bal) = core.pickHeldDrugByRng(tokenId, confiscRng);
+            if (drugId != 0 && bal > 0) {
+                confiscAmt = (bal * jailDrugPct + 99) / 100;
+                ao.drugId = drugId;
+                ao.drugDelta = -int256(confiscAmt);
+                confiscDrugId = drugId;
+            }
+        }
+
+        core.applyGameOutcome(tokenId, ao);
+        core.forceMove(tokenId, core.JAIL_AREA());
+
+        emit DealerJailed(tokenId, s.currentArea, repLoss, confiscDrugId, confiscAmt);
+    }
+
+    // =============================================================
     //                      ADMIN SETTERS
     // =============================================================
+
+    /**
+     * @notice Authorize or revoke a module's permission to call arrest()
+     */
+    function authorizeJailer(address module, bool authorized) external onlyOwner {
+        if (module == address(0)) revert InvalidAddress();
+        authorizedJailers[module] = authorized;
+        emit JailerAuthorized(module, authorized);
+    }
 
     /**
      * @notice Set the payment handler contract

@@ -11,11 +11,11 @@ import "../base/DeployBase.s.sol";
  * What this configures:
  *
  *   REFERENCES (setters):
- *     Core ← drugRegistry, areaRegistry, nft, paymentHandler, randomness
+ *     Core ← drugRegistry, areaRegistry, nft, paymentHandler
  *     NFT ← core
  *     AreaRegistry ← core
- *     PVP ← drugRegistry, randomness
- *     PVE ← randomness
+ *     PVP ← drugRegistry, randomness, actions
+ *     PVE ← randomness, actions
  *     Claims ← core, nft, pve, pvp (optional)
  *     Actions ← paymentHandler, randomness (optional)
  *
@@ -23,7 +23,8 @@ import "../base/DeployBase.s.sol";
  *     Core.authorizeContract:           PVE, PVP, Boosts, NFT, Claims (optional), Actions (optional)
  *     DrugRegistry.authorizeContract:   Core
  *     PaymentHandler.authorizeContract: Core, Boosts, Actions (optional)
- *     Randomness.authorizeResolver:     Core, PVE, PVP, Actions (optional)
+ *     Randomness.authorizeResolver:     PVE, PVP, Actions (optional)
+ *     Actions.authorizeJailer:          PVE, PVP
  *
  * Usage:
  *   source .env && forge script script/SetupWiring.s.sol:SetupWiring \
@@ -89,13 +90,6 @@ contract SetupWiring is DeployBase {
             console.log("  PaymentHandler: SET");
         } else {
             console.log("  PaymentHandler: ok");
-        }
-
-        if (c.randomness() != randomness) {
-            c.setRandomness(randomness);
-            console.log("  Randomness: SET");
-        } else {
-            console.log("  Randomness: ok");
         }
         console.log("");
     }
@@ -172,10 +166,15 @@ contract SetupWiring is DeployBase {
         }
 
         IRandomness rng = IRandomness(randomness);
-        _authorizeResolverIfNeeded(rng, core, "Randomness -> Core");
         _authorizeResolverIfNeeded(rng, pve, "Randomness -> PVE");
         _authorizeResolverIfNeeded(rng, pvp, "Randomness -> PVP");
         if (actions != address(0)) _authorizeResolverIfNeeded(rng, actions, "Randomness -> Actions");
+
+        if (actions != address(0)) {
+            IActionsContract actionsContract = IActionsContract(actions);
+            _authorizeJailerIfNeeded(actionsContract, pve, "Actions.jailer -> PVE");
+            _authorizeJailerIfNeeded(actionsContract, pvp, "Actions.jailer -> PVP");
+        }
 
         console.log("");
     }
@@ -198,11 +197,17 @@ contract SetupWiring is DeployBase {
         IPVEContract pveContract = IPVEContract(pve);
         _setIfNeeded(pveContract.dealersCore(), core, "PVE -> Core", pveContract.setDealersCore);
         _setIfNeeded(pveContract.randomness(), randomness, "PVE -> Randomness", pveContract.setRandomness);
+        if (actions != address(0)) {
+            _setIfNeeded(pveContract.actions(), actions, "PVE -> Actions", pveContract.setActions);
+        }
 
         IPVPContract pvpContract = IPVPContract(pvp);
         _setIfNeeded(pvpContract.core(), core, "PVP -> Core", pvpContract.setCore);
         _setIfNeeded(pvpContract.drugRegistry(), drugRegistry, "PVP -> DrugRegistry", pvpContract.setDrugRegistry);
         _setIfNeeded(pvpContract.randomness(), randomness, "PVP -> Randomness", pvpContract.setRandomness);
+        if (actions != address(0)) {
+            _setIfNeeded(pvpContract.actions(), actions, "PVP -> Actions", pvpContract.setActions);
+        }
 
         if (claims != address(0)) {
             IClaimsContract claimsContract = IClaimsContract(claims);
@@ -224,6 +229,15 @@ contract SetupWiring is DeployBase {
     function _authorizeResolverIfNeeded(IRandomness rng, address resolver, string memory label) internal {
         if (!rng.isAuthorizedResolver(resolver)) {
             rng.authorizeResolver(resolver, true);
+            console.log(string.concat("  ", label, ": AUTHORIZED"));
+        } else {
+            console.log(string.concat("  ", label, ": ok"));
+        }
+    }
+
+    function _authorizeJailerIfNeeded(IActionsContract a, address module, string memory label) internal {
+        if (!a.authorizedJailers(module)) {
+            a.authorizeJailer(module, true);
             console.log(string.concat("  ", label, ": AUTHORIZED"));
         } else {
             console.log(string.concat("  ", label, ": ok"));

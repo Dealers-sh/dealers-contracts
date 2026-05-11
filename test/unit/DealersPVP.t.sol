@@ -50,7 +50,7 @@ contract DealersPVPTest is BaseTest {
     function _sendDealerToJail(uint256 tokenId) internal {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
-        core.sendToJail(tokenId);
+        core.forceMove(tokenId, core.JAIL_AREA());
         vm.prank(owner);
         core.authorizeContract(address(this), false);
     }
@@ -117,40 +117,37 @@ contract DealersPVPTest is BaseTest {
         core.authorizeContract(address(this), false);
     }
 
-    function _mockRandomValues(uint256 jailRng, uint256 winRng, uint256 drugRng, uint256 dropRng) internal {
-        uint256[] memory values = new uint256[](4);
-        values[0] = jailRng;
-        values[1] = winRng;
-        values[2] = drugRng;
-        values[3] = dropRng;
-        vm.mockCall(
-            address(randomness),
-            abi.encodeWithSignature("getRandomValues(bytes32,uint8)"),
-            abi.encode(values)
-        );
+    /// @dev Cached values for the next _executeAttack to feed into commit-reveal mock
+    uint256 internal _stagedRand;
+
+    function _stageRand(uint16 jailRng, uint16 winRng, uint16 drugRng, uint16 dropRng) internal {
+        _stagedRand = _packRand(jailRng, winRng, drugRng, dropRng, 0);
     }
 
     function _setupForWin() internal {
         _mockJailChance(attackerToken, 0);
         _setDealerStats(attackerToken, 25, 0);
         _setDealerStats(defenderToken, 0, 0);
-        _mockRandomValues(50, 0, 10, 0); // dropRng=0 → no drop (< 30)
+        _stageRand(999, 0, 10, 0); // jailRng high (no arrest), winRng=0 (win), drugRng=10, dropRng=0 (no drop)
     }
 
     function _setupForLoss() internal {
         _mockJailChance(attackerToken, 0);
         _setDealerStats(attackerToken, 0, 0);
         _setDealerStats(defenderToken, 0, 25);
-        _mockRandomValues(50, 99, 10, 0);
+        _stageRand(999, 99, 10, 0); // no arrest, winRng=99 (loss against weakened win chance)
     }
 
     function _setupForArrest() internal {
-        _mockRandomValues(0, 0, 0, 0);
+        _stageRand(0, 0, 0, 0); // jailRng=0 forces arrest if heat > 0
     }
 
     function _executeAttack() internal {
         vm.prank(player1);
-        pvp.attack(attackerToken, defenderToken);
+        uint64 seq = pvp.commitAttack(attackerToken, defenderToken);
+        _mockReveal(seq, _stagedRand);
+        _advanceToRevealable(seq);
+        pvp.resolveAttack(seq);
     }
 
     function _ceilDiv(uint256 a, uint256 b) internal pure returns (uint256) {
@@ -217,7 +214,7 @@ contract DealersPVPTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVP.SameDealer.selector);
-        pvp.attack(attackerToken, attackerToken);
+        pvp.commitAttack(attackerToken, attackerToken);
     }
 
     function test_attack_revertDifferentArea() public {
@@ -232,7 +229,7 @@ contract DealersPVPTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVP.DifferentArea.selector);
-        pvp.attack(attackerToken, defenderToken);
+        pvp.commitAttack(attackerToken, defenderToken);
     }
 
     function test_attack_revertAttackerInJail() public {
@@ -242,7 +239,7 @@ contract DealersPVPTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVP.DealerInJail.selector);
-        pvp.attack(attackerToken, defenderToken);
+        pvp.commitAttack(attackerToken, defenderToken);
     }
 
     function test_attack_revertDefenderInJail() public {
@@ -252,7 +249,7 @@ contract DealersPVPTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVP.DealerInJail.selector);
-        pvp.attack(attackerToken, defenderToken);
+        pvp.commitAttack(attackerToken, defenderToken);
     }
 
     function test_attack_revertAttackerInSafeHouse() public {
@@ -262,7 +259,7 @@ contract DealersPVPTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVP.DealerInSafeHouse.selector);
-        pvp.attack(attackerToken, defenderToken);
+        pvp.commitAttack(attackerToken, defenderToken);
     }
 
     function test_attack_revertDefenderInSafeHouse() public {
@@ -272,7 +269,7 @@ contract DealersPVPTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVP.DealerInSafeHouse.selector);
-        pvp.attack(attackerToken, defenderToken);
+        pvp.commitAttack(attackerToken, defenderToken);
     }
 
     function test_attack_revertDealerNotInitialized() public {
@@ -283,7 +280,7 @@ contract DealersPVPTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVP.DealerNotInitialized.selector);
-        pvp.attack(attackerToken, uninitTokenId);
+        pvp.commitAttack(attackerToken, uninitTokenId);
     }
 
     // =============================================================
@@ -519,7 +516,7 @@ contract DealersPVPTest is BaseTest {
             _addDrugsToDealer(newAttacker, DRUG_WEED, 1000);
 
             vm.prank(address(uint160(100 + i)));
-            pvp.attack(newAttacker, defenderToken);
+            pvp.commitAttack(newAttacker, defenderToken);
         }
 
         uint256 fourthAttacker = _mintAndInitialize(address(uint160(200)));
@@ -529,7 +526,7 @@ contract DealersPVPTest is BaseTest {
 
         vm.prank(address(uint160(200)));
         vm.expectRevert(DealersPVP.DefenderExhausted.selector);
-        pvp.attack(fourthAttacker, defenderToken);
+        pvp.commitAttack(fourthAttacker, defenderToken);
     }
 
     function test_attack_defenderProtectionResetsNextDay() public {
@@ -543,7 +540,7 @@ contract DealersPVPTest is BaseTest {
             _addDrugsToDealer(loopAttacker, DRUG_WEED, 1000);
 
             vm.prank(address(uint160(100 + i)));
-            pvp.attack(loopAttacker, defenderToken);
+            pvp.commitAttack(loopAttacker, defenderToken);
         }
 
         vm.warp(block.timestamp + 1 days);
@@ -554,7 +551,7 @@ contract DealersPVPTest is BaseTest {
         _addDrugsToDealer(newAttacker, DRUG_WEED, 1000);
 
         vm.prank(address(uint160(300)));
-        pvp.attack(newAttacker, defenderToken);
+        pvp.commitAttack(newAttacker, defenderToken);
 
         assertEq(pvp.attacksReceivedToday(defenderToken), 1, "Attacks should reset on new day");
     }
@@ -571,7 +568,7 @@ contract DealersPVPTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVP.ContractPaused.selector);
-        pvp.attack(attackerToken, defenderToken);
+        pvp.commitAttack(attackerToken, defenderToken);
     }
 
     function test_attack_allowedAfterUnpause() public {
@@ -627,7 +624,7 @@ contract DealersPVPTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVP.InsufficientReputation.selector);
-        pvp.attack(attackerToken, defenderToken);
+        pvp.commitAttack(attackerToken, defenderToken);
     }
 
     function test_attack_revertDefenderBelowMinReputation() public {
@@ -638,7 +635,7 @@ contract DealersPVPTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVP.InsufficientReputation.selector);
-        pvp.attack(attackerToken, defenderToken);
+        pvp.commitAttack(attackerToken, defenderToken);
     }
 
     function test_attack_succeedsWhenBothMeetMinReputation() public {
@@ -646,7 +643,7 @@ contract DealersPVPTest is BaseTest {
         _mockJailChance(attackerToken, 0);
 
         vm.prank(player1);
-        pvp.attack(attackerToken, defenderToken);
+        pvp.commitAttack(attackerToken, defenderToken);
     }
 
     function test_attack_succeedsWhenMinReputationDisabled() public {
@@ -676,7 +673,7 @@ contract DealersPVPTest is BaseTest {
         }));
 
         vm.prank(player1);
-        pvp.attack(attackerToken, defenderToken);
+        pvp.commitAttack(attackerToken, defenderToken);
     }
 
     function test_canAttack_returnsReason11ForOutOfRepRange() public {
@@ -821,7 +818,7 @@ contract DealersPVPTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVP.OutOfRepRange.selector);
-        pvp.attack(attackerToken, defenderToken);
+        pvp.commitAttack(attackerToken, defenderToken);
     }
 
     function test_repRangePercent_updatable() public {
@@ -920,7 +917,7 @@ contract DealersPVPTest is BaseTest {
 
     function test_lootDrop_noDrop_zeroInfamy() public {
         _setupDealersForPVP();
-        _mockRandomValues(50, 0, 10, 39); // infamy 0: weights [40,60,0,0], roll 39 < 40 = no drop
+        _stageRand(uint16(50), uint16(0), uint16(10), uint16(39)); // infamy 0: weights [40,60,0,0], roll 39 < 40 = no drop
 
         uint256 goodsBefore = core.getDrugBalance(attackerToken, 1);
 
@@ -933,7 +930,7 @@ contract DealersPVPTest is BaseTest {
 
     function test_lootDrop_generalGoods_zeroInfamy() public {
         _setupDealersForPVP();
-        _mockRandomValues(50, 0, 10, 50); // infamy 0: weights [40,60,0,0], roll 50 -> General Goods
+        _stageRand(uint16(50), uint16(0), uint16(10), uint16(50)); // infamy 0: weights [40,60,0,0], roll 50 -> General Goods
 
         uint256 goodsBefore = core.getDrugBalance(attackerToken, 1);
 
@@ -948,7 +945,7 @@ contract DealersPVPTest is BaseTest {
         _setupDealersForPVP();
         _setInfamy(attackerToken, 20);
         // infamy 20: weights [30,45,20,5], cumulative: 30,75,95,100
-        _mockRandomValues(50, 0, 10, 80); // roll 80 >= 75 and < 95 = Contraband
+        _stageRand(uint16(50), uint16(0), uint16(10), uint16(80)); // roll 80 >= 75 and < 95 = Contraband
 
         uint256 contrabandBefore = core.getDrugBalance(attackerToken, 2);
 
@@ -963,7 +960,7 @@ contract DealersPVPTest is BaseTest {
         _setupDealersForPVP();
         _setInfamy(attackerToken, 50);
         // infamy 50: weights [15,30,35,20], cumulative: 15,45,80,100
-        _mockRandomValues(50, 0, 10, 95); // roll 95 >= 80 and < 100 = Jewels
+        _stageRand(uint16(50), uint16(0), uint16(10), uint16(95)); // roll 95 >= 80 and < 100 = Jewels
 
         uint256 jewelsBefore = core.getDrugBalance(attackerToken, 3);
 
@@ -976,7 +973,7 @@ contract DealersPVPTest is BaseTest {
 
     function test_lootDrop_noDrop_onLoss() public {
         _setupDealersForPVP();
-        _mockRandomValues(50, 99, 10, 50); // loss, dropRng=50 would trigger goods if won
+        _stageRand(uint16(50), uint16(99), uint16(10), uint16(50)); // loss, dropRng=50 would trigger goods if won
 
         uint256 goodsBefore = core.getDrugBalance(attackerToken, 1);
 

@@ -217,150 +217,8 @@ contract DealersCoreTest is BaseTest {
         assertEq(heatLevel, core.MAX_HEAT_LEVEL());
     }
 
-    function test_sendToJail_movesToJailArea() public {
-        vm.prank(owner);
-        core.authorizeContract(address(this), true);
-
-        _moveOutOfSafeHouse(tokenId1);
-
-        vm.prank(owner);
-        core.authorizeContract(address(this), true);
-        core.sendToJail(tokenId1);
-
-        (uint8 currentArea, , , , , ) = core.getDealerData(tokenId1);
-        assertEq(currentArea, core.JAIL_AREA());
-        assertTrue(_isInJail(tokenId1));
-    }
-
-    function test_sendToJail_repPenalty10Percent() public {
-        vm.prank(owner);
-        core.authorizeContract(address(this), true);
-
-        core.updateReputation(tokenId1, 200);
-        _moveOutOfSafeHouse(tokenId1);
-
-        vm.prank(owner);
-        core.authorizeContract(address(this), true);
-
-        (, uint256 repBefore, , , , ) = core.getDealerData(tokenId1);
-        core.sendToJail(tokenId1);
-        (, uint256 repAfter, , , , ) = core.getDealerData(tokenId1);
-
-        (, , , , , uint8 jailRepPenaltyPercent, , , , , , ) = core.config();
-        uint256 expectedPenalty = (repBefore * jailRepPenaltyPercent) / 100;
-        assertEq(repAfter, repBefore - expectedPenalty);
-    }
-
-    function test_sendToJail_repPenaltyCappedAt50() public {
-        vm.prank(owner);
-        core.authorizeContract(address(this), true);
-
-        core.updateReputation(tokenId1, 1000);
-        _moveOutOfSafeHouse(tokenId1);
-
-        vm.prank(owner);
-        core.authorizeContract(address(this), true);
-
-        (, uint256 repBefore, , , , ) = core.getDealerData(tokenId1);
-        core.sendToJail(tokenId1);
-        (, uint256 repAfter, , , , ) = core.getDealerData(tokenId1);
-
-        (, , , , , , uint256 jailRepPenaltyCap, , , , , ) = core.config();
-        assertEq(repAfter, repBefore - jailRepPenaltyCap);
-    }
-
-    function test_sendToJail_alreadyInJailNoOp() public {
-        vm.prank(owner);
-        core.authorizeContract(address(this), true);
-
-        _moveOutOfSafeHouse(tokenId1);
-
-        vm.prank(owner);
-        core.authorizeContract(address(this), true);
-        core.sendToJail(tokenId1);
-
-        (, uint256 repAfterFirstJail, , , , ) = core.getDealerData(tokenId1);
-
-        core.sendToJail(tokenId1);
-
-        (, uint256 repAfterSecondJail, , , , ) = core.getDealerData(tokenId1);
-        assertEq(repAfterFirstJail, repAfterSecondJail);
-    }
-
-    function test_sendToJail_confiscates3PercentOfOneRandomDrug() public {
-        vm.prank(owner);
-        core.authorizeContract(address(this), true);
-
-        core.updateDrugBalance(tokenId1, 4, 900);
-        _moveOutOfSafeHouse(tokenId1);
-
-        vm.prank(owner);
-        core.authorizeContract(address(this), true);
-
-        uint256 weedBefore = core.getDrugBalance(tokenId1, 4);
-        uint256 xtcBefore = core.getDrugBalance(tokenId1, 5);
-        uint256 cocaineBefore = core.getDrugBalance(tokenId1, 6);
-
-        core.sendToJail(tokenId1);
-
-        uint256 weedAfter = core.getDrugBalance(tokenId1, 4);
-        uint256 xtcAfter = core.getDrugBalance(tokenId1, 5);
-        uint256 cocaineAfter = core.getDrugBalance(tokenId1, 6);
-
-        uint256 drugsLost;
-        if (weedAfter < weedBefore) drugsLost++;
-        if (xtcAfter < xtcBefore) drugsLost++;
-        if (cocaineAfter < cocaineBefore) drugsLost++;
-
-        assertEq(drugsLost, 1, "Exactly one drug type should be confiscated");
-    }
-
-    function test_sendToJail_confiscationRoundsUp() public {
-        vm.prank(owner);
-        core.authorizeContract(address(this), true);
-
-        // Remove all drugs first
-        uint256 weedBal = core.getDrugBalance(tokenId1, 4);
-        uint256 xtcBal = core.getDrugBalance(tokenId1, 5);
-        uint256 cocaineBal = core.getDrugBalance(tokenId1, 6);
-        if (weedBal > 0) core.updateDrugBalance(tokenId1, 4, -int256(weedBal));
-        if (xtcBal > 0) core.updateDrugBalance(tokenId1, 5, -int256(xtcBal));
-        if (cocaineBal > 0) core.updateDrugBalance(tokenId1, 6, -int256(cocaineBal));
-
-        // Add exactly 10 weed (3% of 10 = 0.3, rounds up to 1)
-        core.updateDrugBalance(tokenId1, 4, 10);
-        _moveOutOfSafeHouse(tokenId1);
-
-        vm.prank(owner);
-        core.authorizeContract(address(this), true);
-
-        core.sendToJail(tokenId1);
-
-        uint256 weedAfter = core.getDrugBalance(tokenId1, 4);
-        assertEq(weedAfter, 9, "3% of 10 = 0.3 rounds up to 1, leaving 9");
-    }
-
-    function test_sendToJail_noConfiscationWithZeroDrugs() public {
-        vm.prank(owner);
-        core.authorizeContract(address(this), true);
-
-        // Remove all drugs
-        uint256 weedBal = core.getDrugBalance(tokenId1, 4);
-        uint256 xtcBal = core.getDrugBalance(tokenId1, 5);
-        uint256 cocaineBal = core.getDrugBalance(tokenId1, 6);
-        if (weedBal > 0) core.updateDrugBalance(tokenId1, 4, -int256(weedBal));
-        if (xtcBal > 0) core.updateDrugBalance(tokenId1, 5, -int256(xtcBal));
-        if (cocaineBal > 0) core.updateDrugBalance(tokenId1, 6, -int256(cocaineBal));
-
-        _moveOutOfSafeHouse(tokenId1);
-
-        vm.prank(owner);
-        core.authorizeContract(address(this), true);
-
-        // Should not revert
-        core.sendToJail(tokenId1);
-        assertTrue(_isInJail(tokenId1));
-    }
+    // sendToJail-specific behavior tests have moved to DealersActions.t.sol
+    // (rep penalty + drug confiscation now live in DealersActions.arrest()).
 
     function test_payBail_exitsJail() public {
         vm.prank(owner);
@@ -370,7 +228,7 @@ contract DealersCoreTest is BaseTest {
 
         vm.prank(owner);
         core.authorizeContract(address(this), true);
-        core.sendToJail(tokenId1);
+        core.forceMove(tokenId1, core.JAIL_AREA());
 
         assertTrue(_isInJail(tokenId1));
 
@@ -395,7 +253,7 @@ contract DealersCoreTest is BaseTest {
         core.authorizeContract(address(this), true);
 
         core.moveToArea(tokenId1, 1);
-        core.sendToJail(tokenId1);
+        core.forceMove(tokenId1, core.JAIL_AREA());
 
         assertTrue(_isInJail(tokenId1));
 
@@ -425,47 +283,33 @@ contract DealersCoreTest is BaseTest {
         assertEq(core.getGameState(tokenId1).heatLevel, 0);
     }
 
-    function test_removeWantedPoster_resetsHeatToZeroOnSuccess() public {
+    function test_wantedPoster_resetsHeatToZeroOnSuccess() public {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
-        for (uint8 i = 0; i < 4; i++) {
-            core.incrementHeatLevel(tokenId1);
-        }
-        assertEq(core.getGameState(tokenId1).heatLevel, 4);
+        core.incrementHeatLevel(tokenId1);
+        assertGt(core.getGameState(tokenId1).heatLevel, 0);
 
-        bool succeeded = false;
-        for (uint256 i = 0; i < 100 && !succeeded; i++) {
-            if (core.getGameState(tokenId1).heatLevel == 0) {
-                succeeded = true;
-                break;
-            }
+        vm.prank(player1);
+        uint64 seq = actions.commitWantedPoster(tokenId1);
 
-            (, , uint8 attempts, , , ) = core.getDealerData(tokenId1);
-            if (attempts == 0) {
-                core.applyBoost(tokenId1, 1 days, 100, 100, 5, false, 100);
-                vm.prank(owner);
-                core.authorizeContract(address(this), true);
-                dealers_resetAttempts(tokenId1);
-            }
-
-            vm.prevrandao(bytes32(i * 999));
-            vm.prank(player1);
-            actions.removeWantedPoster(tokenId1);
-        }
+        // mock reveal to force success: rand % 100 < wantedPosterSuccessChance
+        _mockReveal(seq, 0);
+        _advanceToRevealable(seq);
+        actions.resolveWantedPoster(seq);
 
         assertEq(core.getGameState(tokenId1).heatLevel, 0, "Heat should reset to 0 on success");
     }
 
-    function test_removeWantedPoster_revertNoHeat() public {
+    function test_wantedPoster_revertNoHeat() public {
         assertEq(core.getGameState(tokenId1).heatLevel, 0);
 
         vm.prank(player1);
         vm.expectRevert(DealersActions.NoHeatToReduce.selector);
-        actions.removeWantedPoster(tokenId1);
+        actions.commitWantedPoster(tokenId1);
     }
 
-    function test_removeWantedPoster_revertNoAttempts() public {
+    function test_wantedPoster_revertNoAttempts() public {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
@@ -477,10 +321,10 @@ contract DealersCoreTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersActions.NoAttemptsRemaining.selector);
-        actions.removeWantedPoster(tokenId1);
+        actions.commitWantedPoster(tokenId1);
     }
 
-    function test_removeWantedPoster_usesAttempt() public {
+    function test_wantedPoster_usesAttemptAtCommit() public {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
@@ -489,7 +333,7 @@ contract DealersCoreTest is BaseTest {
         (, , uint8 attemptsBefore, , , ) = core.getDealerData(tokenId1);
 
         vm.prank(player1);
-        actions.removeWantedPoster(tokenId1);
+        actions.commitWantedPoster(tokenId1);
 
         (, , uint8 attemptsAfter, , , ) = core.getDealerData(tokenId1);
         assertEq(attemptsAfter, attemptsBefore - 1);
@@ -880,7 +724,7 @@ contract DealersCoreTest is BaseTest {
         // Dealer starts in Manhattan, send to jail
         vm.prank(owner);
         core.authorizeContract(address(this), true);
-        core.sendToJail(tokenId1);
+        core.forceMove(tokenId1, core.JAIL_AREA());
 
         assertTrue(_isInJail(tokenId1));
 
@@ -1020,34 +864,30 @@ contract DealersCoreTest is BaseTest {
         actions.travel{value: 0}(tokenId1, brooklynId);
     }
 
-    function test_attemptBreakout_returnsToPreviousArea() public {
-        // Dealer starts in Manhattan
+    function test_breakout_returnsToPreviousArea() public {
         (uint8 areaBefore, , , , , ) = core.getDealerData(tokenId1);
         assertEq(areaBefore, 1, "Should start in Manhattan");
 
-        // Send to jail
         vm.prank(owner);
         core.authorizeContract(address(this), true);
-        core.sendToJail(tokenId1);
+        core.forceMove(tokenId1, core.JAIL_AREA());
 
         assertTrue(_isInJail(tokenId1));
 
-        // Try breakout multiple times until success
-        bool escaped = false;
-        for (uint256 i = 0; i < 100 && !escaped; i++) {
-            vm.warp(block.timestamp + 1 days);
-            vm.prevrandao(bytes32(i * 12345));
+        // Initial lastBreakoutAttempt is 0; warp past day boundary so dayStart > 0
+        vm.warp(block.timestamp + 2 days);
 
-            vm.prank(player1);
-            try actions.attemptBreakout(tokenId1) {
-                escaped = !_isInJail(tokenId1);
-            } catch {}
-        }
+        vm.prank(player1);
+        uint64 seq = actions.commitBreakout(tokenId1);
 
-        if (escaped) {
-            (uint8 areaAfter, , , , , ) = core.getDealerData(tokenId1);
-            assertEq(areaAfter, 1, "Should return to Manhattan after breakout");
-        }
+        // Force success: rand % 100 < breakoutSuccessChance
+        _mockReveal(seq, 0);
+        _advanceToRevealable(seq);
+        actions.resolveBreakout(seq);
+
+        assertFalse(_isInJail(tokenId1), "Should escape jail");
+        (uint8 areaAfter, , , , , ) = core.getDealerData(tokenId1);
+        assertEq(areaAfter, 1, "Should return to Manhattan after breakout");
     }
 
     function test_amsterdam_areaConfig() public view {

@@ -28,7 +28,7 @@ contract PVEGameFlowsTest is BaseTest {
 
             uint256 snapshotId = vm.snapshotState();
 
-            try pve.playGame(
+            try pve.commitGame(
                 tokenId,
                 0,
                 IDealersPVE.HustleType.BUY,
@@ -80,7 +80,7 @@ contract PVEGameFlowsTest is BaseTest {
             uint256 cashBefore = core.getCashBalance(tokenId);
             uint256 weedBefore = core.getDrugBalance(tokenId, DRUG_WEED);
 
-            try pve.playGame(
+            try pve.commitGame(
                 tokenId,
                 0,
                 IDealersPVE.HustleType.BUY,
@@ -129,7 +129,7 @@ contract PVEGameFlowsTest is BaseTest {
             uint256 weedBefore = core.getDrugBalance(tokenId, DRUG_WEED);
             (, uint256 repBefore, , , , ) = core.getDealerData(tokenId);
 
-            try pve.playGame(
+            try pve.commitGame(
                 tokenId,
                 0,
                 IDealersPVE.HustleType.BUY,
@@ -181,7 +181,7 @@ contract PVEGameFlowsTest is BaseTest {
             uint256 weedBefore = core.getDrugBalance(tokenId, DRUG_WEED);
             (, uint256 repBefore, , , , ) = core.getDealerData(tokenId);
 
-            try pve.playGame(
+            try pve.commitGame(
                 tokenId,
                 0,
                 IDealersPVE.HustleType.SELL,
@@ -234,7 +234,7 @@ contract PVEGameFlowsTest is BaseTest {
             uint256 cashBefore = core.getCashBalance(tokenId);
             uint256 weedBefore = core.getDrugBalance(tokenId, DRUG_WEED);
 
-            try pve.playGame(
+            try pve.commitGame(
                 tokenId,
                 0,
                 IDealersPVE.HustleType.SELL,
@@ -284,7 +284,7 @@ contract PVEGameFlowsTest is BaseTest {
             uint256 weedBefore = core.getDrugBalance(tokenId, DRUG_WEED);
             (, uint256 repBefore, , , , ) = core.getDealerData(tokenId);
 
-            try pve.playGame(
+            try pve.commitGame(
                 tokenId,
                 0,
                 IDealersPVE.HustleType.SELL,
@@ -344,7 +344,7 @@ contract PVEGameFlowsTest is BaseTest {
                 actions.purchaseAttemptReset{value: 0.001 ether}(tokenId);
             }
 
-            try pve.playGame(
+            try pve.commitGame(
                 tokenId,
                 0,
                 IDealersPVE.HustleType.BUY,
@@ -381,44 +381,33 @@ contract PVEGameFlowsTest is BaseTest {
         (, , uint8 startingAttempts, , , ) = core.getDealerData(tokenId);
         assertEq(startingAttempts, 5, "Should start with 5 attempts");
 
-        vm.startPrank(player1);
+        // Add cash so 5 BUY rounds at 5 weed each are affordable.
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
+        core.addCash(tokenId, 5 * 5 * 5);
+        vm.prank(owner);
+        core.authorizeContract(address(this), false);
 
+        // Force WIN outcome each round so cash is refunded and dealer never gets arrested.
+        uint256 winRand = _packRand(999, 60, 0, 0, 0);
         for (uint8 i = 0; i < 5; i++) {
-            vm.prevrandao(bytes32(uint256(i * 1000 + 100)));
-
-            try pve.playGame(
-                tokenId,
-                0,
-                IDealersPVE.HustleType.BUY,
-                DRUG_WEED,
-                5
-            ) {
-                (, , uint8 attemptsAfter, , , ) = core.getDealerData(tokenId);
-                assertEq(attemptsAfter, 4 - i, "Attempts should decrement");
-            } catch {
-                break;
-            }
-
-            if (core.getGameState(tokenId).isJailed) {
-                break;
-            }
+            _commitAndResolvePve(player1, tokenId, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 5, winRand);
+            (, , uint8 attemptsAfter, , , ) = core.getDealerData(tokenId);
+            assertEq(attemptsAfter, 4 - i, "Attempts should decrement");
         }
 
-        if (!core.getGameState(tokenId).isJailed) {
-            (, , uint8 finalAttempts, , , ) = core.getDealerData(tokenId);
-            assertEq(finalAttempts, 0, "Should have 0 attempts after 5 games");
+        (, , uint8 finalAttempts, , , ) = core.getDealerData(tokenId);
+        assertEq(finalAttempts, 0, "Should have 0 attempts after 5 games");
 
-            vm.expectRevert();
-            pve.playGame(
-                tokenId,
-                0,
-                IDealersPVE.HustleType.BUY,
-                DRUG_WEED,
-                5
-            );
-        }
-
-        vm.stopPrank();
+        vm.prank(player1);
+        vm.expectRevert();
+        pve.commitGame(
+            tokenId,
+            0,
+            IDealersPVE.HustleType.BUY,
+            DRUG_WEED,
+            5
+        );
     }
 
     function test_flow_insufficientCashReverts() public {
@@ -426,7 +415,7 @@ contract PVEGameFlowsTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.InsufficientCash.selector);
-        pve.playGame(
+        pve.commitGame(
             tokenId,
             0,
             IDealersPVE.HustleType.BUY,
@@ -440,7 +429,7 @@ contract PVEGameFlowsTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.InsufficientDrugs.selector);
-        pve.playGame(
+        pve.commitGame(
             tokenId,
             0,
             IDealersPVE.HustleType.SELL,
@@ -461,7 +450,7 @@ contract PVEGameFlowsTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.DealerInSafeHouse.selector);
-        pve.playGame(
+        pve.commitGame(
             safeHouseToken,
             0,
             IDealersPVE.HustleType.BUY,
@@ -472,13 +461,13 @@ contract PVEGameFlowsTest is BaseTest {
 
     function test_flow_cannotPlayInJail() public {
         vm.prank(owner);
-        core.sendToJail(tokenId);
+        core.forceMove(tokenId, core.JAIL_AREA());
 
         assertTrue(core.getGameState(tokenId).isJailed, "Should be in jail");
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.DealerInJail.selector);
-        pve.playGame(
+        pve.commitGame(
             tokenId,
             0,
             IDealersPVE.HustleType.BUY,

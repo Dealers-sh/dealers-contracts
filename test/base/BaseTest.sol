@@ -16,6 +16,7 @@ import "../../src/utils/DealersPaymentHandler.sol";
 import "../../src/utils/DealersDrugRegistry.sol";
 import "../../src/utils/DealersAreaRegistry.sol";
 import "../../src/utils/DealersRandomness.sol";
+import "../../src/utils/IDealersRandomness.sol";
 
 abstract contract BaseTest is Test, IERC721Receiver {
     DealersDrugRegistry public drugRegistry;
@@ -82,13 +83,14 @@ abstract contract BaseTest is Test, IERC721Receiver {
         core.setAreaRegistry(address(areaRegistry));
         core.setNFTContract(address(nft));
         core.setPaymentHandler(address(paymentHandler));
-        core.setRandomness(address(randomness));
 
         nft.setDealersCore(address(core));
 
         pve.setRandomness(address(randomness));
+        pve.setActions(address(actions));
         pvp.setRandomness(address(randomness));
         pvp.setDrugRegistry(address(drugRegistry));
+        pvp.setActions(address(actions));
 
         vm.stopPrank();
     }
@@ -161,10 +163,12 @@ abstract contract BaseTest is Test, IERC721Receiver {
         paymentHandler.authorizeContract(address(boosts), true);
         paymentHandler.authorizeContract(address(actions), true);
 
-        randomness.authorizeResolver(address(core), true);
         randomness.authorizeResolver(address(pve), true);
         randomness.authorizeResolver(address(pvp), true);
         randomness.authorizeResolver(address(actions), true);
+
+        actions.authorizeJailer(address(pve), true);
+        actions.authorizeJailer(address(pvp), true);
 
         _setupReputationTiers();
 
@@ -211,6 +215,181 @@ abstract contract BaseTest is Test, IERC721Receiver {
 
     function _isInJail(uint256 tokenId) internal view returns (bool) {
         return core.getGameState(tokenId).isJailed;
+    }
+
+    // =========================================================================
+    //                  COMMIT-REVEAL HELPERS (test fixtures)
+    // =========================================================================
+
+    /// @dev Roll past REVEAL_OFFSET so reveal()/isExpired() are valid for `seq`
+    function _advanceToRevealable(uint64 /*seq*/) internal {
+        vm.roll(block.number + uint256(randomness.REVEAL_OFFSET()) + 1);
+    }
+
+    /// @dev Roll past EXPIRY_WINDOW so isExpired() returns true
+    function _advanceToExpired() internal {
+        vm.roll(block.number + uint256(randomness.REVEAL_OFFSET()) + uint256(randomness.EXPIRY_WINDOW()) + 1);
+    }
+
+    /// @dev Mock reveal(seq) to return a specific bit-packed rand
+    function _mockReveal(uint64 seq, uint256 mockedRand) internal {
+        vm.mockCall(
+            address(randomness),
+            abi.encodeWithSelector(IDealersRandomness.reveal.selector, seq),
+            abi.encode(mockedRand)
+        );
+    }
+
+    /// @dev Build a rand uint256 by packing 16-bit slots:
+    ///      slot0 = arrest, slot1 = outcome, slot2 = drugSteal,
+    ///      slot3 = drop, slot4 = confiscation
+    function _packRand(
+        uint16 arrestRng,
+        uint16 outcomeRng,
+        uint16 drugRng,
+        uint16 dropRng,
+        uint16 confiscRng
+    ) internal pure returns (uint256) {
+        return uint256(arrestRng)
+            | (uint256(outcomeRng) << 16)
+            | (uint256(drugRng) << 32)
+            | (uint256(dropRng) << 48)
+            | (uint256(confiscRng) << 64);
+    }
+
+    function _commitAndResolvePve(
+        address player,
+        uint256 tokenId,
+        uint8 choice,
+        IDealersPVE.HustleType ht,
+        uint256 drugId,
+        uint256 amount,
+        uint256 mockedRand
+    ) internal returns (uint64 seq) {
+        vm.prank(player);
+        seq = pve.commitGame(tokenId, choice, ht, drugId, amount);
+        _mockReveal(seq, mockedRand);
+        _advanceToRevealable(seq);
+        pve.resolveGame(seq);
+    }
+
+    function _commitAndResolvePvp(
+        address attackerOwner,
+        uint256 attackerId,
+        uint256 defenderId,
+        uint256 mockedRand
+    ) internal returns (uint64 seq) {
+        vm.prank(attackerOwner);
+        seq = pvp.commitAttack(attackerId, defenderId);
+        _mockReveal(seq, mockedRand);
+        _advanceToRevealable(seq);
+        pvp.resolveAttack(seq);
+    }
+
+    // =========================================================================
+    //         OUTCOME-SPECIFIC RAND CONSTANTS / HELPERS (commit-reveal)
+    // =========================================================================
+    // PVE outcome thresholds (from _calculateBiasedHouseChoice):
+    //   roll < tieChance(50)              => TIE
+    //   roll < tieChance + winChance(70)  => WIN
+    //   else                              => LOSS
+    // arrestRng % 1000 < heatLevel*jailChancePerHeat => arrest
+    //   With heat=0, arrest never triggers regardless of arrestRng
+    //   With heat>0, set arrestRng=0 to force arrest, 999 to avoid
+
+    uint16 internal constant ARREST_RNG_NO  = 999;
+    uint16 internal constant ARREST_RNG_YES = 0;
+    uint16 internal constant OUTCOME_RNG_TIE  = 30;  // < 50
+    uint16 internal constant OUTCOME_RNG_WIN  = 60;  // 50 <= 60 < 70
+    uint16 internal constant OUTCOME_RNG_LOSS = 99;  // >= 70
+
+    function _randPveOutcome(uint16 outcomeRng) internal pure returns (uint256) {
+        return _packRand(ARREST_RNG_NO, outcomeRng, 0, 0, 0);
+    }
+
+    function _randPveArrest() internal pure returns (uint256) {
+        return _packRand(ARREST_RNG_YES, 0, 0, 0, 0);
+    }
+
+    function _pveWin(
+        address player,
+        uint256 tokenId,
+        uint8 choice,
+        IDealersPVE.HustleType ht,
+        uint256 drugId,
+        uint256 amount
+    ) internal returns (uint64) {
+        return _commitAndResolvePve(player, tokenId, choice, ht, drugId, amount, _randPveOutcome(OUTCOME_RNG_WIN));
+    }
+
+    function _pveTie(
+        address player,
+        uint256 tokenId,
+        uint8 choice,
+        IDealersPVE.HustleType ht,
+        uint256 drugId,
+        uint256 amount
+    ) internal returns (uint64) {
+        return _commitAndResolvePve(player, tokenId, choice, ht, drugId, amount, _randPveOutcome(OUTCOME_RNG_TIE));
+    }
+
+    function _pveLoss(
+        address player,
+        uint256 tokenId,
+        uint8 choice,
+        IDealersPVE.HustleType ht,
+        uint256 drugId,
+        uint256 amount
+    ) internal returns (uint64) {
+        return _commitAndResolvePve(player, tokenId, choice, ht, drugId, amount, _randPveOutcome(OUTCOME_RNG_LOSS));
+    }
+
+    function _pveArrest(
+        address player,
+        uint256 tokenId,
+        uint8 choice,
+        IDealersPVE.HustleType ht,
+        uint256 drugId,
+        uint256 amount
+    ) internal returns (uint64) {
+        return _commitAndResolvePve(player, tokenId, choice, ht, drugId, amount, _randPveArrest());
+    }
+
+    // PVP outcome control:
+    //   jailRng (slot0) % 1000 < jailChance + infamyBonus => arrest
+    //   winRng  (slot1) % 100 < winChancePct => win
+
+    function _randPvpAttackerWin() internal pure returns (uint256) {
+        // jailRng=999 (no arrest), winRng=0 (always wins)
+        return _packRand(999, 0, 0, 0, 0);
+    }
+
+    function _randPvpAttackerLoss() internal pure returns (uint256) {
+        // jailRng=999 (no arrest), winRng=99 (loses unless 99 < winChance, max 75)
+        return _packRand(999, 99, 0, 0, 0);
+    }
+
+    function _randPvpAttackerArrest() internal pure returns (uint256) {
+        // jailRng=0 (always arrest if any jail chance)
+        return _packRand(0, 0, 0, 0, 0);
+    }
+
+    function _pvpAttackerWins(address attackerOwner, uint256 attackerId, uint256 defenderId)
+        internal returns (uint64)
+    {
+        return _commitAndResolvePvp(attackerOwner, attackerId, defenderId, _randPvpAttackerWin());
+    }
+
+    function _pvpAttackerLoses(address attackerOwner, uint256 attackerId, uint256 defenderId)
+        internal returns (uint64)
+    {
+        return _commitAndResolvePvp(attackerOwner, attackerId, defenderId, _randPvpAttackerLoss());
+    }
+
+    function _pvpAttackerArrested(address attackerOwner, uint256 attackerId, uint256 defenderId)
+        internal returns (uint64)
+    {
+        return _commitAndResolvePvp(attackerOwner, attackerId, defenderId, _randPvpAttackerArrest());
     }
 
     function _computeLeaf(address account, uint256 maxAllocation) internal pure returns (bytes32) {

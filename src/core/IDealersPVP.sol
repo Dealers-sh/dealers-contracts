@@ -89,5 +89,9 @@ interface IDealersPVP {
     //                    STATE-MODIFYING FUNCTIONS
     // =============================================================
 
-    function attack(uint256 attackerId, uint256 defenderId) external;
+    /// @notice Commit a PVP attack; outcome is revealed in a later tx
+    function commitAttack(uint256 attackerId, uint256 defenderId) external returns (uint64 seq);
+
+    /// @notice Resolve a previously committed PVP attack (anyone may call)
+    function resolveAttack(uint64 seq) external;
 }

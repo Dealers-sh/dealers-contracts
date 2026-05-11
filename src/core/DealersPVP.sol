@@ -9,6 +9,7 @@ import {IAreaRegistry} from "../utils/IAreaRegistry.sol";
 import {IDrugRegistry} from "../utils/IDrugRegistry.sol";
 import {IERC721Minimal} from "../utils/IERC721Minimal.sol";
 import {IDealersRandomness} from "../utils/IDealersRandomness.sol";
+import {IActionsArrest} from "../utils/IActionsArrest.sol";
 
 /**
  * @title DealersPVP - Player vs Player Battle Module
@@ -31,6 +32,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     IAreaRegistry public areaRegistry;
     IDrugRegistry public drugRegistry;
     IDealersRandomness public randomness;
+    IActionsArrest public actions;
 
     bool public paused;
     PVPConfig public config;
@@ -40,6 +42,21 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     mapping(uint256 => PvpStats) public dealerPvpStats;
 
     uint256[3] public dropDrugIds;
+
+    /// @dev Only `areaAtCommit` is snapshotted — it locks which drug catalog the steal
+    ///      is computed against so a defender can't dodge by travelling. Combat stats
+    ///      (threat/armor/jailChance/infamy/rep) and balances (cash/drugs) are read
+    ///      live at resolve. Intentional: the protocol's paid heat-reduction
+    ///      (bribeCop / payBail) is revenue, and any defender self-mitigation via PVE
+    ///      escrow is economically worse than the 2% steal it would dodge.
+    struct PvpRound {
+        uint256 attackerId;
+        uint256 defenderId;
+        uint8 areaAtCommit;
+    }
+
+    mapping(uint64 => PvpRound) public pendingPvpRounds;
+    mapping(uint256 => uint64) public activePvpRoundOf;
 
     // =============================================================
     //                            EVENTS
@@ -53,10 +70,25 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
         uint256 drugsStolen,
         uint256 cashStolen,
         int16 attackerRepChange,
-        int16 defenderRepChange
+        int16 defenderRepChange,
+        int16 attackerInfamyChange,
+        uint16 winChancePct,
+        uint8 newHeatLevelAttacker
     );
 
     event LootDropped(uint256 indexed attackerId, uint256 indexed drugId);
+
+    event PvpCommitted(
+        uint64 indexed seq,
+        uint256 indexed attackerId,
+        uint256 indexed defenderId,
+        uint8 attackerThreat,
+        uint8 defenderArmor,
+        uint16 winChancePct,
+        uint16 attackerJailChance
+    );
+    event PvpExpired(uint64 indexed seq, uint256 indexed attackerId);
+    event PvpAttackerJailedExternally(uint64 indexed seq, uint256 indexed attackerId);
 
     event DealerArrested(uint256 indexed tokenId, uint16 jailChance);
     event CoreContractUpdated(address indexed oldCore, address indexed newCore);
@@ -64,6 +96,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     event AreaRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
     event DrugRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
     event RandomnessUpdated(address indexed oldRandomness, address indexed newRandomness);
+    event ActionsUpdated(address indexed oldActions, address indexed newActions);
     event Paused(address account);
     event Unpaused(address account);
     event PVPConfigUpdated(PVPConfig oldConfig, PVPConfig newConfig);
@@ -85,6 +118,9 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     error OutOfRepRange();
     error NoAttemptsRemaining();
     error InvalidPVPConfig();
+    error InvalidAddress();
+    error RoundPending();
+    error UnknownRound();
 
     // =============================================================
     //                            CONSTRUCTOR
@@ -128,7 +164,8 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
             address(nftContract) == address(0) ||
             address(areaRegistry) == address(0) ||
             address(drugRegistry) == address(0) ||
-            address(randomness) == address(0)
+            address(randomness) == address(0) ||
+            address(actions) == address(0)
         ) {
             revert ContractNotSet();
         }
@@ -150,21 +187,54 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     // =============================================================
 
     /**
-     * @notice Initiate a PVP attack against another dealer in the same area
-     * @param attackerId The attacker's dealer NFT token ID
-     * @param defenderId The target dealer's NFT token ID
+     * @notice Commit a PVP attack; outcome resolved later. Debits attacker's attempt
+     *         and applies the per-defender daily-attack-rate limiter at commit time.
      */
-    function attack(uint256 attackerId, uint256 defenderId)
+    function commitAttack(uint256 attackerId, uint256 defenderId)
         external
         nonReentrant
         whenNotPaused
         contractsSet
         onlyDealerOwner(attackerId)
+        returns (uint64 seq)
+    {
+        (IDealersCore.GameState memory atkState, IDealersCore.GameState memory defState) =
+            _validateCommitAttack(attackerId, defenderId);
+
+        _checkDefenderProtection(defenderId);
+
+        IDealersCore.GameOutcome memory commitOutcome;
+        commitOutcome.useAttempt = true;
+        core.applyGameOutcome(attackerId, commitOutcome);
+
+        seq = randomness.commit();
+        pendingPvpRounds[seq] = PvpRound({
+            attackerId: attackerId,
+            defenderId: defenderId,
+            areaAtCommit: atkState.currentArea
+        });
+        activePvpRoundOf[attackerId] = seq;
+
+        emit PvpCommitted(
+            seq,
+            attackerId,
+            defenderId,
+            atkState.threat,
+            defState.armor,
+            uint16(_calcWinChance(atkState.threat, defState.armor)),
+            atkState.jailChance
+        );
+    }
+
+    function _validateCommitAttack(uint256 attackerId, uint256 defenderId)
+        private
+        view
+        returns (IDealersCore.GameState memory atkState, IDealersCore.GameState memory defState)
     {
         if (attackerId == defenderId) revert SameDealer();
+        if (activePvpRoundOf[attackerId] != 0) revert RoundPending();
 
-        (IDealersCore.GameState memory atkState, IDealersCore.GameState memory defState) =
-            core.getBothGameStates(attackerId, defenderId);
+        (atkState, defState) = core.getBothGameStates(attackerId, defenderId);
 
         if (!atkState.isInitialized) revert DealerNotInitialized();
         if (!defState.isInitialized) revert DealerNotInitialized();
@@ -185,10 +255,36 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
         if (!_isInRepRange(atkState.totalReputation, defState.totalReputation)) {
             revert OutOfRepRange();
         }
+    }
 
-        _checkDefenderProtection(defenderId);
+    /**
+     * @notice Resolve a previously committed PVP attack. Anyone may call.
+     * @dev Combat stats and balances are read live — see `PvpRound` natspec for why.
+     *      On expiry the attacker's attempt is forfeit (no stake to refund). If the
+     *      attacker is jailed by some other action between commit and resolve, the
+     *      round is cleaned up with no payout.
+     */
+    function resolveAttack(uint64 seq) external nonReentrant {
+        PvpRound memory r = pendingPvpRounds[seq];
+        if (r.attackerId == 0) revert UnknownRound();
 
-        _executeBattle(attackerId, defenderId, atkState, defState);
+        delete pendingPvpRounds[seq];
+        delete activePvpRoundOf[r.attackerId];
+
+        if (randomness.isExpired(seq)) {
+            emit PvpExpired(seq, r.attackerId);
+            return;
+        }
+
+        (IDealersCore.GameState memory atk, IDealersCore.GameState memory def) =
+            core.getBothGameStates(r.attackerId, r.defenderId);
+        if (atk.isJailed) {
+            emit PvpAttackerJailedExternally(seq, r.attackerId);
+            return;
+        }
+
+        uint256 rand = randomness.reveal(seq);
+        _executeBattle(r, atk, def, rand);
     }
 
     // =============================================================
@@ -404,6 +500,17 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     }
 
     /**
+     * @notice Set the DealersActions contract used to delegate arrest policy
+     * @param _actions Address of the DealersActions contract
+     */
+    function setActions(address _actions) external onlyOwner {
+        if (_actions == address(0)) revert InvalidAddress();
+        address old = address(actions);
+        actions = IActionsArrest(_actions);
+        emit ActionsUpdated(old, _actions);
+    }
+
+    /**
      * @notice Update the full PVP configuration (win chances, steal rates, rep range, etc.)
      * @param _config New PVP config struct
      */
@@ -456,14 +563,37 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     function _calcWinChance(uint8 attackerThreat, uint8 defenderArmor) private view returns (uint256) {
         int256 statModifier = int256(uint256(attackerThreat)) - int256(uint256(defenderArmor));
         int256 finalChance = int256(uint256(config.baseWinChance)) + statModifier;
-
-        if (finalChance < int256(uint256(config.minWinChance))) {
-            return config.minWinChance;
-        }
-        if (finalChance > int256(uint256(config.maxWinChance))) {
-            return config.maxWinChance;
-        }
+        if (finalChance < int256(uint256(config.minWinChance))) return config.minWinChance;
+        if (finalChance > int256(uint256(config.maxWinChance))) return config.maxWinChance;
         return uint256(finalChance);
+    }
+
+    function _rollPvpJailCheck(uint16 jailChance, uint256 infamy, uint256 rng) private pure returns (bool) {
+        uint256 bonus = (infamy / 10) * 5;
+        uint16 infamyChance = bonus > 25 ? 25 : uint16(bonus);
+        uint16 totalChance = jailChance + infamyChance;
+        return uint16(rng % 1000) < totalChance;
+    }
+
+    function _clampInt16Result(int16 winBonus, uint8 multiplier) private pure returns (int16) {
+        int256 repResult = (int256(winBonus) * int256(uint256(multiplier))) / 100;
+        if (repResult > type(int16).max) repResult = type(int16).max;
+        if (repResult < type(int16).min) repResult = type(int16).min;
+        return int16(repResult);
+    }
+
+    function _ceilDiv(uint256 a, uint256 b) private pure returns (uint256) {
+        if (a == 0) return 0;
+        return (a - 1) / b + 1;
+    }
+
+    function _getInfamyDropWeights(uint256 infamy) private pure returns (uint8[4] memory) {
+        if (infamy >= 50) return [uint8(15), 30, 35, 20];
+        if (infamy >= 40) return [uint8(20), 35, 30, 15];
+        if (infamy >= 30) return [uint8(25), 40, 25, 10];
+        if (infamy >= 20) return [uint8(30), 45, 20, 5];
+        if (infamy >= 10) return [uint8(35), 50, 15, 0];
+        return [uint8(40), 60, 0, 0];
     }
 
     function _checkDefenderProtection(uint256 defenderId) private {
@@ -482,29 +612,107 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
         }
     }
 
+    struct _BattleResult {
+        IDealersCore.GameOutcome atkOut;
+        IDealersCore.GameOutcome defOut;
+        uint256 drugIdStolen;
+        uint256 drugsStolen;
+        uint256 cashStolen;
+        int16 attackerRepChange;
+        int16 defenderRepChange;
+        bool attackerWon;
+        uint16 winChancePct;
+    }
+
     function _executeBattle(
-        uint256 attackerId,
-        uint256 defenderId,
-        IDealersCore.GameState memory atkState,
-        IDealersCore.GameState memory defState
+        PvpRound memory r,
+        IDealersCore.GameState memory atk,
+        IDealersCore.GameState memory def,
+        uint256 rand
     ) private {
-        bytes32 seed = keccak256(abi.encodePacked(attackerId, defenderId, block.timestamp));
-        uint256[] memory rng = randomness.getRandomValues(seed, 4);
+        uint256 jailRng    = rand & 0xFFFF;
+        uint256 winRng     = (rand >> 16) & 0xFFFF;
+        uint256 drugRng    = (rand >> 32) & 0xFFFF;
+        uint256 dropRng    = (rand >> 48) & 0xFFFF;
+        uint256 confiscRng = (rand >> 64) & 0xFFFF;
 
-        IDealersCore.GameOutcome memory atkOut;
-        atkOut.useAttempt = true;
-        atkOut.incrementHeat = true;
-
-        if (_rollPvpJailCheck(atkState, rng[0])) {
-            atkOut.sendToJail = true;
-            core.applyGameOutcome(attackerId, atkOut);
-            emit DealerArrested(attackerId, atkState.jailChance);
+        if (_rollPvpJailCheck(atk.jailChance, atk.infamy, jailRng)) {
+            actions.arrest(r.attackerId, confiscRng);
+            emit DealerArrested(r.attackerId, atk.jailChance);
             return;
         }
 
-        uint256 winChancePct = _calcWinChance(atkState.threat, defState.armor);
-        bool attackerWon = (rng[1] % 100) < winChancePct;
+        _BattleResult memory br = _buildBattleResult(r, atk, def, winRng, drugRng);
+        _recordPvpStats(r.attackerId, r.defenderId, br.attackerWon);
 
+        core.applyPVPOutcome(r.attackerId, r.defenderId, br.atkOut, br.defOut);
+
+        int16 attackerInfamyChange;
+        if (br.attackerWon) {
+            core.updateInfamy(r.attackerId, 3);
+            attackerInfamyChange = 3;
+            _applyDropReward(r.attackerId, dropRng, atk.infamy);
+        } else {
+            core.updateInfamy(r.attackerId, -1);
+            attackerInfamyChange = -1;
+        }
+
+        emit PVPBattleResult(
+            r.attackerId,
+            r.defenderId,
+            br.attackerWon,
+            br.drugIdStolen,
+            br.drugsStolen,
+            br.cashStolen,
+            br.attackerRepChange,
+            br.defenderRepChange,
+            attackerInfamyChange,
+            br.winChancePct,
+            core.getEffectiveHeat(r.attackerId)
+        );
+    }
+
+    function _buildBattleResult(
+        PvpRound memory r,
+        IDealersCore.GameState memory atk,
+        IDealersCore.GameState memory def,
+        uint256 winRng,
+        uint256 drugRng
+    ) private view returns (_BattleResult memory br) {
+        br.atkOut.incrementHeat = true;
+        uint256 winChancePct = _calcWinChance(atk.threat, def.armor);
+        br.winChancePct = uint16(winChancePct);
+        br.attackerWon = (winRng % 100) < winChancePct;
+
+        if (br.attackerWon) {
+            (br.drugIdStolen, br.drugsStolen) = _computeDrugSteal(r.defenderId, r.areaAtCommit, drugRng);
+            br.cashStolen = _computeCashSteal(def.cashBalance);
+
+            br.attackerRepChange = _clampInt16Result(atk.repWinBonus, atk.repMultiplier);
+            br.defenderRepChange = def.repLossPenalty;
+
+            br.atkOut.repDelta = int256(br.attackerRepChange);
+            br.defOut.repDelta = int256(br.defenderRepChange);
+
+            if (br.drugsStolen > 0) {
+                br.atkOut.drugId = br.drugIdStolen;
+                br.atkOut.drugDelta = int256(br.drugsStolen);
+                br.defOut.drugId = br.drugIdStolen;
+                br.defOut.drugDelta = -int256(br.drugsStolen);
+            }
+            if (br.cashStolen > 0) {
+                br.atkOut.cashDelta = int256(br.cashStolen);
+                br.defOut.cashDelta = -int256(br.cashStolen);
+            }
+        } else {
+            br.attackerRepChange = atk.repLossPenalty;
+            br.defenderRepChange = int16(uint16(config.defenderRepBonus));
+            br.atkOut.repDelta = int256(br.attackerRepChange);
+            br.defOut.repDelta = int256(br.defenderRepChange);
+        }
+    }
+
+    function _recordPvpStats(uint256 attackerId, uint256 defenderId, bool attackerWon) private {
         unchecked {
             if (attackerWon) {
                 dealerPvpStats[attackerId].attackWins++;
@@ -514,89 +722,8 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
                 dealerPvpStats[defenderId].defendWins++;
             }
         }
-
-        IDealersCore.GameOutcome memory defOut;
-
-        uint256 drugIdStolen;
-        uint256 drugsStolen;
-        uint256 cashStolen;
-        int16 attackerRepChange;
-        int16 defenderRepChange;
-
-        if (attackerWon) {
-            (drugIdStolen, drugsStolen) = _computeDrugSteal(defenderId, atkState.currentArea, rng[2]);
-            cashStolen = _computeCashSteal(defState.cashBalance);
-
-            int256 repResult = (int256(atkState.repWinBonus) * int256(uint256(atkState.repMultiplier))) / 100;
-            if (repResult > type(int16).max) repResult = type(int16).max;
-            if (repResult < type(int16).min) repResult = type(int16).min;
-            attackerRepChange = int16(repResult);
-            defenderRepChange = defState.repLossPenalty;
-
-            atkOut.repDelta = int256(attackerRepChange);
-
-            defOut.repDelta = int256(defenderRepChange);
-
-            if (drugsStolen > 0) {
-                atkOut.drugId = drugIdStolen;
-                atkOut.drugDelta = int256(drugsStolen);
-                defOut.drugId = drugIdStolen;
-                defOut.drugDelta = -int256(drugsStolen);
-            }
-
-            if (cashStolen > 0) {
-                atkOut.cashDelta = int256(cashStolen);
-                defOut.cashDelta = -int256(cashStolen);
-            }
-        } else {
-            attackerRepChange = int16(atkState.repLossPenalty);
-            defenderRepChange = int16(uint16(config.defenderRepBonus));
-
-            atkOut.repDelta = int256(attackerRepChange);
-            defOut.repDelta = int256(defenderRepChange);
-        }
-
-        core.applyPVPOutcome(attackerId, defenderId, atkOut, defOut);
-
-        if (attackerWon) {
-            core.updateInfamy(attackerId, 3);
-            _applyDropReward(attackerId, rng[3], atkState.infamy);
-        } else {
-            core.updateInfamy(attackerId, -1);
-        }
-
-        emit PVPBattleResult(
-            attackerId,
-            defenderId,
-            attackerWon,
-            drugIdStolen,
-            drugsStolen,
-            cashStolen,
-            attackerRepChange,
-            defenderRepChange
-        );
     }
 
-    function _rollPvpJailCheck(IDealersCore.GameState memory state, uint256 rng) private pure returns (bool) {
-        uint16 heatChance = state.jailChance;
-        uint16 infamyChance = _calcInfamyJailBonus(state.infamy);
-        uint16 totalChance = heatChance + infamyChance;
-        return uint16(rng % 1000) < totalChance;
-    }
-
-    function _calcInfamyJailBonus(uint256 infamy) private pure returns (uint16) {
-        uint256 bonus = (infamy / 10) * 5;
-        return bonus > 25 ? 25 : uint16(bonus);
-    }
-
-    function _getInfamyDropWeights(uint256 infamy) private pure returns (uint8[4] memory) {
-        if (infamy >= 50) return [uint8(15), 30, 35, 20];
-        if (infamy >= 40) return [uint8(20), 35, 30, 15];
-        if (infamy >= 30) return [uint8(25), 40, 25, 10];
-        if (infamy >= 20) return [uint8(30), 45, 20, 5];
-        if (infamy >= 10) return [uint8(35), 50, 15, 0];
-        return [uint8(40), 60, 0, 0];
-    }
 
     function _applyDropReward(uint256 attackerId, uint256 rng, uint256 infamy) private {
         uint8[4] memory weights = _getInfamyDropWeights(infamy);
@@ -723,8 +850,4 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
         return (rareDrugs[idx], rareBalances[idx]);
     }
 
-    function _ceilDiv(uint256 a, uint256 b) private pure returns (uint256) {
-        if (a == 0) return 0;
-        return (a - 1) / b + 1;
-    }
 }

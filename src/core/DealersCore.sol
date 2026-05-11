@@ -8,7 +8,6 @@ import "../utils/IDrugRegistry.sol";
 import "../utils/IAreaRegistry.sol";
 import "../utils/IERC721Minimal.sol";
 import "../utils/IDealersPaymentHandler.sol";
-import "../utils/IDealersRandomness.sol";
 
 /**
  * @title DealersCore - Game State Management Hub
@@ -128,7 +127,6 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
     IDealersPaymentHandler public paymentHandler;
     IDrugRegistry public drugRegistry;
     IAreaRegistry public areaRegistry;
-    IDealersRandomness public randomness;
 
     // =============================================================
     //                            EVENTS
@@ -142,7 +140,6 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
     event DailyPlaysUpdated(uint256 indexed tokenId, uint8 playsRemaining);
     event ReputationTiersUpdated(uint256 tierCount);
 
-    event DealerJailed(uint256 indexed tokenId, uint8 previousArea, uint256 repLost, uint256 confiscatedDrugId, uint256 confiscatedAmount);
     event HeatLevelChanged(uint256 indexed tokenId, uint8 newHeatLevel);
     event AttemptsUsed(uint256 indexed tokenId, uint8 remaining);
     event AttemptsReset(uint256 indexed tokenId, uint8 newAmount);
@@ -152,7 +149,6 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
     event PaymentHandlerUpdated(address indexed newAddress);
     event DrugRegistryUpdated(address indexed newAddress);
     event AreaRegistryUpdated(address indexed newAddress);
-    event RandomnessUpdated(address indexed newAddress);
 
     event CashUpdated(uint256 indexed tokenId, uint256 newBalance, int256 change);
     event InfamyUpdated(uint256 indexed tokenId, uint256 newInfamy, int256 delta);
@@ -422,10 +418,6 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
         if (outcome.cashDelta != 0) {
             _updateCash(tokenId, outcome.cashDelta);
-        }
-
-        if (outcome.sendToJail) {
-            _sendToJailInternal(tokenId);
         }
     }
 
@@ -849,44 +841,6 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
     }
 
 
-    /**
-     * @notice Send dealer to jail with capped reputation penalty
-     */
-    function sendToJail(uint256 tokenId)
-        external
-        onlyAuthorized
-        dealerExists(tokenId)
-        whenNotPaused
-    {
-        _sendToJailInternal(tokenId);
-    }
-
-    function _sendToJailInternal(uint256 tokenId) private {
-        DealerData storage d = dealers[tokenId];
-
-        if (d.currentArea == JAIL_AREA) return;
-
-        uint8 priorArea = d.currentArea;
-
-        uint256 percentLoss = (d.reputation * config.jailRepPenaltyPercent) / 100;
-        uint256 repLoss = percentLoss > config.jailRepPenaltyCap ? config.jailRepPenaltyCap : percentLoss;
-
-        d.previousArea = priorArea;
-        d.currentArea = JAIL_AREA;
-        areaRegistry.updateDealerLocation(tokenId, priorArea, JAIL_AREA);
-
-        if (repLoss >= d.reputation) {
-            d.reputation = 0;
-        } else {
-            d.reputation -= repLoss;
-        }
-
-        (uint256 confiscatedDrugId, uint256 confiscatedAmount) = _confiscateDrug(tokenId);
-
-        emit DealerJailed(tokenId, priorArea, repLoss, confiscatedDrugId, confiscatedAmount);
-    }
-
-
     // =============================================================
     //                     ATTEMPT FUNCTIONS
     // =============================================================
@@ -1080,36 +1034,29 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
         emit AreaRegistryUpdated(_areaRegistry);
     }
 
-    /**
-     * @notice Set the Randomness contract reference
-     */
-    function setRandomness(address _randomness) external onlyOwner {
-        if (_randomness == address(0)) revert InvalidAddress();
-        randomness = IDealersRandomness(_randomness);
-        emit RandomnessUpdated(_randomness);
-    }
-
     // =============================================================
-    //                     INTERNAL HELPER FUNCTIONS
+    //                     ARREST POLICY HELPERS (read-only)
     // =============================================================
 
     /**
-     * @notice Confiscate a percentage of one random drug from a dealer
-     * @return drugId The drug type confiscated (0 if none)
-     * @return amount The amount confiscated
+     * @notice Pick one drug the dealer is currently holding, indexed by `rng`
+     * @dev Caller-supplied randomness keeps Core deterministic. Returns (0, 0) if
+     *      the dealer holds no drugs.
      */
-    function _confiscateDrug(uint256 tokenId) private returns (uint256 drugId, uint256 amount) {
-        uint8 confiscationPercent = config.jailDrugConfiscationPercent;
-        if (confiscationPercent == 0 || address(drugRegistry) == address(0)) return (0, 0);
+    function pickHeldDrugByRng(uint256 tokenId, uint256 rng)
+        external
+        view
+        returns (uint256 drugId, uint256 balance)
+    {
+        if (address(drugRegistry) == address(0)) return (0, 0);
 
         uint256[] memory allDrugIds = drugRegistry.getAllDrugIds();
         uint256 len = allDrugIds.length;
 
-        // Collect drug IDs where dealer has balance > 0
         uint256[] memory heldDrugs = new uint256[](len);
         uint256 heldCount;
 
-        for (uint256 i = 0; i < len; ) {
+        for (uint256 i = 0; i < len;) {
             if (drugBalances[tokenId][allDrugIds[i]] > 0) {
                 heldDrugs[heldCount] = allDrugIds[i];
                 unchecked { ++heldCount; }
@@ -1119,17 +1066,8 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
         if (heldCount == 0) return (0, 0);
 
-        bytes32 seed = keccak256(abi.encodePacked(tokenId, block.timestamp, "CONFISCATE"));
-        uint256 pick = randomness.getRandomness(seed) % heldCount;
-        drugId = heldDrugs[pick];
-
-        uint256 balance = drugBalances[tokenId][drugId];
-        amount = _ceilDiv(balance * confiscationPercent, 100);
-
-        drugBalances[tokenId][drugId] = balance - amount;
-        drugRegistry.decrementSupply(drugId, amount);
-
-        emit DrugBalanceUpdated(tokenId, drugId, drugBalances[tokenId][drugId], -int256(amount));
+        drugId = heldDrugs[rng % heldCount];
+        balance = drugBalances[tokenId][drugId];
     }
 
     function _ceilDiv(uint256 a, uint256 b) private pure returns (uint256) {

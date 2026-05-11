@@ -97,7 +97,6 @@ contract DealersClaimsTest is Test, IERC721Receiver {
         core.setPaymentHandler(address(paymentHandler));
         core.setDrugRegistry(address(drugRegistry));
         core.setAreaRegistry(address(areaRegistry));
-        core.setRandomness(address(randomness));
 
         nft.setDealersCore(address(core));
 
@@ -106,7 +105,6 @@ contract DealersClaimsTest is Test, IERC721Receiver {
         drugRegistry.authorizeContract(address(core), true);
         areaRegistry.setCoreContract(address(core));
         paymentHandler.authorizeContract(address(core), true);
-        randomness.authorizeResolver(address(core), true);
 
         _setupReputationTiers();
 

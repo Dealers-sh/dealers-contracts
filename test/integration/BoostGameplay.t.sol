@@ -44,7 +44,7 @@ contract BoostGameplayTest is BaseTest {
             uint256 cashBefore = core.getCashBalance(tokenId);
             uint256 weedBefore = core.getDrugBalance(tokenId, DRUG_WEED);
 
-            try pve.playGame(
+            try pve.commitGame(
                 tokenId,
                 0,
                 IDealersPVE.HustleType.BUY,
@@ -100,7 +100,7 @@ contract BoostGameplayTest is BaseTest {
 
             (, uint256 repBefore, , , , ) = core.getDealerData(tokenId);
 
-            try pve.playGame(
+            try pve.commitGame(
                 tokenId,
                 0,
                 IDealersPVE.HustleType.BUY,
@@ -171,7 +171,7 @@ contract BoostGameplayTest is BaseTest {
             uint256 cashBefore = core.getCashBalance(tokenId);
             uint256 weedBefore = core.getDrugBalance(tokenId, DRUG_WEED);
 
-            try pve.playGame(
+            try pve.commitGame(
                 tokenId,
                 0,
                 IDealersPVE.HustleType.SELL,
