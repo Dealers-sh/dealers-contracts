@@ -19,6 +19,8 @@ contract SetupClaims is DeployBase {
     uint8 constant PVP_DEFEND_WINS = 6;
     uint8 constant PVP_TOTAL_WINS = 7;
     uint8 constant REPUTATION = 8;
+    uint8 constant CASH_BALANCE = 9;
+    uint8 constant DRUG_BALANCE = 10;
     uint8 constant PVE_DEAL_CHOICES = 11;
     uint8 constant PVE_THREATEN_CHOICES = 12;
     uint8 constant PVE_BAIL_CHOICES = 13;
@@ -35,6 +37,9 @@ contract SetupClaims is DeployBase {
     uint256 constant COCAINE = 6;
     uint256 constant SHROOMS = 7;
     uint256 constant HEROIN = 8;
+    uint256 constant OPIOIDS = 9;
+    uint256 constant METH = 10;
+    uint256 constant FENTANYL = 11;
 
     function run() external {
         _loadAddresses();
@@ -52,98 +57,135 @@ contract SetupClaims is DeployBase {
         // =================================================================
 
         // #0: First Deal - play one PVE round
-        c.setAchievement(0, _achievement(PVE_TOTAL, 0, 1, REWARD_CASH, 0, 25));
+        c.setAchievement(0, _achievement(PVE_TOTAL, 0, 1, REWARD_CASH, 0, 250));
 
         // #1: Grinder - play 10 PVE rounds
-        c.setAchievement(1, _achievement(PVE_TOTAL, 0, 10, REWARD_CASH, 0, 50));
+        c.setAchievement(1, _achievement(PVE_TOTAL, 0, 10, REWARD_CASH, 0, 1000));
 
         // #2: Winner - win 10 PVE rounds
-        c.setAchievement(2, _achievement(PVE_WINS, 0, 10, REWARD_DRUG, XTC, 2));
+        c.setAchievement(2, _achievement(PVE_WINS, 0, 10, REWARD_DRUG, XTC, 5));
 
         // #3: Stalemate King - tie 10 PVE rounds
-        c.setAchievement(3, _achievement(PVE_TIES, 0, 10, REWARD_DRUG, XTC, 2));
+        c.setAchievement(3, _achievement(PVE_TIES, 0, 10, REWARD_DRUG, XTC, 5));
 
         // #4: Hard Knocks - lose 10 PVE rounds
-        c.setAchievement(4, _achievement(PVE_LOSSES, 0, 10, REWARD_CASH, 0, 50));
+        c.setAchievement(4, _achievement(PVE_LOSSES, 0, 10, REWARD_CASH, 0, 1000));
 
         // #5: Dealer's Choice - choose Deal 10 times
-        c.setAchievement(5, _achievement(PVE_DEAL_CHOICES, 0, 10, REWARD_DRUG, SHROOMS, 1));
+        c.setAchievement(5, _achievement(PVE_DEAL_CHOICES, 0, 10, REWARD_DRUG, SHROOMS, 5));
 
         // #6: Intimidator - choose Threaten 10 times
-        c.setAchievement(6, _achievement(PVE_THREATEN_CHOICES, 0, 10, REWARD_DRUG, SHROOMS, 1));
+        c.setAchievement(6, _achievement(PVE_THREATEN_CHOICES, 0, 10, REWARD_DRUG, SHROOMS, 5));
 
         // #7: Escape Artist - choose Bail 10 times
-        c.setAchievement(7, _achievement(PVE_BAIL_CHOICES, 0, 10, REWARD_DRUG, SHROOMS, 1));
+        c.setAchievement(7, _achievement(PVE_BAIL_CHOICES, 0, 10, REWARD_DRUG, SHROOMS, 5));
 
-        // #8: First Blood - win a PVP fight
-        c.setAchievement(8, _achievement(PVP_TOTAL_WINS, 0, 1, REWARD_REP, 0, 10));
+        // #8: First Blood - win a PVP fight (rep reward, pairs with #22 for drug)
+        c.setAchievement(8, _achievement(PVP_TOTAL_WINS, 0, 1, REWARD_REP, 0, 25));
 
         // #9: Aggressor - win 10 PVP attacks
-        c.setAchievement(9, _achievement(PVP_ATTACK_WINS, 0, 10, REWARD_DRUG, GENERAL_GOODS, 1));
+        c.setAchievement(9, _achievement(PVP_ATTACK_WINS, 0, 10, REWARD_DRUG, GENERAL_GOODS, 3));
 
         // #10: Fortress - win 10 PVP defenses
-        c.setAchievement(10, _achievement(PVP_DEFEND_WINS, 0, 10, REWARD_DRUG, GENERAL_GOODS, 1));
+        c.setAchievement(10, _achievement(PVP_DEFEND_WINS, 0, 10, REWARD_DRUG, GENERAL_GOODS, 3));
 
         // #11: Made Man - reach 100 rep
-        c.setAchievement(11, _achievement(REPUTATION, 0, 100, REWARD_DRUG, WEED, 20));
+        c.setAchievement(11, _achievement(REPUTATION, 0, 100, REWARD_DRUG, WEED, 100));
 
         // =================================================================
-        //                   REPUTATION TIERS (IDs 12-20)
+        //         REPUTATION TIER MILESTONES (IDs 12-20)
+        //         Aligned with the convex 2.2x ladder in SetupTiers
         // =================================================================
 
-        c.setAchievement(12, _achievement(REPUTATION, 0, 50, REWARD_CASH, 0, 50));
-        c.setAchievement(13, _achievement(REPUTATION, 0, 150, REWARD_CASH, 0, 150));
-        // #21: Rep 250 -> 1 Heroin
-        c.setAchievement(21, _achievement(REPUTATION, 0, 250, REWARD_DRUG, HEROIN, 1));
-        c.setAchievement(14, _achievement(REPUTATION, 0, 300, REWARD_CASH, 0, 300));
-        c.setAchievement(15, _achievement(REPUTATION, 0, 700, REWARD_CASH, 0, 700));
-        c.setAchievement(16, _achievement(REPUTATION, 0, 1250, REWARD_CASH, 0, 1250));
-        c.setAchievement(17, _achievement(REPUTATION, 0, 1900, REWARD_CASH, 0, 1900));
-        c.setAchievement(18, _achievement(REPUTATION, 0, 2600, REWARD_CASH, 0, 2600));
-        c.setAchievement(19, _achievement(REPUTATION, 0, 3500, REWARD_CASH, 0, 3500));
-        c.setAchievement(20, _achievement(REPUTATION, 0, 5000, REWARD_CASH, 0, 5000));
+        c.setAchievement(12, _achievement(REPUTATION, 0, 75,    REWARD_CASH, 0, 500));      // Associate
+        c.setAchievement(13, _achievement(REPUTATION, 0, 200,   REWARD_CASH, 0, 2000));     // Dealer
+        c.setAchievement(14, _achievement(REPUTATION, 0, 500,   REWARD_CASH, 0, 10000));    // Soldier
+        c.setAchievement(15, _achievement(REPUTATION, 0, 1200,  REWARD_CASH, 0, 25000));    // Capo
+        c.setAchievement(16, _achievement(REPUTATION, 0, 2500,  REWARD_CASH, 0, 75000));    // Consigliere
+        c.setAchievement(17, _achievement(REPUTATION, 0, 5000,  REWARD_CASH, 0, 200000));   // Underboss
+        c.setAchievement(18, _achievement(REPUTATION, 0, 10000, REWARD_CASH, 0, 500000));   // Don
+        c.setAchievement(19, _achievement(REPUTATION, 0, 22000, REWARD_CASH, 0, 1000000));  // Godfather
+        c.setAchievement(20, _achievement(REPUTATION, 0, 50000, REWARD_CASH, 0, 2000000));  // Legend
+
+        // =================================================================
+        //                     EARLY DRUG MILESTONE (ID 21)
+        // =================================================================
+
+        c.setAchievement(21, _achievement(REPUTATION, 0, 250, REWARD_DRUG, HEROIN, 5));
 
         // =================================================================
         //                     PVP DRUG REWARDS (IDs 22-23)
         // =================================================================
 
-        // #22: First Blood Loot - win a PVP fight (pairs with #8 REP reward)
-        c.setAchievement(22, _achievement(PVP_TOTAL_WINS, 0, 1, REWARD_DRUG, GENERAL_GOODS, 1));
+        c.setAchievement(22, _achievement(PVP_TOTAL_WINS, 0, 1,  REWARD_DRUG, GENERAL_GOODS, 3));
+        c.setAchievement(23, _achievement(PVP_TOTAL_WINS, 0, 10, REWARD_DRUG, CONTRABAND, 3));
 
-        // #23: Street Veteran - win 10 PVP fights
-        c.setAchievement(23, _achievement(PVP_TOTAL_WINS, 0, 10, REWARD_DRUG, CONTRABAND, 1));
+        // =================================================================
+        //                NEW: CASH THRESHOLDS (IDs 24-27)
+        // =================================================================
+
+        c.setAchievement(24, _achievement(CASH_BALANCE, 0, 10000,   REWARD_DRUG, XTC, 1));      // Pocket Lined
+        c.setAchievement(25, _achievement(CASH_BALANCE, 0, 100000,  REWARD_DRUG, COCAINE, 1));  // High Roller
+        c.setAchievement(26, _achievement(CASH_BALANCE, 0, 500000,  REWARD_DRUG, JEWELS, 1));   // Boss Money
+        c.setAchievement(27, _achievement(CASH_BALANCE, 0, 2000000, REWARD_DRUG, JEWELS, 3));   // Cartel Cash
+
+        // =================================================================
+        //               NEW: DRUG STOCKPILES (IDs 28-29)
+        // =================================================================
+
+        c.setAchievement(28, _achievement(DRUG_BALANCE, FENTANYL, 1000, REWARD_CASH, 0, 25000));   // Drug Lord
+        c.setAchievement(29, _achievement(DRUG_BALANCE, COCAINE,  5000, REWARD_CASH, 0, 100000));  // Cocaine King
+
+        // =================================================================
+        //               NEW: PVE / PVP LONG GRIND (IDs 30-32)
+        // =================================================================
+
+        c.setAchievement(30, _achievement(PVE_TOTAL,       0, 100,  REWARD_CASH, 0, 5000));    // Hundred Hustles
+        c.setAchievement(31, _achievement(PVE_TOTAL,       0, 1000, REWARD_CASH, 0, 50000));   // Thousand-Yard Dealer
+        c.setAchievement(32, _achievement(PVP_TOTAL_WINS,  0, 100,  REWARD_CASH, 0, 100000));  // Street Veteran II
 
         vm.stopBroadcast();
 
-        console.log("24 achievements configured:");
+        console.log("33 achievements configured:");
         console.log("  Early game (0-11):");
-        console.log("    #0:  PVE_TOTAL    >= 1    -> 25 CASH");
-        console.log("    #1:  PVE_TOTAL    >= 10   -> 50 CASH");
-        console.log("    #2:  PVE_WINS     >= 10   -> 2 XTC");
-        console.log("    #3:  PVE_TIES     >= 10   -> 2 XTC");
-        console.log("    #4:  PVE_LOSSES   >= 10   -> 50 CASH");
-        console.log("    #5:  PVE_DEAL     >= 10   -> 1 Shrooms");
-        console.log("    #6:  PVE_THREATEN >= 10   -> 1 Shrooms");
-        console.log("    #7:  PVE_BAIL     >= 10   -> 1 Shrooms");
-        console.log("    #8:  PVP_WINS     >= 1    -> 10 REP");
-        console.log("    #9:  PVP_ATTACK   >= 10   -> 1 General Goods");
-        console.log("    #10: PVP_DEFEND   >= 10   -> 1 Shrooms");
-        console.log("    #11: REP          >= 100  -> 20 Weed");
-        console.log("  Tier milestones (12-20):");
-        console.log("    #12: Associate    (50)    -> 50 CASH");
-        console.log("    #13: Dealer       (150)   -> 150 CASH");
-        console.log("    #14: Soldier      (300)   -> 300 CASH");
-        console.log("    #15: Capo         (700)   -> 700 CASH");
-        console.log("    #16: Consigliere  (1250)  -> 1250 CASH");
-        console.log("    #17: Underboss    (1900)  -> 1900 CASH");
-        console.log("    #18: Don          (2600)  -> 2600 CASH");
-        console.log("    #19: Godfather    (3500)  -> 3500 CASH");
-        console.log("    #20: Legend       (5000)  -> 5000 CASH");
-        console.log("  Drug milestones:");
-        console.log("    #21: REP >= 250          -> 1 Heroin");
-        console.log("  PVP drug rewards (22-23):");
-        console.log("    #22: PVP_WINS     >= 1    -> 1 General Goods");
-        console.log("    #23: PVP_WINS     >= 10   -> 1 Contraband");
+        console.log("    #0:  PVE_TOTAL    >= 1     -> 250 CASH");
+        console.log("    #1:  PVE_TOTAL    >= 10    -> 1k CASH");
+        console.log("    #2:  PVE_WINS     >= 10    -> 5 XTC");
+        console.log("    #3:  PVE_TIES     >= 10    -> 5 XTC");
+        console.log("    #4:  PVE_LOSSES   >= 10    -> 1k CASH");
+        console.log("    #5:  PVE_DEAL     >= 10    -> 5 Shrooms");
+        console.log("    #6:  PVE_THREATEN >= 10    -> 5 Shrooms");
+        console.log("    #7:  PVE_BAIL     >= 10    -> 5 Shrooms");
+        console.log("    #8:  PVP_WINS     >= 1     -> 25 REP");
+        console.log("    #9:  PVP_ATTACK   >= 10    -> 3 General Goods");
+        console.log("    #10: PVP_DEFEND   >= 10    -> 3 General Goods");
+        console.log("    #11: REP          >= 100   -> 100 Weed");
+        console.log("  Tier milestones (12-20, new convex ladder):");
+        console.log("    #12: Associate    (75)     -> 500 CASH");
+        console.log("    #13: Dealer       (200)    -> 2k CASH");
+        console.log("    #14: Soldier      (500)    -> 10k CASH");
+        console.log("    #15: Capo         (1,200)  -> 25k CASH");
+        console.log("    #16: Consigliere  (2,500)  -> 75k CASH");
+        console.log("    #17: Underboss    (5,000)  -> 200k CASH");
+        console.log("    #18: Don          (10,000) -> 500k CASH");
+        console.log("    #19: Godfather    (22,000) -> 1M CASH");
+        console.log("    #20: Legend       (50,000) -> 2M CASH");
+        console.log("  Drug + PvP rewards:");
+        console.log("    #21: REP >= 250            -> 5 Heroin");
+        console.log("    #22: PVP_WINS >= 1         -> 3 General Goods");
+        console.log("    #23: PVP_WINS >= 10        -> 3 Contraband");
+        console.log("  New: cash thresholds (24-27):");
+        console.log("    #24: cash >= 10k           -> 1 XTC");
+        console.log("    #25: cash >= 100k          -> 1 Cocaine");
+        console.log("    #26: cash >= 500k          -> 1 Jewels");
+        console.log("    #27: cash >= 2M            -> 3 Jewels");
+        console.log("  New: drug stockpiles (28-29):");
+        console.log("    #28: Fentanyl >= 1,000     -> 25k CASH");
+        console.log("    #29: Cocaine  >= 5,000     -> 100k CASH");
+        console.log("  New: long grind (30-32):");
+        console.log("    #30: PVE_TOTAL >= 100      -> 5k CASH");
+        console.log("    #31: PVE_TOTAL >= 1,000    -> 50k CASH");
+        console.log("    #32: PVP_WINS  >= 100      -> 100k CASH");
     }
 
     function _achievement(

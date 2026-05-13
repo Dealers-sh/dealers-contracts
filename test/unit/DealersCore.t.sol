@@ -678,12 +678,11 @@ contract DealersCoreTest is BaseTest {
         assertEq(currentArea, brooklynId, "Should be in Brooklyn");
     }
 
-    function test_travel_toSafeHouseIsFree() public {
-        // Start in Manhattan (STARTING_AREA = 1)
+    function test_travel_firstMoveToSafeHouseIsFree() public {
+        // First move from STARTING_AREA is always free (covers Safe House as destination).
         (uint8 areaBefore, , , , , ) = core.getDealerData(tokenId1);
         assertEq(areaBefore, 1, "Should start in Manhattan");
 
-        // Travel to Safe House - should be free
         uint256 balanceBefore = player1.balance;
 
         vm.prank(player1);
@@ -691,7 +690,33 @@ contract DealersCoreTest is BaseTest {
 
         (uint8 areaAfter, , , , , ) = core.getDealerData(tokenId1);
         assertEq(areaAfter, 0, "Should be in Safe House");
-        assertEq(player1.balance, balanceBefore, "Should not have paid anything");
+        assertEq(player1.balance, balanceBefore, "First move should not have paid anything");
+    }
+
+    function test_travel_subsequentSafeHouseEntryCostsFee() public {
+        // First move: Manhattan -> Safe House is free (covered by isFirstMove).
+        vm.prank(player1);
+        actions.travel{value: 0}(tokenId1, 0);
+
+        // Travel back to Manhattan, paying Manhattan's movement fee.
+        vm.prank(player1);
+        actions.travel{value: 0.001 ether}(tokenId1, 1);
+
+        // Subsequent attempt Manhattan -> Safe House. isFirstMove is now false
+        // (previousArea is Safe House, not STARTING_AREA), so the Safe House
+        // entry fee applies.
+        vm.prank(player1);
+        vm.expectRevert(DealersActions.InsufficientPayment.selector);
+        actions.travel{value: 0}(tokenId1, 0);
+
+        // With the correct fee it succeeds and the dealer is debited 0.001 ETH.
+        uint256 balanceBefore = player1.balance;
+        vm.prank(player1);
+        actions.travel{value: 0.001 ether}(tokenId1, 0);
+
+        (uint8 areaAfter, , , , , ) = core.getDealerData(tokenId1);
+        assertEq(areaAfter, 0, "Should be in Safe House");
+        assertEq(player1.balance, balanceBefore - 0.001 ether, "Should have paid the Safe House entry fee");
     }
 
     function test_travel_firstMoveIsFree() public {

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Ownable} from "solady/src/auth/Ownable.sol";
+import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./IDealersCore.sol";
 import "../utils/IDrugRegistry.sol";
@@ -483,25 +484,34 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Calculate stash bonus from drug holdings
-     * @dev Stash bonus = sum(drugBalance * baseCashValue) / STASH_DIVISOR
+     * @notice Calculate stash bonus from drug holdings using a tiered piecewise curve
+     * @dev Bands:
+     *      stashValue <  10,000  : linear     bonus = stashValue / 100             (cap 100)
+     *      stashValue < 100,000  : dampened   bonus = 100 + (stashValue - 10k)/250 (cap 460)
+     *      stashValue >= 100,000 : sqrt       bonus = 460 + sqrt((stashValue - 100k) / 10)
+     *      Diminishing returns prevent whales from runaway-stash-bonuses.
      */
-    function getStashBonus(uint256 tokenId) internal view dealerExists(tokenId) registriesSet returns (uint256) {
-        uint256 totalValue = 0;
+    function getStashBonus(uint256 tokenId) public view dealerExists(tokenId) registriesSet returns (uint256) {
+        uint256 stashValue = 0;
 
-        // Get all drug IDs from registry and calculate value
         uint256[] memory drugIds = drugRegistry.getAllDrugIds();
         for (uint256 i = 0; i < drugIds.length; ) {
             uint256 drugId = drugIds[i];
             uint256 balance = drugBalances[tokenId][drugId];
             if (balance > 0) {
                 uint256 baseCashValue = drugRegistry.getDrugBaseCashValue(drugId);
-                totalValue += balance * baseCashValue;
+                stashValue += balance * baseCashValue;
             }
             unchecked { ++i; }
         }
 
-        return totalValue / STASH_DIVISOR;
+        if (stashValue < 10_000) {
+            return stashValue / 100;
+        }
+        if (stashValue < 100_000) {
+            return 100 + (stashValue - 10_000) / 250;
+        }
+        return 460 + FixedPointMathLib.sqrt((stashValue - 100_000) / 10);
     }
 
     /**

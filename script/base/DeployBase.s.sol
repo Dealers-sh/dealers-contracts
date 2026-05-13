@@ -104,6 +104,31 @@ interface IBoostsContract {
     function paymentHandler() external view returns (address);
 }
 
+interface IBoostsAdmin {
+    struct BoostTier {
+        uint256 price;
+        uint64 duration;
+        uint8 drugMultiplier;
+        uint8 repMultiplier;
+        uint8 extraAttempts;
+        bool freeAreaMovement;
+        uint8 cashMultiplier;
+        bool isActive;
+    }
+
+    function setBoostTier(uint256 tierId, BoostTier calldata tier) external;
+    function boostTiers(uint256 tierId) external view returns (
+        uint256 price,
+        uint64 duration,
+        uint8 drugMultiplier,
+        uint8 repMultiplier,
+        uint8 extraAttempts,
+        bool freeAreaMovement,
+        uint8 cashMultiplier,
+        bool isActive
+    );
+}
+
 interface IClaimsContract {
     struct Achievement {
         uint8 conditionType;

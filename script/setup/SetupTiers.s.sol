@@ -25,23 +25,24 @@ contract SetupTiers is DeployBase {
 
         ReputationTier[] memory tiers = new ReputationTier[](10);
 
-        tiers[0] = ReputationTier({minReputation: 0, winBonus: 50, tieBonus: 25, lossPenalty: -2, repCap: 25, tierName: "Outsider"});
-        tiers[1] = ReputationTier({minReputation: 50, winBonus: 40, tieBonus: 20, lossPenalty: -3, repCap: 22, tierName: "Associate"});
-        tiers[2] = ReputationTier({minReputation: 150, winBonus: 15, tieBonus: 8, lossPenalty: -3, repCap: 18, tierName: "Dealer"});
-        tiers[3] = ReputationTier({minReputation: 300, winBonus: 9, tieBonus: 3, lossPenalty: -4, repCap: 17, tierName: "Soldier"});
-        tiers[4] = ReputationTier({minReputation: 700, winBonus: 8, tieBonus: 3, lossPenalty: -4, repCap: 21, tierName: "Capo"});
-        tiers[5] = ReputationTier({minReputation: 1250, winBonus: 7, tieBonus: 3, lossPenalty: -5, repCap: 24, tierName: "Consigliere"});
-        tiers[6] = ReputationTier({minReputation: 1900, winBonus: 6, tieBonus: 2, lossPenalty: -5, repCap: 25, tierName: "Underboss"});
-        tiers[7] = ReputationTier({minReputation: 2600, winBonus: 5, tieBonus: 2, lossPenalty: -6, repCap: 28, tierName: "Don"});
-        tiers[8] = ReputationTier({minReputation: 3500, winBonus: 4, tieBonus: 2, lossPenalty: -6, repCap: 30, tierName: "Godfather"});
-        tiers[9] = ReputationTier({minReputation: 5000, winBonus: 3, tieBonus: 1, lossPenalty: -7, repCap: 24, tierName: "Legend"});
+        tiers[0] = ReputationTier({minReputation: 0,      winBonus: 60, tieBonus: 25, lossPenalty: -2, repCap: 35, tierName: "Outsider"});
+        tiers[1] = ReputationTier({minReputation: 75,     winBonus: 35, tieBonus: 18, lossPenalty: -3, repCap: 25, tierName: "Associate"});
+        tiers[2] = ReputationTier({minReputation: 200,    winBonus: 20, tieBonus: 10, lossPenalty: -3, repCap: 22, tierName: "Dealer"});
+        tiers[3] = ReputationTier({minReputation: 500,    winBonus: 12, tieBonus: 5,  lossPenalty: -4, repCap: 22, tierName: "Soldier"});
+        tiers[4] = ReputationTier({minReputation: 1200,   winBonus: 9,  tieBonus: 4,  lossPenalty: -5, repCap: 24, tierName: "Capo"});
+        tiers[5] = ReputationTier({minReputation: 2500,   winBonus: 7,  tieBonus: 3,  lossPenalty: -5, repCap: 26, tierName: "Consigliere"});
+        tiers[6] = ReputationTier({minReputation: 5000,   winBonus: 6,  tieBonus: 2,  lossPenalty: -6, repCap: 28, tierName: "Underboss"});
+        tiers[7] = ReputationTier({minReputation: 10000,  winBonus: 5,  tieBonus: 2,  lossPenalty: -6, repCap: 30, tierName: "Don"});
+        tiers[8] = ReputationTier({minReputation: 22000,  winBonus: 4,  tieBonus: 1,  lossPenalty: -7, repCap: 32, tierName: "Godfather"});
+        tiers[9] = ReputationTier({minReputation: 50000,  winBonus: 2,  tieBonus: 1,  lossPenalty: -8, repCap: 4,  tierName: "Legend"});
 
         coreContract.setReputationTiers(tiers);
-        coreContract.setMaxReputation(6000);
+        coreContract.setMaxReputation(75000);
 
         vm.stopBroadcast();
 
-        console.log("10 tiers configured: Outsider -> Legend");
-        console.log("MAX_REPUTATION set to 6000");
+        console.log("10 tiers configured (convex 2.2x ladder): Outsider -> Legend");
+        console.log("MAX_REPUTATION set to 75000");
+        console.log("Legend is a soft-bleed tier (+2/+1/-8, repCap=4)");
     }
 }

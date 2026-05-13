@@ -13,7 +13,14 @@ import "../base/DeployBase.s.sol";
  *   Requires AREA_REGISTRY env var. Drugs must be registered first.
  */
 contract SetupAreas is DeployBase {
+    uint256 constant FREE = 0;
     uint256 constant MOVEMENT_FEE = 0.001 ether;
+    uint256 constant PREMIUM_FEE = 0.002 ether;
+
+    // PvP-loot drug IDs (Black Market sell-only inventory)
+    uint256 constant GOODS = 1;
+    uint256 constant CONTRABAND = 2;
+    uint256 constant JEWELS = 3;
 
     // Drug IDs (must match SetupDrugs registration order)
     uint256 constant WEED = 4;
@@ -24,6 +31,9 @@ contract SetupAreas is DeployBase {
     uint256 constant OPIOIDS = 9;
     uint256 constant METH = 10;
     uint256 constant FENTANYL = 11;
+
+    // Black Market is auto-created in DealersAreaRegistry (area 254).
+    uint8 constant BLACK_MARKET_AREA = 254;
 
     function run() external {
         _loadAddresses();
@@ -42,25 +52,25 @@ contract SetupAreas is DeployBase {
             return;
         }
 
-        console.log("Creating 6 game areas...");
+        console.log("Creating 7 game areas (Manhattan/Amsterdam free, Dubai premium)...");
 
-        // Area 1: Manhattan (starter)
-        reg.createArea("Manhattan", MOVEMENT_FEE, 0, false, false);
+        // Area 1: Manhattan (starter, FREE movement - friction-free onboarding)
+        reg.createArea("Manhattan", FREE, 0, false, false);
         _configureDrugs(reg, 1,
             _arr(WEED, XTC, COCAINE),
             _arr(1, 12, 120),
             _arr(1, 10, 100)
         );
 
-        // Area 2: Amsterdam (early unlock)
-        reg.createArea("Amsterdam", MOVEMENT_FEE, 150, false, false);
+        // Area 2: Amsterdam (early unlock, FREE movement - keeps F2P loop unblocked)
+        reg.createArea("Amsterdam", FREE, 150, false, false);
         _configureDrugs(reg, 2,
             _arr(WEED, SHROOMS, HEROIN),
             _arr(3, 15, 180),
             _arr(2, 12, 150)
         );
 
-        // Area 3: Colombia (mid-game farm zone)
+        // Area 3: Colombia (mid-game farm zone - first paid area)
         reg.createArea("Colombia", MOVEMENT_FEE, 250, false, false);
         _configureDrugs(reg, 3,
             _arr(WEED, COCAINE, HEROIN),
@@ -92,7 +102,26 @@ contract SetupAreas is DeployBase {
             _arr(20, 26, 160)
         );
 
-        console.log("  6 areas created with drug configs");
+        // Area 7: Dubai (Consigliere+ premium - Gulf nightlife + Persian-Afghan route)
+        // Asymmetric sell-heavy: buy ~1.3x Tokyo, sell ~2x Tokyo
+        reg.createArea("Dubai", PREMIUM_FEE, 2500, false, false);
+        _configureDrugs(reg, 7,
+            _arr(XTC, COCAINE, HEROIN),
+            _arr(14, 160, 200),
+            _arr(20, 200, 240)
+        );
+
+        console.log("  7 areas created with drug configs");
+
+        // Update Black Market sell prices to 2x base value (sell-only by contract design;
+        // PVE hustles are blocked here, and DealersActions.sellDrop is the only trade path).
+        // Buy prices kept at base value as sentinels (never read).
+        _configureDrugs(reg, BLACK_MARKET_AREA,
+            _arr(GOODS, CONTRABAND, JEWELS),
+            _arr(75, 500, 2500),
+            _arr(150, 1200, 6500)
+        );
+        console.log("  Black Market sell prices set to 2x base (Goods 150, Contraband 1200, Jewels 6500)");
     }
 
     function _configureDrugs(

@@ -274,9 +274,8 @@ contract DealersActions is ReentrancyGuard, Ownable {
             if (infamy < BLACK_MARKET_MIN_INFAMY) revert InsufficientInfamy();
         }
         bool hasFreeMovement = gs.boostActive && gs.freeAreaMovement;
-        bool enteringSafeHouse = areaRegistry.isSafeHouse(destinationArea);
         bool isFirstMove = oldArea == core.STARTING_AREA() && gs.previousArea == core.STARTING_AREA();
-        bool noFee = hasFreeMovement || enteringSafeHouse || isFirstMove || enteringBlackMarket || exitingBlackMarket;
+        bool noFee = hasFreeMovement || isFirstMove || enteringBlackMarket || exitingBlackMarket;
 
         uint256 movementFee = 0;
         if (!noFee) {

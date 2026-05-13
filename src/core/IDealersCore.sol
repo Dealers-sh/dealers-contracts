@@ -99,6 +99,8 @@ interface IDealersCore {
 
     function getTotalReputation(uint256 tokenId) external view returns (uint256);
 
+    function getStashBonus(uint256 tokenId) external view returns (uint256);
+
     function getDealerData(uint256 tokenId) external view returns (
         uint8 currentArea,
         uint256 reputation,

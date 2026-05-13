@@ -52,7 +52,7 @@ contract SetupChat is DeployBase {
     }
 
     function _createAreaRooms(DealersChatFactory factory, address gate) internal {
-        uint8[8] memory areas = [uint8(1), 2, 3, 4, 5, 6, 254, 255];
+        uint8[9] memory areas = [uint8(1), 2, 3, 4, 5, 6, 7, 254, 255];
 
         for (uint256 i = 0; i < areas.length; ++i) {
             uint8 areaId = areas[i];

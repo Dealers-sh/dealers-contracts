@@ -523,7 +523,7 @@ contract DealersAreaRegistry is Ownable, IAreaRegistry {
     function _createSafeHouse() private {
         _areas[SAFE_HOUSE_AREA] = IAreaRegistry.AreaInfo({
             name: "Safe House",
-            movementFee: 0,
+            movementFee: 0.001 ether,
             minReputation: 0,
             isActive: true,
             isSafeHouse: true,
