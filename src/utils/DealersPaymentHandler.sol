@@ -181,22 +181,16 @@ contract DealersPaymentHandler is ReentrancyGuard, Ownable {
         return address(this).balance;
     }
 
-    function getPendingDevFees() external view returns (uint256) {
-        return address(this).balance;
-    }
-
     function getFinancialStats() external view returns (
         uint256 processed,
         uint256 devFees,
         uint256 bankFees,
-        uint256 pendingDev,
         uint256 contractBalance,
         uint256 bankBalance
     ) {
         processed = totalProcessed;
         devFees = totalDevFees;
         bankFees = totalBankFees;
-        pendingDev = address(this).balance;
         contractBalance = address(this).balance;
         bankBalance = bankVault.balance;
     }

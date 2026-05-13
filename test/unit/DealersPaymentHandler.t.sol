@@ -84,7 +84,7 @@ contract DealersPaymentHandlerTest is BaseTest {
         paymentHandler.processMovementFee{value: amount}(player1, amount);
 
         assertEq(address(paymentHandler).balance, expectedDevFee);
-        assertEq(paymentHandler.getPendingDevFees(), expectedDevFee);
+        assertEq(paymentHandler.getContractBalance(), expectedDevFee);
     }
 
     function test_processMovementFee_revertNotAuthorized() public {

@@ -12,7 +12,6 @@ import {IDealersCore} from "../core/IDealersCore.sol";
  *
  * @dev Reads the dealer's current area from DealersCore and checks
  *      it matches the room's area ID.
- *      chat in the jail room.
  * @author Berny0x
  */
 contract DealersAreaChatGate is IDealersChatGate {

@@ -49,7 +49,7 @@ contract DealerRendererSVGTest is Test {
         for (uint8 cat; cat < 12; cat++) {
             for (uint8 i; i < 5; i++) {
                 address ptr = _createFileStorePointer(dummySvg);
-                renderer.addTrait(0, cat, string(abi.encodePacked("Trait", uint8(i + 48))), 100, ptr);
+                renderer.addTrait(0, cat, string(abi.encodePacked("Trait", uint8(i + 48))), ptr);
             }
         }
     }
@@ -376,7 +376,7 @@ contract DealerRendererSVGTest is Test {
         bytes memory specialSvg = bytes("<circle class='special'/>");
         for (uint8 cat; cat < 12; cat++) {
             address ptr = _createFileStorePointer(specialSvg);
-            renderer.addTrait(1, cat, "SpecialTrait", 100, ptr);
+            renderer.addTrait(1, cat, "SpecialTrait", ptr);
         }
 
         uint256[] memory ids = new uint256[](1);
@@ -534,45 +534,43 @@ contract DealerRendererSVGTest is Test {
         bytes memory svgData = bytes("<circle r='10'/>");
         address ptr = _createFileStorePointer(svgData);
 
-        renderer.addTrait(0, 0, "TestCircle", 100, ptr);
+        renderer.addTrait(0, 0, "TestCircle", ptr);
     }
 
     function test_addTrait_revertsInvalidPointer() public {
         vm.expectRevert(IDealerRendererSVG.InvalidPointer.selector);
-        renderer.addTrait(0, 0, "Test", 100, address(0));
+        renderer.addTrait(0, 0, "Test", address(0));
     }
 
     function test_batchAddTraits_withFileStorePointers() public {
         uint8[] memory characterTypes = new uint8[](2);
         uint8[] memory categories = new uint8[](2);
         string[] memory names = new string[](2);
-        uint16[] memory probabilities = new uint16[](2);
         address[] memory pointers = new address[](2);
 
-        characterTypes[0] = 1; categories[0] = 0; names[0] = "Special1"; probabilities[0] = 50;
-        characterTypes[1] = 1; categories[1] = 0; names[1] = "Special2"; probabilities[1] = 50;
+        characterTypes[0] = 1; categories[0] = 0; names[0] = "Special1";
+        characterTypes[1] = 1; categories[1] = 0; names[1] = "Special2";
 
         pointers[0] = _createFileStorePointer(bytes("<rect/>"));
         pointers[1] = _createFileStorePointer(bytes("<ellipse/>"));
 
-        renderer.batchAddTraits(characterTypes, categories, names, probabilities, pointers);
+        renderer.batchAddTraits(characterTypes, categories, names, pointers);
     }
 
     function test_batchAddTraits_revertsInvalidPointer() public {
         uint8[] memory characterTypes = new uint8[](2);
         uint8[] memory categories = new uint8[](2);
         string[] memory names = new string[](2);
-        uint16[] memory probabilities = new uint16[](2);
         address[] memory pointers = new address[](2);
 
-        characterTypes[0] = 0; categories[0] = 0; names[0] = "Test1"; probabilities[0] = 50;
-        characterTypes[1] = 0; categories[1] = 0; names[1] = "Test2"; probabilities[1] = 50;
+        characterTypes[0] = 0; categories[0] = 0; names[0] = "Test1";
+        characterTypes[1] = 0; categories[1] = 0; names[1] = "Test2";
 
         pointers[0] = _createFileStorePointer(bytes("<rect/>"));
         pointers[1] = address(0);
 
         vm.expectRevert(IDealerRendererSVG.InvalidPointer.selector);
-        renderer.batchAddTraits(characterTypes, categories, names, probabilities, pointers);
+        renderer.batchAddTraits(characterTypes, categories, names, pointers);
     }
 
     // =============================================================
@@ -675,7 +673,7 @@ contract DealerRendererSVGTest is Test {
 
         vm.prank(nonOwner);
         vm.expectRevert();
-        renderer.addTrait(0, 0, "Test", 100, ptr);
+        renderer.addTrait(0, 0, "Test", ptr);
     }
 
     // =============================================================
@@ -760,7 +758,7 @@ contract DealerRendererSVGTest is Test {
 
     function test_traitCount_growsAfterAdd() public {
         address ptr = _createFileStorePointer(bytes("<rect/>"));
-        renderer.addTrait(0, 5, "Extra", 100, ptr);
+        renderer.addTrait(0, 5, "Extra", ptr);
         assertEq(renderer.traitCount(0, 5), 6);
     }
 

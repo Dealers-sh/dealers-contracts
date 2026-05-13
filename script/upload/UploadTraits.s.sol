@@ -197,7 +197,6 @@ contract UploadTraits is DeployBase {
         uint8[] addCharacterTypes;
         uint8[] addCategories;
         string[] addNames;
-        uint16[] addProbabilities;
         address[] addPointers;
         uint256[] writePointerIndices;
         address[] writePointerValues;
@@ -231,7 +230,6 @@ contract UploadTraits is DeployBase {
         ctx.addCharacterTypes = new uint8[](traits.length);
         ctx.addCategories = new uint8[](traits.length);
         ctx.addNames = new string[](traits.length);
-        ctx.addProbabilities = new uint16[](traits.length);
         ctx.addPointers = new address[](traits.length);
         ctx.writePointerIndices = new uint256[](traits.length);
         ctx.writePointerValues = new address[](traits.length);
@@ -250,16 +248,14 @@ contract UploadTraits is DeployBase {
             uint8[] memory addCT = ctx.addCharacterTypes;
             uint8[] memory addCat = ctx.addCategories;
             string[] memory addNm = ctx.addNames;
-            uint16[] memory addPr = ctx.addProbabilities;
             address[] memory addPt = ctx.addPointers;
-            assembly {
+            assembly ("memory-safe") {
                 mstore(addCT, finalAddCount)
                 mstore(addCat, finalAddCount)
                 mstore(addNm, finalAddCount)
-                mstore(addPr, finalAddCount)
                 mstore(addPt, finalAddCount)
             }
-            IDealerRendererSVG(renderer).batchAddTraits(addCT, addCat, addNm, addPr, addPt);
+            IDealerRendererSVG(renderer).batchAddTraits(addCT, addCat, addNm, addPt);
             console.log(string.concat("Registered ", vm.toString(finalAddCount), " new traits with renderer"));
         }
 
@@ -302,7 +298,6 @@ contract UploadTraits is DeployBase {
         ctx.addCharacterTypes = new uint8[](sliceLen);
         ctx.addCategories = new uint8[](sliceLen);
         ctx.addNames = new string[](sliceLen);
-        ctx.addProbabilities = new uint16[](sliceLen);
         ctx.addPointers = new address[](sliceLen);
         ctx.writePointerIndices = new uint256[](sliceLen);
         ctx.writePointerValues = new address[](sliceLen);
@@ -325,16 +320,14 @@ contract UploadTraits is DeployBase {
             uint8[] memory addCT = ctx.addCharacterTypes;
             uint8[] memory addCat = ctx.addCategories;
             string[] memory addNm = ctx.addNames;
-            uint16[] memory addPr = ctx.addProbabilities;
             address[] memory addPt = ctx.addPointers;
-            assembly {
+            assembly ("memory-safe") {
                 mstore(addCT, finalAddCount)
                 mstore(addCat, finalAddCount)
                 mstore(addNm, finalAddCount)
-                mstore(addPr, finalAddCount)
                 mstore(addPt, finalAddCount)
             }
-            IDealerRendererSVG(renderer).batchAddTraits(addCT, addCat, addNm, addPr, addPt);
+            IDealerRendererSVG(renderer).batchAddTraits(addCT, addCat, addNm, addPt);
             console.log(string.concat("Registered ", vm.toString(finalAddCount), " new traits with renderer"));
         }
 
@@ -396,7 +389,6 @@ contract UploadTraits is DeployBase {
         ctx.addCharacterTypes[ctx.addCount] = ctx.charType;
         ctx.addCategories[ctx.addCount] = t.category;
         ctx.addNames[ctx.addCount] = t.name;
-        ctx.addProbabilities[ctx.addCount] = t.probability;
         ctx.addPointers[ctx.addCount] = pointer;
         ctx.addCount++;
     }
@@ -565,7 +557,6 @@ struct TraitJson {
     string content;
     string name;
     address pointer;
-    uint16 probability;
 }
 
 struct OneOfOneJson {

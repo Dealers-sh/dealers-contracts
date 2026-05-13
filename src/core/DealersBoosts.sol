@@ -23,7 +23,6 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
     // =============================================================
 
     // Time durations
-    uint64 public constant DURATION_24_HOURS = 24 hours;
     uint64 public constant DURATION_3_DAYS = 3 days;
     uint64 public constant DURATION_7_DAYS = 7 days;
     uint64 public constant DURATION_14_DAYS = 14 days;
@@ -252,6 +251,16 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
         if (!success) revert TransferFailed();
     }
 
+    /**
+     * @dev Returns true if `dealerId` can move to a boost of price `newTierPrice`.
+     *      A dealer with no active boost can always upgrade; an active boost
+     *      may only be replaced with a strictly more expensive tier.
+     */
+    function _canUpgradeBoost(uint256 dealerId, uint256 newTierPrice) private view returns (bool) {
+        if (!dealersCore.hasActiveBoost(dealerId)) return true;
+        return newTierPrice > boostTiers[activeTierId[dealerId]].price;
+    }
+
     // =============================================================
     //                        PURCHASE FUNCTIONS
     // =============================================================
@@ -272,13 +281,9 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
         dealerExists(dealerId)
     {
         bool isAdmin = msg.sender == owner();
-
-        if (dealersCore.hasActiveBoost(dealerId)) {
-            BoostTier memory activeTier = boostTiers[activeTierId[dealerId]];
-            if (boostTiers[tierId].price <= activeTier.price) revert BoostTierTooLow();
-        }
-
         BoostTier memory tier = boostTiers[tierId];
+
+        if (!_canUpgradeBoost(dealerId, tier.price)) revert BoostTierTooLow();
 
         if (!isAdmin) {
             if (msg.value < tier.price) revert InsufficientPayment();
@@ -339,12 +344,9 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
                 continue;
             }
 
-            if (dealersCore.hasActiveBoost(dealerId)) {
-                BoostTier memory activeTier = boostTiers[activeTierId[dealerId]];
-                if (tier.price <= activeTier.price) {
-                    unchecked { ++i; }
-                    continue;
-                }
+            if (!_canUpgradeBoost(dealerId, tier.price)) {
+                unchecked { ++i; }
+                continue;
             }
 
             uint64 expiresAt = dealersCore.applyBoost(

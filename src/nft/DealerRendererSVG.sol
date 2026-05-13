@@ -51,7 +51,6 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
 
     struct TraitConfig {
         string name;
-        uint16 probability;
         address svgContract;
     }
 
@@ -85,7 +84,7 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     //                            EVENTS
     // =============================================================
 
-    event TraitAdded(uint8 indexed characterType, uint8 indexed category, uint256 traitIndex, string name, uint16 probability);
+    event TraitAdded(uint8 indexed characterType, uint8 indexed category, uint256 traitIndex, string name);
     event TraitPointerUpdated(uint8 indexed characterType, uint8 indexed category, uint256 indexed traitIndex, address newPointer);
     event OneOfOneSet(uint256 indexed tokenId, string characterName);
     event PlaceholderSvgSet(address indexed pointer);
@@ -99,7 +98,6 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     error InvalidCharacterType();
     error InvalidCategory();
     error InvalidTraitIndex();
-    error InvalidProbability();
     error ArrayLengthMismatch();
 
     // =============================================================
@@ -237,7 +235,6 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         uint8 characterType,
         uint8 category,
         string calldata name,
-        uint16 probability,
         address fileStorePointer
     ) external onlyOwner {
         if (characterType > uint8(CharacterType.ONE_OF_ONE)) revert InvalidCharacterType();
@@ -245,23 +242,21 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         if (fileStorePointer == address(0)) revert InvalidPointer();
 
         TraitConfig[] storage arr = traits[characterType][category];
-        arr.push(TraitConfig({name: name, probability: probability, svgContract: fileStorePointer}));
+        arr.push(TraitConfig({name: name, svgContract: fileStorePointer}));
 
-        emit TraitAdded(characterType, category, arr.length - 1, name, probability);
+        emit TraitAdded(characterType, category, arr.length - 1, name);
     }
 
     function batchAddTraits(
         uint8[] calldata characterTypes,
         uint8[] calldata categories,
         string[] calldata names,
-        uint16[] calldata probabilities,
         address[] calldata fileStorePointers
     ) external onlyOwner {
         uint256 len = characterTypes.length;
         if (
             len != categories.length ||
             len != names.length ||
-            len != probabilities.length ||
             len != fileStorePointers.length
         ) revert ArrayLengthMismatch();
 
@@ -273,9 +268,9 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
             if (fileStorePointers[i] == address(0)) revert InvalidPointer();
 
             TraitConfig[] storage arr = traits[ctype][cat];
-            arr.push(TraitConfig({name: names[i], probability: probabilities[i], svgContract: fileStorePointers[i]}));
+            arr.push(TraitConfig({name: names[i], svgContract: fileStorePointers[i]}));
 
-            emit TraitAdded(ctype, cat, arr.length - 1, names[i], probabilities[i]);
+            emit TraitAdded(ctype, cat, arr.length - 1, names[i]);
             unchecked { ++i; }
         }
     }

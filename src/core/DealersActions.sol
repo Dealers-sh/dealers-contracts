@@ -139,13 +139,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
         core.setHeatLevel(tokenId, 0);
         core.forceMove(tokenId, returnArea);
 
-        if (address(paymentHandler) != address(0) && bail > 0) {
-            paymentHandler.processMovementFee{value: bail}(msg.sender, bail);
-        }
-
-        if (msg.value > bail) {
-            _safeTransferETH(msg.sender, msg.value - bail);
-        }
+        _settleMovementFee(bail);
 
         emit DealerBailed(tokenId, bail, returnArea);
     }
@@ -285,13 +279,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
 
         core.forceMove(tokenId, destinationArea);
 
-        if (movementFee > 0 && address(paymentHandler) != address(0)) {
-            paymentHandler.processMovementFee{value: movementFee}(msg.sender, movementFee);
-        }
-
-        if (msg.value > movementFee) {
-            _safeTransferETH(msg.sender, msg.value - movementFee);
-        }
+        _settleMovementFee(movementFee);
 
         emit DealerTraveled(tokenId, oldArea, destinationArea, movementFee, noFee);
     }
@@ -315,13 +303,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
 
         core.setHeatLevel(tokenId, 0);
 
-        if (address(paymentHandler) != address(0)) {
-            paymentHandler.processMarketplaceFee{value: bribeCopFee}(msg.sender, bribeCopFee);
-        }
-
-        if (msg.value > bribeCopFee) {
-            _safeTransferETH(msg.sender, msg.value - bribeCopFee);
-        }
+        _settleMarketplaceFee(bribeCopFee);
 
         emit CopBribed(tokenId, bribeCopFee);
     }
@@ -411,12 +393,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
         core.resetDailyAttempts(tokenId);
 
         if (!isAdmin) {
-            if (address(paymentHandler) != address(0)) {
-                paymentHandler.processMarketplaceFee{value: attemptResetFee}(msg.sender, attemptResetFee);
-            }
-            if (msg.value > attemptResetFee) {
-                _safeTransferETH(msg.sender, msg.value - attemptResetFee);
-            }
+            _settleMarketplaceFee(attemptResetFee);
         }
     }
 
@@ -443,12 +420,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
         emit CashPurchased(tokenId, cashTopupAmount, cashTopupPrice);
 
         if (!isAdmin) {
-            if (address(paymentHandler) != address(0)) {
-                paymentHandler.processMarketplaceFee{value: cashTopupPrice}(msg.sender, cashTopupPrice);
-            }
-            if (msg.value > cashTopupPrice) {
-                _safeTransferETH(msg.sender, msg.value - cashTopupPrice);
-            }
+            _settleMarketplaceFee(cashTopupPrice);
         }
     }
 
@@ -586,5 +558,32 @@ contract DealersActions is ReentrancyGuard, Ownable {
 
         (bool success, ) = to.call{value: amount}("");
         if (!success) revert ETHTransferFailed();
+    }
+
+    /**
+     * @dev Settle a movement fee: forward to the payment handler (when set and fee > 0)
+     *      and refund any excess back to the caller. Caller must have already validated
+     *      msg.value >= fee.
+     */
+    function _settleMovementFee(uint256 fee) private {
+        if (fee > 0 && address(paymentHandler) != address(0)) {
+            paymentHandler.processMovementFee{value: fee}(msg.sender, fee);
+        }
+        if (msg.value > fee) {
+            _safeTransferETH(msg.sender, msg.value - fee);
+        }
+    }
+
+    /**
+     * @dev Settle a marketplace fee: forward to the payment handler (when set) and refund
+     *      any excess. Caller must have already validated msg.value >= fee.
+     */
+    function _settleMarketplaceFee(uint256 fee) private {
+        if (address(paymentHandler) != address(0)) {
+            paymentHandler.processMarketplaceFee{value: fee}(msg.sender, fee);
+        }
+        if (msg.value > fee) {
+            _safeTransferETH(msg.sender, msg.value - fee);
+        }
     }
 }

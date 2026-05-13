@@ -570,7 +570,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
 
     function _rollPvpJailCheck(uint16 jailChance, uint256 infamy, uint256 rng) private pure returns (bool) {
         uint256 bonus = (infamy / 10) * 5;
-        uint16 infamyChance = bonus > 25 ? 25 : uint16(bonus);
+        uint16 infamyChance = bonus > 20 ? 20 : uint16(bonus);
         uint16 totalChance = jailChance + infamyChance;
         return uint16(rng % 1000) < totalChance;
     }

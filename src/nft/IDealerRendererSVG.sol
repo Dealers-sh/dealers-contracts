@@ -76,7 +76,6 @@ interface IDealerRendererSVG {
         uint8 characterType,
         uint8 category,
         string calldata name,
-        uint16 probability,
         address fileStorePointer
     ) external;
 
@@ -84,7 +83,6 @@ interface IDealerRendererSVG {
         uint8[] calldata characterTypes,
         uint8[] calldata categories,
         string[] calldata names,
-        uint16[] calldata probabilities,
         address[] calldata fileStorePointers
     ) external;
 

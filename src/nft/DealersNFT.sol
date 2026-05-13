@@ -101,7 +101,6 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     error InvalidAddress();
     error TransferFailed();
     error InsufficientBalance();
-    error RendererNotSet();
     error ETHTransferFailed();
     error ContractPaused();
 
@@ -613,12 +612,6 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     // =============================================================
 
     /**
-     * @notice Get the public mint price in ETH
-     * @return Mint price in wei
-     */
-    function getPricePublicETH() external pure returns (uint256) { return MINT_PRICE; }
-
-    /**
      * @notice Get the number of NFTs minted by an account
      * @param account Address to check
      * @return Number of NFTs minted
@@ -647,14 +640,6 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         maxPerWallet = MAX_PER_WALLET;
         currentSupply = totalSupply();
         maxSupply = MAX_SUPPLY;
-    }
-
-    /**
-     * @notice Get all external contract addresses
-     * @return SVG renderer, HTML renderer, and core contract addresses
-     */
-    function getContractAddresses() external view returns (address, address, address) {
-        return (address(contractRendererSVG), address(contractRendererHTML), dealersCore);
     }
 
     /**
