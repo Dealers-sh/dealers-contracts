@@ -136,7 +136,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
         areaRegistry = IAreaRegistry(_areaRegistry);
 
         config = PVPConfig({
-            minReputation: 100,
+            minReputation: 200,
             baseWinChance: 50,
             minWinChance: 25,
             maxWinChance: 75,
@@ -148,7 +148,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
             rarityWeightRare: 5,
             repRangePercent: 25,
             defenderRepBonus: 2,
-            repRangeThreshold: 1500
+            repRangeThreshold: 22000
         });
 
         dropDrugIds = [uint256(1), 2, 3];

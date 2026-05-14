@@ -211,8 +211,8 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
             price: 0.01 ether,
             duration: DURATION_14_DAYS,
             drugMultiplier: 175,     // 1.75x drugs
-            repMultiplier: 120,      // 1.2x rep
-            extraAttempts: 5,        // 5 base + 5 = 10 max
+            repMultiplier: 125,      // 1.25x rep
+            extraAttempts: 6,        // 5 base + 6 = 11 max
             freeAreaMovement: true,
             cashMultiplier: 175,     // 1.75x cash
             isActive: true
@@ -222,11 +222,11 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
         boostTiers[4] = BoostTier({
             price: 0.023 ether,
             duration: DURATION_30_DAYS,
-            drugMultiplier: 200,     // 2x drugs
-            repMultiplier: 125,      // 1.25x rep
+            drugMultiplier: 225,     // 2.25x drugs
+            repMultiplier: 135,      // 1.35x rep
             extraAttempts: 7,        // 5 base + 7 = 12 max
             freeAreaMovement: true,
-            cashMultiplier: 200,     // 2x cash
+            cashMultiplier: 225,     // 2.25x cash
             isActive: true
         });
 

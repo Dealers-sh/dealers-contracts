@@ -246,7 +246,7 @@ contract BoostGameplayTest is BaseTest {
         uint256 token3 = _mintAndMoveToManhattan(player1);
         vm.prank(player1);
         boosts.purchaseBoost{value: KINGPIN_PRICE}(token3, KINGPIN_ID);
-        assertEq(core.getGameState(token3).dailyAttemptsRemaining, 10, "Kingpin: 5 + 5 = 10 attempts");
+        assertEq(core.getGameState(token3).dailyAttemptsRemaining, 11, "Kingpin: 5 + 6 = 11 attempts");
     }
 
     function test_boost_freeAreaMovement() public {
@@ -318,17 +318,17 @@ contract BoostGameplayTest is BaseTest {
         assertEq(kingpin.price, KINGPIN_PRICE, "Kingpin price");
         assertEq(kingpin.duration, 14 days, "Kingpin duration");
         assertEq(kingpin.drugMultiplier, 175, "Kingpin drug mult");
-        assertEq(kingpin.repMultiplier, 120, "Kingpin rep mult");
+        assertEq(kingpin.repMultiplier, 125, "Kingpin rep mult");
         assertEq(kingpin.cashMultiplier, 175, "Kingpin cash mult");
-        assertEq(kingpin.extraAttempts, 5, "Kingpin extra attempts");
+        assertEq(kingpin.extraAttempts, 6, "Kingpin extra attempts");
         assertTrue(kingpin.freeAreaMovement, "Kingpin free movement");
 
         DealersBoosts.BoostTier memory godfather = boosts.getBoostTier(4);
         assertEq(godfather.price, 0.023 ether, "Godfather price");
         assertEq(godfather.duration, 30 days, "Godfather duration");
-        assertEq(godfather.drugMultiplier, 200, "Godfather drug mult");
-        assertEq(godfather.repMultiplier, 125, "Godfather rep mult");
-        assertEq(godfather.cashMultiplier, 200, "Godfather cash mult");
+        assertEq(godfather.drugMultiplier, 225, "Godfather drug mult");
+        assertEq(godfather.repMultiplier, 135, "Godfather rep mult");
+        assertEq(godfather.cashMultiplier, 225, "Godfather cash mult");
         assertEq(godfather.extraAttempts, 7, "Godfather extra attempts");
         assertTrue(godfather.freeAreaMovement, "Godfather free movement");
     }

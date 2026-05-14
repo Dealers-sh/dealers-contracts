@@ -78,8 +78,8 @@ contract DealersBoostsTest is BaseTest {
         assertEq(tier.price, KINGPIN_PRICE);
         assertEq(tier.duration, 14 days);    // Kingpin is 14 days
         assertEq(tier.drugMultiplier, 175);  // 1.75x
-        assertEq(tier.repMultiplier, 120);   // 1.2x
-        assertEq(tier.extraAttempts, 5);
+        assertEq(tier.repMultiplier, 125);   // 1.25x
+        assertEq(tier.extraAttempts, 6);
         assertEq(tier.cashMultiplier, 175);  // 1.75x
         assertTrue(tier.freeAreaMovement);
         assertTrue(tier.isActive);

@@ -89,20 +89,20 @@ contract SetupClaims is DeployBase {
         // #10: Fortress - win 10 PVP defenses
         c.setAchievement(10, _achievement(PVP_DEFEND_WINS, 0, 10, REWARD_DRUG, GENERAL_GOODS, 3));
 
-        // #11: Made Man - reach 100 rep
-        c.setAchievement(11, _achievement(REPUTATION, 0, 100, REWARD_DRUG, WEED, 100));
+        // #11: Made Man - reach 75 rep (stepping stone before Associate@100)
+        c.setAchievement(11, _achievement(REPUTATION, 0, 75, REWARD_DRUG, WEED, 100));
 
         // =================================================================
         //         REPUTATION TIER MILESTONES (IDs 12-20)
         //         Aligned with the convex 2.2x ladder in SetupTiers
         // =================================================================
 
-        c.setAchievement(12, _achievement(REPUTATION, 0, 75,    REWARD_CASH, 0, 500));      // Associate
-        c.setAchievement(13, _achievement(REPUTATION, 0, 200,   REWARD_CASH, 0, 2000));     // Dealer
-        c.setAchievement(14, _achievement(REPUTATION, 0, 500,   REWARD_CASH, 0, 10000));    // Soldier
-        c.setAchievement(15, _achievement(REPUTATION, 0, 1200,  REWARD_CASH, 0, 25000));    // Capo
-        c.setAchievement(16, _achievement(REPUTATION, 0, 2500,  REWARD_CASH, 0, 75000));    // Consigliere
-        c.setAchievement(17, _achievement(REPUTATION, 0, 5000,  REWARD_CASH, 0, 200000));   // Underboss
+        c.setAchievement(12, _achievement(REPUTATION, 0, 100,   REWARD_CASH, 0, 500));      // Associate
+        c.setAchievement(13, _achievement(REPUTATION, 0, 250,   REWARD_CASH, 0, 2000));     // Dealer
+        c.setAchievement(14, _achievement(REPUTATION, 0, 600,   REWARD_CASH, 0, 10000));    // Soldier
+        c.setAchievement(15, _achievement(REPUTATION, 0, 1500,  REWARD_CASH, 0, 25000));    // Capo
+        c.setAchievement(16, _achievement(REPUTATION, 0, 3000,  REWARD_CASH, 0, 75000));    // Consigliere
+        c.setAchievement(17, _achievement(REPUTATION, 0, 5500,  REWARD_CASH, 0, 200000));   // Underboss
         c.setAchievement(18, _achievement(REPUTATION, 0, 10000, REWARD_CASH, 0, 500000));   // Don
         c.setAchievement(19, _achievement(REPUTATION, 0, 22000, REWARD_CASH, 0, 1000000));  // Godfather
         c.setAchievement(20, _achievement(REPUTATION, 0, 50000, REWARD_CASH, 0, 2000000));  // Legend
@@ -111,7 +111,7 @@ contract SetupClaims is DeployBase {
         //                     EARLY DRUG MILESTONE (ID 21)
         // =================================================================
 
-        c.setAchievement(21, _achievement(REPUTATION, 0, 250, REWARD_DRUG, HEROIN, 5));
+        c.setAchievement(21, _achievement(REPUTATION, 0, 400, REWARD_DRUG, HEROIN, 5));
 
         // =================================================================
         //                     PVP DRUG REWARDS (IDs 22-23)
@@ -144,9 +144,36 @@ contract SetupClaims is DeployBase {
         c.setAchievement(31, _achievement(PVE_TOTAL,       0, 1000, REWARD_CASH, 0, 50000));   // Thousand-Yard Dealer
         c.setAchievement(32, _achievement(PVP_TOTAL_WINS,  0, 100,  REWARD_CASH, 0, 100000));  // Street Veteran II
 
+        // =================================================================
+        //         MID-TIER ACHIEVEMENTS (IDs 33-44)
+        //         Targets Capo -> Underboss player journey
+        // =================================================================
+
+        // Block A: PvE grind ladder (fills 100 -> 1000 gap)
+        c.setAchievement(33, _achievement(PVE_TOTAL,            0, 250, REWARD_CASH, 0, 10000));  // Hustle Streak
+        c.setAchievement(34, _achievement(PVE_TOTAL,            0, 500, REWARD_CASH, 0, 25000));  // Career Hustler
+
+        // Block B: PvE outcome mastery (100 specific outcomes ~ 200-500 plays)
+        c.setAchievement(35, _achievement(PVE_WINS,             0, 100, REWARD_CASH, 0, 50000));  // Sharp Eye
+        c.setAchievement(36, _achievement(PVE_TIES,             0, 100, REWARD_CASH, 0, 30000));  // Stalemate Champion
+        c.setAchievement(37, _achievement(PVE_LOSSES,           0, 100, REWARD_CASH, 0, 30000));  // Hard Knocks II
+
+        // Block C: Choice mastery (100 of one choice = 100+ committed plays)
+        c.setAchievement(38, _achievement(PVE_DEAL_CHOICES,     0, 100, REWARD_CASH, 0, 15000));  // Dealer's Sense
+        c.setAchievement(39, _achievement(PVE_THREATEN_CHOICES, 0, 100, REWARD_CASH, 0, 15000));  // Iron Fist
+        c.setAchievement(40, _achievement(PVE_BAIL_CHOICES,     0, 100, REWARD_CASH, 0, 15000));  // Survivor
+
+        // Block D: PvP mid-tier (fills 10 -> 100 gap)
+        c.setAchievement(41, _achievement(PVP_TOTAL_WINS,       0, 25,  REWARD_DRUG, CONTRABAND, 5));  // Brawler
+        c.setAchievement(42, _achievement(PVP_TOTAL_WINS,       0, 50,  REWARD_DRUG, JEWELS, 1));      // Enforcer
+
+        // Block E: Drug stockpile coverage (mid-tier farmable drugs)
+        c.setAchievement(43, _achievement(DRUG_BALANCE,         HEROIN,  1000, REWARD_CASH, 0, 25000));  // Mule Master
+        c.setAchievement(44, _achievement(DRUG_BALANCE,         COCAINE, 1000, REWARD_CASH, 0, 25000));  // White Powder Pro
+
         vm.stopBroadcast();
 
-        console.log("33 achievements configured:");
+        console.log("45 achievements configured:");
         console.log("  Early game (0-11):");
         console.log("    #0:  PVE_TOTAL    >= 1     -> 250 CASH");
         console.log("    #1:  PVE_TOTAL    >= 10    -> 1k CASH");
@@ -159,19 +186,19 @@ contract SetupClaims is DeployBase {
         console.log("    #8:  PVP_WINS     >= 1     -> 25 REP");
         console.log("    #9:  PVP_ATTACK   >= 10    -> 3 General Goods");
         console.log("    #10: PVP_DEFEND   >= 10    -> 3 General Goods");
-        console.log("    #11: REP          >= 100   -> 100 Weed");
+        console.log("    #11: REP          >= 75    -> 100 Weed");
         console.log("  Tier milestones (12-20, new convex ladder):");
-        console.log("    #12: Associate    (75)     -> 500 CASH");
-        console.log("    #13: Dealer       (200)    -> 2k CASH");
-        console.log("    #14: Soldier      (500)    -> 10k CASH");
-        console.log("    #15: Capo         (1,200)  -> 25k CASH");
-        console.log("    #16: Consigliere  (2,500)  -> 75k CASH");
-        console.log("    #17: Underboss    (5,000)  -> 200k CASH");
+        console.log("    #12: Associate    (100)    -> 500 CASH");
+        console.log("    #13: Dealer       (250)    -> 2k CASH");
+        console.log("    #14: Soldier      (600)    -> 10k CASH");
+        console.log("    #15: Capo         (1,500)  -> 25k CASH");
+        console.log("    #16: Consigliere  (3,000)  -> 75k CASH");
+        console.log("    #17: Underboss    (5,500)  -> 200k CASH");
         console.log("    #18: Don          (10,000) -> 500k CASH");
         console.log("    #19: Godfather    (22,000) -> 1M CASH");
         console.log("    #20: Legend       (50,000) -> 2M CASH");
         console.log("  Drug + PvP rewards:");
-        console.log("    #21: REP >= 250            -> 5 Heroin");
+        console.log("    #21: REP >= 400            -> 5 Heroin");
         console.log("    #22: PVP_WINS >= 1         -> 3 General Goods");
         console.log("    #23: PVP_WINS >= 10        -> 3 Contraband");
         console.log("  New: cash thresholds (24-27):");
@@ -186,6 +213,19 @@ contract SetupClaims is DeployBase {
         console.log("    #30: PVE_TOTAL >= 100      -> 5k CASH");
         console.log("    #31: PVE_TOTAL >= 1,000    -> 50k CASH");
         console.log("    #32: PVP_WINS  >= 100      -> 100k CASH");
+        console.log("  Mid-tier additions (33-44):");
+        console.log("    #33: PVE_TOTAL    >= 250   -> 10k CASH");
+        console.log("    #34: PVE_TOTAL    >= 500   -> 25k CASH");
+        console.log("    #35: PVE_WINS     >= 100   -> 50k CASH");
+        console.log("    #36: PVE_TIES     >= 100   -> 30k CASH");
+        console.log("    #37: PVE_LOSSES   >= 100   -> 30k CASH");
+        console.log("    #38: PVE_DEAL     >= 100   -> 15k CASH");
+        console.log("    #39: PVE_THREATEN >= 100   -> 15k CASH");
+        console.log("    #40: PVE_BAIL     >= 100   -> 15k CASH");
+        console.log("    #41: PVP_WINS     >= 25    -> 5 Contraband");
+        console.log("    #42: PVP_WINS     >= 50    -> 1 Jewels");
+        console.log("    #43: Heroin       >= 1,000 -> 25k CASH");
+        console.log("    #44: Cocaine      >= 1,000 -> 25k CASH");
     }
 
     function _achievement(

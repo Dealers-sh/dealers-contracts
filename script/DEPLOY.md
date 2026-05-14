@@ -66,7 +66,7 @@ source .env && forge script script/deploy/DeployAll.s.sol:DeployAll --rpc-url ab
 
 Contracts deployed: DealersDrugRegistry, DealersAreaRegistry, DealersCore, DealersPaymentHandler, DealersRandomness, DealersNFT, DealersBoosts, DealersPVE, DealersPVP, DealersClaims, DealersActions, DealersMulticall, DealersChatFactory, DealersAreaChatGate.
 
-Setups included: 11 drugs, 6 areas, all cross-contract wiring + authorizations, 10-tier reputation system, 24 achievements, WORLD + 8 area chat rooms.
+Setups included: 11 drugs, 7 areas, all cross-contract wiring + authorizations, 10-tier reputation system, 24 achievements, WORLD + 9 area chat rooms.
 
 Addresses auto-saved to `script/data/deployments/testnet.json`.
 
@@ -219,7 +219,7 @@ Mint statuses: `0` DISABLED, `1` FAMILY, `2` WHITELIST, `3` PUBLIC.
 Read-only — confirms all cross-contract references and authorizations.
 
 ```bash
-forge script script/verify/VerifyConfig.s.sol:VerifyConfig --rpc-url https://api.testnet.abs.xyz --skip "RendererSVG"
+forge script script/verify/VerifyConfig.s.sol:VerifyConfig --rpc-url https://api.testnet.abs.xyz --zksync --skip "RendererSVG"
 ```
 
 Reports `[OK]`, `[MISMATCH]`, or `[NEEDS CONFIG]` for every slot.

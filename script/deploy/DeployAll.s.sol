@@ -364,25 +364,28 @@ contract DeployAll is DeployBase {
         reg.createArea("Manhattan", 0, 0, false, false);
         reg.batchConfigureAreaDrugs(1, _d(4, 5, 6), _d(1, 12, 120), _d(1, 10, 100));
 
-        // Amsterdam: early unlock, FREE movement
-        reg.createArea("Amsterdam", 0, 150, false, false);
+        // Amsterdam: Associate entry, FREE movement
+        reg.createArea("Amsterdam", 0, 75, false, false);
         reg.batchConfigureAreaDrugs(2, _d(4, 7, 8), _d(3, 15, 180), _d(2, 12, 150));
 
-        // Colombia: first paid area (0.001 ETH)
-        reg.createArea("Colombia", 0.001 ether, 250, false, false);
+        // Colombia: Dealer entry, first paid area (0.001 ETH), also PVP unlock
+        reg.createArea("Colombia", 0.001 ether, 200, false, false);
         reg.batchConfigureAreaDrugs(3, _d(4, 6, 8), _d(1, 60, 90), _d(1, 50, 75));
 
+        // Hong Kong: Soldier entry
         reg.createArea("Hong Kong", 0.001 ether, 500, false, false);
         reg.batchConfigureAreaDrugs(4, _d(9, 10, 8), _d(18, 28, 140), _d(15, 22, 110));
 
-        reg.createArea("Seoul", 0.001 ether, 1000, false, false);
+        // Seoul: Capo entry
+        reg.createArea("Seoul", 0.001 ether, 1200, false, false);
         reg.batchConfigureAreaDrugs(5, _d(9, 10, 11), _d(8, 14, 90), _d(7, 12, 75));
 
-        reg.createArea("Tokyo", 0.001 ether, 1500, false, false);
+        // Tokyo: Consigliere entry, premium sell destination
+        reg.createArea("Tokyo", 0.001 ether, 2500, false, false);
         reg.batchConfigureAreaDrugs(6, _d(9, 10, 11), _d(24, 32, 200), _d(20, 26, 160));
 
-        // Dubai: Consigliere+ premium (XTC/Cocaine/Heroin, asymmetric sell-heavy pricing)
-        reg.createArea("Dubai", 0.002 ether, 2500, false, false);
+        // Dubai: Don entry, endgame teaser (XTC/Cocaine/Heroin, asymmetric sell-heavy pricing)
+        reg.createArea("Dubai", 0.002 ether, 10000, false, false);
         reg.batchConfigureAreaDrugs(7, _d(5, 6, 8), _d(14, 160, 200), _d(20, 200, 240));
 
         // Black Market sell prices to 2x base (sell-only by contract design)
@@ -414,12 +417,12 @@ contract DeployAll is DeployBase {
 
         ReputationTier[] memory tiers = new ReputationTier[](10);
         tiers[0] = ReputationTier({minReputation: 0,     winBonus: 60, tieBonus: 25, lossPenalty: -2, repCap: 35, tierName: "Outsider"});
-        tiers[1] = ReputationTier({minReputation: 75,    winBonus: 35, tieBonus: 18, lossPenalty: -3, repCap: 25, tierName: "Associate"});
-        tiers[2] = ReputationTier({minReputation: 200,   winBonus: 20, tieBonus: 10, lossPenalty: -3, repCap: 22, tierName: "Dealer"});
-        tiers[3] = ReputationTier({minReputation: 500,   winBonus: 12, tieBonus: 5,  lossPenalty: -4, repCap: 22, tierName: "Soldier"});
-        tiers[4] = ReputationTier({minReputation: 1200,  winBonus: 9,  tieBonus: 4,  lossPenalty: -5, repCap: 24, tierName: "Capo"});
-        tiers[5] = ReputationTier({minReputation: 2500,  winBonus: 7,  tieBonus: 3,  lossPenalty: -5, repCap: 26, tierName: "Consigliere"});
-        tiers[6] = ReputationTier({minReputation: 5000,  winBonus: 6,  tieBonus: 2,  lossPenalty: -6, repCap: 28, tierName: "Underboss"});
+        tiers[1] = ReputationTier({minReputation: 100,   winBonus: 35, tieBonus: 18, lossPenalty: -3, repCap: 25, tierName: "Associate"});
+        tiers[2] = ReputationTier({minReputation: 250,   winBonus: 20, tieBonus: 10, lossPenalty: -3, repCap: 22, tierName: "Dealer"});
+        tiers[3] = ReputationTier({minReputation: 600,   winBonus: 12, tieBonus: 5,  lossPenalty: -4, repCap: 22, tierName: "Soldier"});
+        tiers[4] = ReputationTier({minReputation: 1500,  winBonus: 9,  tieBonus: 4,  lossPenalty: -5, repCap: 24, tierName: "Capo"});
+        tiers[5] = ReputationTier({minReputation: 3000,  winBonus: 7,  tieBonus: 3,  lossPenalty: -5, repCap: 26, tierName: "Consigliere"});
+        tiers[6] = ReputationTier({minReputation: 5500,  winBonus: 6,  tieBonus: 2,  lossPenalty: -6, repCap: 28, tierName: "Underboss"});
         tiers[7] = ReputationTier({minReputation: 10000, winBonus: 5,  tieBonus: 2,  lossPenalty: -6, repCap: 30, tierName: "Don"});
         tiers[8] = ReputationTier({minReputation: 22000, winBonus: 4,  tieBonus: 1,  lossPenalty: -7, repCap: 32, tierName: "Godfather"});
         tiers[9] = ReputationTier({minReputation: 50000, winBonus: 2,  tieBonus: 1,  lossPenalty: -8, repCap: 4,  tierName: "Legend"});

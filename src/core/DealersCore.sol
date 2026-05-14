@@ -77,14 +77,14 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
      */
     struct CoreConfig {
         uint256 attemptResetFee;          // 0.001 ether - Buy mid-day reset
-        uint256 bribeCopFee;              // 0.002 ether - Full heat reset
+        uint256 bribeCopFee;              // 0.001 ether - Full heat reset
         uint256 cashTopupPrice;           // 0.001 ether - Price to buy $CASH
         uint256 cashTopupAmount;          // 100 - Amount of $CASH received
         uint256 cashPurchaseThreshold;    // 10 - Max balance to allow purchase
         uint8 jailRepPenaltyPercent;      // 10 - % rep lost when jailed
         uint256 jailRepPenaltyCap;        // 50 - Max rep loss when jailed
         uint8 wantedPosterSuccessChance;  // 50 - % chance to clear heat
-        uint8 breakoutSuccessChance;      // 33 - % chance to escape jail
+        uint8 breakoutSuccessChance;      // 50 - % chance to escape jail
         uint8 jailDrugConfiscationPercent; // 3 - % of one random drug confiscated on jail
         uint256 starterCash;              // 250 - Starting $CASH for new dealers
         uint16 jailChancePerHeat;         // 5 - Jail chance per heat level (out of 1000, so 5 = 0.5%)
@@ -106,7 +106,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     // Configurable parameters
     CoreConfig public config;
-    uint256 public MAX_REPUTATION = 1200;
+    uint256 public MAX_REPUTATION = 75000;
     uint256 public MAX_INFAMY = 10000;
     bool public paused;
 

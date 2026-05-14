@@ -62,15 +62,15 @@ contract SetupAreas is DeployBase {
             _arr(1, 10, 100)
         );
 
-        // Area 2: Amsterdam (early unlock, FREE movement - keeps F2P loop unblocked)
-        reg.createArea("Amsterdam", FREE, 150, false, false);
+        // Area 2: Amsterdam (Associate entry, FREE movement - keeps F2P loop unblocked)
+        reg.createArea("Amsterdam", FREE, 100, false, false);
         _configureDrugs(reg, 2,
             _arr(WEED, SHROOMS, HEROIN),
             _arr(3, 15, 180),
             _arr(2, 12, 150)
         );
 
-        // Area 3: Colombia (mid-game farm zone - first paid area)
+        // Area 3: Colombia (Dealer entry - first paid area, also PVP unlock)
         reg.createArea("Colombia", MOVEMENT_FEE, 250, false, false);
         _configureDrugs(reg, 3,
             _arr(WEED, COCAINE, HEROIN),
@@ -78,33 +78,33 @@ contract SetupAreas is DeployBase {
             _arr(1, 50, 75)
         );
 
-        // Area 4: Hong Kong (mid-late, Western->Asian bridge via Heroin)
-        reg.createArea("Hong Kong", MOVEMENT_FEE, 500, false, false);
+        // Area 4: Hong Kong (Soldier entry - premium heroin sink, heist gate)
+        reg.createArea("Hong Kong", MOVEMENT_FEE, 600, false, false);
         _configureDrugs(reg, 4,
             _arr(OPIOIDS, METH, HEROIN),
-            _arr(18, 28, 140),
-            _arr(15, 22, 110)
+            _arr(22, 30, 175),
+            _arr(18, 25, 160)
         );
 
-        // Area 5: Seoul (Asian farm zone - cheap opioids/meth/fentanyl)
-        reg.createArea("Seoul", MOVEMENT_FEE, 1000, false, false);
+        // Area 5: Seoul (Capo entry - Asian farm zone, cheap opioids/meth/fentanyl)
+        reg.createArea("Seoul", MOVEMENT_FEE, 1500, false, false);
         _configureDrugs(reg, 5,
             _arr(OPIOIDS, METH, FENTANYL),
             _arr(8, 14, 90),
             _arr(7, 12, 75)
         );
 
-        // Area 6: Tokyo (premium sell destination)
-        reg.createArea("Tokyo", MOVEMENT_FEE, 1500, false, false);
+        // Area 6: Tokyo (Consigliere entry - premium sell destination)
+        reg.createArea("Tokyo", MOVEMENT_FEE, 3000, false, false);
         _configureDrugs(reg, 6,
             _arr(OPIOIDS, METH, FENTANYL),
             _arr(24, 32, 200),
             _arr(20, 26, 160)
         );
 
-        // Area 7: Dubai (Consigliere+ premium - Gulf nightlife + Persian-Afghan route)
+        // Area 7: Dubai (Underboss entry - premium sell zone, Gulf nightlife + Persian-Afghan route)
         // Asymmetric sell-heavy: buy ~1.3x Tokyo, sell ~2x Tokyo
-        reg.createArea("Dubai", PREMIUM_FEE, 2500, false, false);
+        reg.createArea("Dubai", PREMIUM_FEE, 5500, false, false);
         _configureDrugs(reg, 7,
             _arr(XTC, COCAINE, HEROIN),
             _arr(14, 160, 200),
