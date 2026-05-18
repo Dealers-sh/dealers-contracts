@@ -371,18 +371,6 @@ contract DealersBoostsTest is BaseTest {
         assertTrue(boosts.getBoostTier(GRINDER_TIER).isActive);
     }
 
-    function test_emergencyWithdraw_works() public {
-        vm.deal(address(boosts), 1 ether);
-
-        address recipient = makeAddr("recipient");
-        uint256 recipientBalanceBefore = recipient.balance;
-        boosts.emergencyWithdraw(recipient, 0.5 ether);
-        uint256 recipientBalanceAfter = recipient.balance;
-
-        assertEq(recipientBalanceAfter - recipientBalanceBefore, 0.5 ether);
-        assertEq(address(boosts).balance, 0.5 ether);
-    }
-
     // =============================================================
     //                      PAUSE FUNCTIONALITY
     // =============================================================

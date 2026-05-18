@@ -567,29 +567,4 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
         paused = false;
         emit Unpaused(msg.sender);
     }
-
-    /**
-     * @notice Emergency function to recover stuck ETH
-     * @dev Only callable by owner in case of stuck funds
-     * @param to Address to send ETH to
-     * @param amount Amount to withdraw
-     */
-    function emergencyWithdraw(address to, uint256 amount) external onlyOwner {
-        if (to == address(0)) revert InvalidAddress();
-        if (amount > address(this).balance) revert InsufficientPayment();
-        _safeTransferETH(to, amount);
-    }
-
-    /**
-     * @notice Get the current contract balance
-     * @return The ETH balance of this contract
-     */
-    function getContractBalance() external view returns (uint256) {
-        return address(this).balance;
-    }
-
-    /**
-     * @notice Allows the contract to receive ETH
-     */
-    receive() external payable {}
 }
