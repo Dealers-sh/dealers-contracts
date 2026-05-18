@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import "../base/BaseTest.sol";
 
 contract DealersPaymentHandlerTest is BaseTest {
-    uint256 public constant BANK_FEE_PERCENT = 6000;  // 60%
+    uint256 public constant BANK_FEE_PERCENT = 8000;  // 80%
 
     address public authorizedCaller;
 
@@ -20,22 +20,22 @@ contract DealersPaymentHandlerTest is BaseTest {
     //                     FEE CALCULATION TESTS
     // =============================================================
 
-    function test_calculateFees_60PercentBank() public view {
+    function test_calculateFees_80PercentBank() public view {
         uint256 amount = 1 ether;
         (uint256 bankFee,) = paymentHandler.calculateFees(amount);
 
         uint256 expectedBankFee = (amount * BANK_FEE_PERCENT) / 10000;
         assertEq(bankFee, expectedBankFee);
-        assertEq(bankFee, 0.6 ether);
+        assertEq(bankFee, 0.8 ether);
     }
 
-    function test_calculateFees_40PercentDev() public view {
+    function test_calculateFees_20PercentDev() public view {
         uint256 amount = 1 ether;
         (, uint256 devFee) = paymentHandler.calculateFees(amount);
 
         uint256 expectedDevFee = amount - (amount * BANK_FEE_PERCENT) / 10000;
         assertEq(devFee, expectedDevFee);
-        assertEq(devFee, 0.4 ether);
+        assertEq(devFee, 0.2 ether);
     }
 
     function test_calculateFees_sumsToTotal() public view {

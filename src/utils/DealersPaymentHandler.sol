@@ -26,8 +26,8 @@ contract DealersPaymentHandler is ReentrancyGuard, Ownable {
     //                            STORAGE
     // =============================================================
 
-    // Fee split (basis points, e.g. 2000 = 20% to bank, 80% to dev)
-    uint256 public bankFeePercent = 6000;
+    // Fee split (basis points, e.g. 8000 = 80% to bank, 20% to dev)
+    uint256 public bankFeePercent = 8000;
 
     // Authorized game contracts
     mapping(address => bool) public authorizedContracts;

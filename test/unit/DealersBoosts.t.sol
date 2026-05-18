@@ -262,8 +262,8 @@ contract DealersBoostsTest is BaseTest {
         uint256 handlerBalanceAfter = address(paymentHandler).balance;
         uint256 bankBalanceAfter = bankVault.balance;
 
-        uint256 bankFee = (GRINDER_PRICE * 6000) / 10000;  // 60% to bank
-        uint256 devFee = (GRINDER_PRICE * 4000) / 10000;   // 40% to dev (pending in handler)
+        uint256 bankFee = (GRINDER_PRICE * 8000) / 10000;  // 80% to bank
+        uint256 devFee = (GRINDER_PRICE * 2000) / 10000;   // 20% to dev (pending in handler)
 
         assertEq(handlerBalanceAfter - handlerBalanceBefore, devFee);
         assertEq(bankBalanceAfter - bankBalanceBefore, bankFee);
