@@ -4,20 +4,41 @@
 # Uploads contract source to Etherscan for public verification.
 #
 # Usage:
-#   source .env && ./script/verify-source.sh              # verify all contracts
-#   source .env && ./script/verify-source.sh boosts pvp    # verify specific contracts
-#   source .env && ./script/verify-source.sh renderers     # verify renderers only
+#   source .env && ./script/verify-source.sh                            # verify all (testnet default)
+#   source .env && NETWORK=mainnet ./script/verify-source.sh            # mainnet
+#   source .env && ./script/verify-source.sh boosts pvp                 # verify specific contracts
+#   source .env && ./script/verify-source.sh renderers                  # verify renderers only
 #
 # Requires: ETHERSCAN_API_KEY + DEV_WALLET/BANK_VAULT/ROYALTY_RECEIVER in .env.
-# Contract addresses are loaded from testnet.json (env vars override).
+# Contract addresses are loaded from script/data/deployments/{NETWORK}.json
+# (env vars still override).
 
 set -e
 
-CHAIN_ID=11124
+NETWORK="${NETWORK:-testnet}"
+case "$NETWORK" in
+  testnet)
+    CHAIN_ID=11124
+    ZKSYNC_VERIFIER_URL="https://api-explorer-verify.testnet.abs.xyz/contract_verification"
+    ;;
+  mainnet)
+    CHAIN_ID=2741
+    ZKSYNC_VERIFIER_URL="https://api-explorer-verify.mainnet.abs.xyz/contract_verification"
+    ;;
+  *)
+    echo "FATAL: unknown NETWORK '$NETWORK'. Expected testnet or mainnet." >&2
+    exit 1
+    ;;
+esac
+
 VERIFIER_URL="https://api.etherscan.io/v2/api?chainid=${CHAIN_ID}"
-ZKSYNC_VERIFIER_URL="https://api-explorer-verify.testnet.abs.xyz/contract_verification"
 SOLC_VERSION="0.8.28"
-DEPLOY_JSON="script/data/deployments/testnet.json"
+DEPLOY_JSON="script/data/deployments/${NETWORK}.json"
+
+if [ ! -f "$DEPLOY_JSON" ]; then
+    echo "FATAL: $DEPLOY_JSON not found." >&2
+    exit 1
+fi
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -217,7 +238,9 @@ verify_renderer_html() {
 
 echo "=============================================="
 echo "  Dealers.sh Source Code Verification"
+echo "  Network:  $NETWORK"
 echo "  Chain ID: $CHAIN_ID"
+echo "  Deploy:   $DEPLOY_JSON"
 echo "=============================================="
 echo ""
 

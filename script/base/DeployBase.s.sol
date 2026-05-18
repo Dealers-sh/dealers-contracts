@@ -216,11 +216,59 @@ abstract contract DeployBase is Script {
     //                         ADDRESS PERSISTENCE
     // =========================================================================
 
-    function _getDeploymentPath() internal view returns (string memory) {
+    function _getNetworkFolder() internal view returns (string memory) {
         uint256 chainId = block.chainid;
-        if (chainId == 11124) return "script/data/deployments/testnet.json";
-        if (chainId == 2741) return "script/data/deployments/mainnet.json";
-        return "script/data/deployments/local.json";
+        if (chainId == 11124) return "testnet";
+        if (chainId == 2741) return "mainnet";
+        return "local";
+    }
+
+    function _getDeploymentPath() internal view returns (string memory) {
+        return string.concat("script/data/deployments/", _getNetworkFolder(), ".json");
+    }
+
+    function _getPointersPath() internal view returns (string memory) {
+        return string.concat("script/data/", _getNetworkFolder(), "/pointers.json");
+    }
+
+    function _readPointersJson() internal view returns (string memory) {
+        string memory path = _getPointersPath();
+        try vm.readFile(path) returns (string memory json) {
+            return json;
+        } catch {
+            return '{"normal":[],"special":[],"oneofone":[],"placeholder":null}';
+        }
+    }
+
+    function _loadPointerArray(
+        string memory pointersJson,
+        string memory typeKey,
+        uint256 targetLen
+    ) internal pure returns (address[] memory) {
+        PointerEntry[] memory entries = _loadPointerEntries(pointersJson, typeKey);
+        address[] memory padded = new address[](targetLen);
+        uint256 n = entries.length < targetLen ? entries.length : targetLen;
+        for (uint256 i = 0; i < n; i++) {
+            padded[i] = entries[i].pointer;
+        }
+        return padded;
+    }
+
+    function _loadPointerEntries(
+        string memory pointersJson,
+        string memory typeKey
+    ) internal pure returns (PointerEntry[] memory) {
+        bytes memory raw = vm.parseJson(pointersJson, string.concat(".", typeKey));
+        if (raw.length == 0) return new PointerEntry[](0);
+        return abi.decode(raw, (PointerEntry[]));
+    }
+
+    function _loadPlaceholderPointer(string memory pointersJson) internal view returns (address) {
+        try vm.parseJsonAddress(pointersJson, ".placeholder") returns (address ptr) {
+            return ptr;
+        } catch {
+            return address(0);
+        }
     }
 
     function _loadAddresses() internal {
@@ -345,4 +393,49 @@ abstract contract DeployBase is Script {
         }
         require(deployed != address(0), "Deployment failed");
     }
+
+    function _serializeAddrOrNull(address addr) internal pure returns (string memory) {
+        if (addr == address(0)) return "null";
+        return string.concat('"', vm.toString(addr), '"');
+    }
+
+    function _serializePointerEntries(string[] memory names, address[] memory pointers) internal pure returns (string memory) {
+        require(names.length == pointers.length, "Length mismatch");
+        if (names.length == 0) return "[]";
+        string memory result = "[\n";
+        for (uint256 i = 0; i < names.length; i++) {
+            result = string.concat(
+                result,
+                '    { "name": ', _jsonString(names[i]),
+                ', "pointer": ', _serializeAddrOrNull(pointers[i]),
+                ' }'
+            );
+            if (i + 1 < names.length) result = string.concat(result, ",");
+            result = string.concat(result, "\n");
+        }
+        return string.concat(result, "  ]");
+    }
+
+    function _jsonString(string memory s) internal pure returns (string memory) {
+        bytes memory b = bytes(s);
+        bytes memory out = new bytes(b.length * 2 + 2);
+        uint256 j = 0;
+        out[j++] = '"';
+        for (uint256 i = 0; i < b.length; i++) {
+            bytes1 c = b[i];
+            if (c == '"' || c == '\\') {
+                out[j++] = '\\';
+            }
+            out[j++] = c;
+        }
+        out[j++] = '"';
+        bytes memory trimmed = new bytes(j);
+        for (uint256 k = 0; k < j; k++) trimmed[k] = out[k];
+        return string(trimmed);
+    }
+}
+
+struct PointerEntry {
+    string name;
+    address pointer;
 }

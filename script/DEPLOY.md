@@ -1,4 +1,16 @@
-# Deployment Guide — Abstract Testnet
+# Deployment Guide — Abstract (Testnet + Mainnet)
+
+All deployment scripts read addresses from `script/data/deployments/{NETWORK}.json` and trait pointers from `script/data/{NETWORK}/pointers.json`, where `{NETWORK}` is `testnet` (chain 11124) or `mainnet` (chain 2741).
+
+Shell orchestrators (`upload-traits.sh`, `verify-source.sh`) honor a single env var:
+
+```bash
+NETWORK=testnet ./script/upload-traits.sh         # default
+NETWORK=mainnet ./script/upload-traits.sh         # mainnet
+```
+
+For Solidity scripts the network is detected from `block.chainid` via the `--rpc-url` you pass — no env var required there. Examples below show testnet RPCs; swap in `https://api.mainnet.abs.xyz` for mainnet.
+
 
 ## TLDR Checklist
 
@@ -12,11 +24,11 @@
  7. DeployHtmlRenderer.s.sol   --zksync                  (HTML renderer + config + link to NFT)
  8. UploadPlaceholder.s.sol    NO --zksync               (fallback SVG)
  9. UploadTraits — uploadNormal() + uploadSpecial()       (trait SVGs to FileStore)
-10. UploadOneOfOnes.s.sol      NO --zksync               (optional: 1/1 SVGs)
+10. UploadTraits — uploadOneOfOnesRange()  NO --zksync   (1/1 SVGs to FileStore)
 11. UploadGzipJs.s.sol upload()    NO --zksync           (upload JS to FileStore)
 12. UploadGzipJs.s.sol setFilename --zksync              (set filename on HTML renderer)
 13. SetupTestnetPricing.s.sol  --zksync                  (optional: 10x fee reduction)
-14. batchSetTraits on RendererSVG                         (assign traits to tokens)
+14. AssignTraits — assignTokenTraits()/assignOneOfOnes() NO --zksync (reveal-time mapping)
 15. reveal() on RendererSVG                               (switch from placeholder)
 16. setMintStatus(3) on NFT                               (enable public mint)
 17. VerifyConfig.s.sol                                    (read-only sanity check)
@@ -43,7 +55,7 @@ ETHERSCAN_API_KEY=your_key
 ABSTRACT_TESTNET_RPC=https://api.testnet.abs.xyz
 ```
 
-Contract addresses are managed via `script/data/deployments/testnet.json` — do not put them in `.env`.
+Contract addresses are managed via `script/data/deployments/{NETWORK}.json` — do not put them in `.env`.
 
 ### Build
 
@@ -131,14 +143,16 @@ source .env && forge script script/upload/UploadTraits.s.sol:UploadTraits --sig 
 
 ## 7. Upload One-of-Ones (optional)
 
-Upload unique SVGs and assign them to specific token IDs.
+Two separate phases: upload SVG content to FileStore (prep), then assign pointers
+to token IDs (only at reveal time).
 
 ```bash
-# Upload SVGs to FileStore
-source .env && forge script script/upload/UploadOneOfOnes.s.sol:UploadOneOfOnes --sig "uploadOneOfOnes()" --rpc-url https://api.testnet.abs.xyz --account dealersKeystore --broadcast
+# Upload SVGs to FileStore in chunks (writes pointers back to traits.json)
+source .env && forge script script/upload/UploadTraits.s.sol:UploadTraits --sig "uploadOneOfOnesRange(uint256,uint256)" 0 5 --rpc-url https://api.testnet.abs.xyz --account dealersKeystore --broadcast --slow
+# ...repeat with 5 5, 10 5, ..., 40 5 until all 45 are uploaded
 
-# Assign to token IDs (off-chain determined)
-source .env && forge script script/upload/UploadOneOfOnes.s.sol:UploadOneOfOnes --sig "assignAllOneOfOnes(uint256[])" "[1,42,100]" --rpc-url https://api.testnet.abs.xyz --account dealersKeystore --broadcast
+# Assign cached pointers to token IDs (run once, at reveal time)
+source .env && forge script script/upload/AssignTraits.s.sol:AssignTraits --sig "assignOneOfOnes(uint256[])" "[1,42,100,...]" --rpc-url https://api.testnet.abs.xyz --account dealersKeystore --broadcast
 ```
 
 ---

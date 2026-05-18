@@ -34,9 +34,9 @@ import "../base/DeployBase.s.sol";
  *     --account dealersKeystore \
  *     --broadcast
  *
- *   # Upload one-of-ones (requires token IDs)
+ *   # Upload one-of-ones (chunked, no token assignment — see AssignTraits for that)
  *   forge script script/upload/UploadTraits.s.sol:UploadTraits \
- *     --sig "uploadOneOfOnes(uint256[])" "[1,42,99]" \
+ *     --sig "uploadOneOfOnesRange(uint256,uint256)" 0 5 \
  *     --rpc-url https://api.testnet.abs.xyz \
  *     --account dealersKeystore \
  *     --broadcast
@@ -156,21 +156,12 @@ contract UploadTraits is DeployBase {
         vm.stopBroadcast();
     }
 
-    function uploadOneOfOnes(uint256[] calldata tokenIds) external {
-        _loadAddresses();
-        _requireAddress(rendererSvg, "RENDERER_SVG");
+    function uploadOneOfOnes() external {
+        _uploadOneOfOnesContentRange(0, type(uint256).max);
+    }
 
-        vm.startBroadcast();
-        console.log("==============================================");
-        console.log("   Uploading One-of-Ones from traits.json");
-        console.log("==============================================");
-        console.log("Renderer:", rendererSvg);
-        console.log("Token IDs count:", tokenIds.length);
-        console.log("");
-
-        _uploadOneOfOnesFromJson(rendererSvg, tokenIds);
-
-        vm.stopBroadcast();
+    function uploadOneOfOnesRange(uint256 start, uint256 count) external {
+        _uploadOneOfOnesContentRange(start, count);
     }
 
     function uploadPlaceholder() external {
@@ -194,6 +185,7 @@ contract UploadTraits is DeployBase {
         address renderer;
         uint8 charType;
         TraitJson[] traits;
+        address[] pointers;
         uint8[] addCharacterTypes;
         uint8[] addCategories;
         string[] addNames;
@@ -211,12 +203,14 @@ contract UploadTraits is DeployBase {
     }
 
     function _uploadTraitsCapped(address renderer, uint8 charType, uint256 perCat) internal {
-        string memory jsonPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
-        string memory json = vm.readFile(jsonPath);
+        string memory traitsPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
+        string memory traitsJson = vm.readFile(traitsPath);
 
         string memory typeKey = charType == 0 ? "normal" : "special";
-        bytes memory traitsArray = vm.parseJson(json, string.concat(".", typeKey));
-        TraitJson[] memory traits = abi.decode(traitsArray, (TraitJson[]));
+        TraitJson[] memory traits = abi.decode(
+            vm.parseJson(traitsJson, string.concat(".", typeKey)),
+            (TraitJson[])
+        );
 
         console.log(string.concat(
             "Found ", vm.toString(traits.length), " ", typeKey,
@@ -227,6 +221,7 @@ contract UploadTraits is DeployBase {
         ctx.renderer = renderer;
         ctx.charType = charType;
         ctx.traits = traits;
+        ctx.pointers = _loadPointerArray(_readPointersJson(), typeKey, traits.length);
         ctx.addCharacterTypes = new uint8[](traits.length);
         ctx.addCategories = new uint8[](traits.length);
         ctx.addNames = new string[](traits.length);
@@ -259,10 +254,7 @@ contract UploadTraits is DeployBase {
             console.log(string.concat("Registered ", vm.toString(finalAddCount), " new traits with renderer"));
         }
 
-        for (uint256 i = 0; i < ctx.writePointerCount; i++) {
-            string memory key = string.concat(".", typeKey, "[", vm.toString(ctx.writePointerIndices[i]), "].pointer");
-            vm.writeJson(vm.toString(ctx.writePointerValues[i]), jsonPath, key);
-        }
+        _commitPointerUpdates(typeKey, _traitNames(ctx.traits), ctx.pointers, ctx.writePointerIndices, ctx.writePointerValues, ctx.writePointerCount);
 
         console.log("");
         console.log(string.concat(
@@ -273,13 +265,14 @@ contract UploadTraits is DeployBase {
     }
 
     function _uploadTraitsFromJsonRange(address renderer, uint8 charType, uint256 start, uint256 count) internal {
-        string memory jsonPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
-        string memory json = vm.readFile(jsonPath);
+        string memory traitsPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
+        string memory traitsJson = vm.readFile(traitsPath);
 
         string memory typeKey = charType == 0 ? "normal" : "special";
-        bytes memory traitsArray = vm.parseJson(json, string.concat(".", typeKey));
-
-        TraitJson[] memory traits = abi.decode(traitsArray, (TraitJson[]));
+        TraitJson[] memory traits = abi.decode(
+            vm.parseJson(traitsJson, string.concat(".", typeKey)),
+            (TraitJson[])
+        );
 
         if (start > traits.length) start = traits.length;
         uint256 end = start + count;
@@ -295,6 +288,7 @@ contract UploadTraits is DeployBase {
         ctx.renderer = renderer;
         ctx.charType = charType;
         ctx.traits = traits;
+        ctx.pointers = _loadPointerArray(_readPointersJson(), typeKey, traits.length);
         ctx.addCharacterTypes = new uint8[](sliceLen);
         ctx.addCategories = new uint8[](sliceLen);
         ctx.addNames = new string[](sliceLen);
@@ -331,10 +325,7 @@ contract UploadTraits is DeployBase {
             console.log(string.concat("Registered ", vm.toString(finalAddCount), " new traits with renderer"));
         }
 
-        for (uint256 i = 0; i < ctx.writePointerCount; i++) {
-            string memory key = string.concat(".", typeKey, "[", vm.toString(ctx.writePointerIndices[i]), "].pointer");
-            vm.writeJson(vm.toString(ctx.writePointerValues[i]), jsonPath, key);
-        }
+        _commitPointerUpdates(typeKey, _traitNames(ctx.traits), ctx.pointers, ctx.writePointerIndices, ctx.writePointerValues, ctx.writePointerCount);
 
         console.log("");
         console.log(string.concat(
@@ -346,13 +337,14 @@ contract UploadTraits is DeployBase {
 
     function _processTraitEntry(TraitsCtx memory ctx, uint256 i) internal {
         TraitJson memory t = ctx.traits[i];
+        address cached = ctx.pointers[i];
         ctx.positionInCat[t.category]++;
         uint256 pos = ctx.positionInCat[t.category];
 
         if (pos > ctx.perCatCap) return;
 
         if (pos <= ctx.onchainCount[t.category]) {
-            if (t.pointer != address(0)) {
+            if (cached != address(0)) {
                 ctx.skipCount++;
                 console.log(string.concat("  Skip (registered): ", t.name));
                 return;
@@ -373,8 +365,8 @@ contract UploadTraits is DeployBase {
         }
 
         address pointer;
-        if (t.pointer != address(0)) {
-            pointer = t.pointer;
+        if (cached != address(0)) {
+            pointer = cached;
             console.log(string.concat("  Use cached pointer: ", t.name));
         } else {
             pointer = _uploadTraitContent(ctx.charType, t.category, t.name, t.content, i);
@@ -426,98 +418,84 @@ contract UploadTraits is DeployBase {
     }
 
 
-    struct OneOfOneCtx {
-        OneOfOneJson[] traits;
-        uint256[] tids;
-        string[] names;
-        address[] pointers;
-        uint256[] uploadedIndices;
-        address[] uploadedPointers;
-        uint256 uploadCount;
-        uint256 skipCount;
-    }
+    function _uploadOneOfOnesContentRange(uint256 start, uint256 count) internal {
+        string memory traitsPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
+        string memory traitsJson = vm.readFile(traitsPath);
+        OneOfOneJson[] memory traits = abi.decode(
+            vm.parseJson(traitsJson, ".oneofone"),
+            (OneOfOneJson[])
+        );
+        address[] memory pointers = _loadPointerArray(_readPointersJson(), "oneofone", traits.length);
 
-    function _uploadOneOfOnesFromJson(address renderer, uint256[] calldata tokenIds) internal {
-        string memory jsonPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
-        string memory json = vm.readFile(jsonPath);
+        if (start > traits.length) start = traits.length;
+        uint256 end = start + count;
+        if (end < start || end > traits.length) end = traits.length;
 
-        bytes memory traitsArray = vm.parseJson(json, ".oneofone");
-        OneOfOneJson[] memory traits = abi.decode(traitsArray, (OneOfOneJson[]));
-
+        vm.startBroadcast();
+        console.log("==============================================");
+        console.log("   Uploading One-of-Ones from traits.json");
+        console.log("==============================================");
         console.log(string.concat("Found ", vm.toString(traits.length), " one-of-ones"));
-
-        require(tokenIds.length == traits.length, "Token IDs count must match one-of-ones count");
-
-        OneOfOneCtx memory ctx = OneOfOneCtx({
-            traits: traits,
-            tids: new uint256[](traits.length),
-            names: new string[](traits.length),
-            pointers: new address[](traits.length),
-            uploadedIndices: new uint256[](traits.length),
-            uploadedPointers: new address[](traits.length),
-            uploadCount: 0,
-            skipCount: 0
-        });
-
-        for (uint256 i = 0; i < traits.length; i++) {
-            _processOneOfOneEntry(ctx, i, tokenIds[i]);
-        }
-
-        if (traits.length > 0) {
-            IDealerRendererSVG(renderer).batchSetOneOfOnes(ctx.tids, ctx.names, ctx.pointers);
-            console.log(string.concat("Registered ", vm.toString(traits.length), " one-of-ones with renderer"));
-        }
-
-        for (uint256 i = 0; i < ctx.uploadCount; i++) {
-            string memory key = string.concat(".oneofone[", vm.toString(ctx.uploadedIndices[i]), "].pointer");
-            vm.writeJson(vm.toString(ctx.uploadedPointers[i]), jsonPath, key);
-        }
-
+        console.log(string.concat("Processing [", vm.toString(start), ", ", vm.toString(end), ")"));
         console.log("");
-        console.log(string.concat("Summary: uploaded ", vm.toString(ctx.uploadCount), ", skipped ", vm.toString(ctx.skipCount)));
-    }
 
-    function _processOneOfOneEntry(OneOfOneCtx memory ctx, uint256 i, uint256 tokenId) internal {
-        OneOfOneJson memory t = ctx.traits[i];
-        address pointer;
-        if (t.pointer != address(0)) {
-            pointer = t.pointer;
-            ctx.skipCount++;
-            console.log(string.concat("  Skip (cached): ", t.name));
-        } else {
+        uint256 sliceLen = end - start;
+        uint256[] memory uploadedIndices = new uint256[](sliceLen);
+        address[] memory uploadedPointers = new address[](sliceLen);
+        uint256 uploadCount = 0;
+        uint256 skipCount = 0;
+
+        for (uint256 i = start; i < end; i++) {
+            OneOfOneJson memory t = traits[i];
+            address cached = pointers[i];
+
+            if (cached != address(0)) {
+                console.log(string.concat("  Skip (cached): ", t.name, " -> ", vm.toString(cached)));
+                skipCount++;
+                continue;
+            }
+
             string memory uniqueName = string.concat(
                 "dealers-oneofone-", t.name, "-",
                 vm.toString(block.timestamp), "-", vm.toString(i)
             );
             address[] memory chunkPointers = _writeChunkPointers(t.content);
-            (pointer,) = FILE_STORE.createFileFromPointers(uniqueName, chunkPointers);
-            console.log(string.concat("  Uploaded: ", t.name, " -> ", vm.toString(pointer)));
+            (address pointer,) = FILE_STORE.createFileFromPointers(uniqueName, chunkPointers);
 
-            ctx.uploadedIndices[ctx.uploadCount] = i;
-            ctx.uploadedPointers[ctx.uploadCount] = pointer;
-            ctx.uploadCount++;
+            uploadedIndices[uploadCount] = i;
+            uploadedPointers[uploadCount] = pointer;
+            uploadCount++;
+
+            console.log(string.concat(
+                "  Uploaded: ", t.name, " (", vm.toString(chunkPointers.length),
+                " chunks) -> ", vm.toString(pointer)
+            ));
         }
 
-        ctx.tids[i] = tokenId;
-        ctx.names[i] = t.name;
-        ctx.pointers[i] = pointer;
+        vm.stopBroadcast();
+
+        _commitPointerUpdates("oneofone", _oneOfOneNames(traits), pointers, uploadedIndices, uploadedPointers, uploadCount);
+
+        console.log("");
+        console.log(string.concat("Summary: uploaded ", vm.toString(uploadCount), ", skipped ", vm.toString(skipCount)));
     }
 
     function _uploadPlaceholderFromJson(address renderer) internal {
-        string memory jsonPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
-        string memory json = vm.readFile(jsonPath);
+        string memory traitsPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
+        string memory traitsJson = vm.readFile(traitsPath);
 
-        bytes memory placeholderData = vm.parseJson(json, ".placeholder");
+        bytes memory placeholderData = vm.parseJson(traitsJson, ".placeholder");
         if (placeholderData.length == 0) {
             console.log("No placeholder found in traits.json");
             return;
         }
 
         PlaceholderJson memory p = abi.decode(placeholderData, (PlaceholderJson));
+        address cached = _loadPlaceholderPointer(_readPointersJson());
 
         address pointer;
-        if (p.pointer != address(0)) {
-            pointer = p.pointer;
+        if (cached != address(0)) {
+            pointer = cached;
             console.log("Placeholder already uploaded:", pointer);
         } else {
             string memory uniqueName = string.concat("dealers-placeholder-", vm.toString(block.timestamp));
@@ -525,15 +503,103 @@ contract UploadTraits is DeployBase {
             (pointer,) = FILE_STORE.createFileFromPointers(uniqueName, chunkPointers);
             console.log("Uploaded placeholder:", pointer);
 
-            _updatePlaceholderPointerInJson(jsonPath, pointer);
+            _writePointersFilePlaceholder(pointer);
         }
 
         IDealerRendererSVG(renderer).setPlaceholderSvg(pointer);
         console.log("Set placeholder on renderer");
     }
 
-    function _updatePlaceholderPointerInJson(string memory jsonPath, address pointer) internal {
-        vm.writeJson(vm.toString(pointer), jsonPath, ".placeholder.pointer");
+    function _commitPointerUpdates(
+        string memory typeKey,
+        string[] memory names,
+        address[] memory pointers,
+        uint256[] memory indices,
+        address[] memory values,
+        uint256 count
+    ) internal {
+        if (count == 0) return;
+        for (uint256 i = 0; i < count; i++) {
+            pointers[indices[i]] = values[i];
+        }
+        _persistPointerArray(typeKey, names, pointers);
+    }
+
+    function _persistPointerArray(
+        string memory typeKey,
+        string[] memory names,
+        address[] memory pointers
+    ) internal {
+        string memory pointersJson = _readPointersJson();
+        PointerEntry[] memory normal   = _loadPointerEntries(pointersJson, "normal");
+        PointerEntry[] memory special  = _loadPointerEntries(pointersJson, "special");
+        PointerEntry[] memory oneofone = _loadPointerEntries(pointersJson, "oneofone");
+        address placeholder = _loadPlaceholderPointer(pointersJson);
+
+        PointerEntry[] memory updated = _zipEntries(names, pointers);
+        if (_eq(typeKey, "normal")) normal = updated;
+        else if (_eq(typeKey, "special")) special = updated;
+        else if (_eq(typeKey, "oneofone")) oneofone = updated;
+
+        _writePointersFile(normal, special, oneofone, placeholder);
+    }
+
+    function _writePointersFilePlaceholder(address placeholder) internal {
+        string memory pointersJson = _readPointersJson();
+        PointerEntry[] memory normal   = _loadPointerEntries(pointersJson, "normal");
+        PointerEntry[] memory special  = _loadPointerEntries(pointersJson, "special");
+        PointerEntry[] memory oneofone = _loadPointerEntries(pointersJson, "oneofone");
+        _writePointersFile(normal, special, oneofone, placeholder);
+    }
+
+    function _writePointersFile(
+        PointerEntry[] memory normal,
+        PointerEntry[] memory special,
+        PointerEntry[] memory oneofone,
+        address placeholder
+    ) internal {
+        string memory body = string.concat(
+            '{\n  "normal": ',   _serializePointerEntries(_entryNames(normal),   _entryPointers(normal)),
+            ',\n  "special": ',  _serializePointerEntries(_entryNames(special),  _entryPointers(special)),
+            ',\n  "oneofone": ', _serializePointerEntries(_entryNames(oneofone), _entryPointers(oneofone)),
+            ',\n  "placeholder": ', _serializeAddrOrNull(placeholder),
+            '\n}\n'
+        );
+        string memory path = string.concat(vm.projectRoot(), "/", _getPointersPath());
+        vm.writeFile(path, body);
+    }
+
+    function _zipEntries(string[] memory names, address[] memory pointers) internal pure returns (PointerEntry[] memory) {
+        require(names.length == pointers.length, "Length mismatch");
+        PointerEntry[] memory entries = new PointerEntry[](names.length);
+        for (uint256 i = 0; i < names.length; i++) {
+            entries[i] = PointerEntry({ name: names[i], pointer: pointers[i] });
+        }
+        return entries;
+    }
+
+    function _entryNames(PointerEntry[] memory entries) internal pure returns (string[] memory out) {
+        out = new string[](entries.length);
+        for (uint256 i = 0; i < entries.length; i++) out[i] = entries[i].name;
+    }
+
+    function _entryPointers(PointerEntry[] memory entries) internal pure returns (address[] memory out) {
+        out = new address[](entries.length);
+        for (uint256 i = 0; i < entries.length; i++) out[i] = entries[i].pointer;
+    }
+
+    function _traitNames(TraitJson[] memory traits) internal pure returns (string[] memory out) {
+        out = new string[](traits.length);
+        for (uint256 i = 0; i < traits.length; i++) out[i] = traits[i].name;
+    }
+
+    function _oneOfOneNames(OneOfOneJson[] memory traits) internal pure returns (string[] memory out) {
+        out = new string[](traits.length);
+        for (uint256 i = 0; i < traits.length; i++) out[i] = traits[i].name;
+    }
+
+    function _eq(string memory a, string memory b) internal pure returns (bool) {
+        return keccak256(bytes(a)) == keccak256(bytes(b));
     }
 
     function _generateUniqueName(
@@ -556,17 +622,15 @@ struct TraitJson {
     uint8 category;
     string content;
     string name;
-    address pointer;
+    uint16 probability;
 }
 
 struct OneOfOneJson {
     string content;
     string name;
-    address pointer;
 }
 
 struct PlaceholderJson {
     string content;
-    address pointer;
 }
 

@@ -3,8 +3,17 @@
 /cache
 /broadcast
 /zkout
-/script/data
 /docs
+
+# Trait content: large (~2MB) and reproducible from the trait generator
+/script/data/traits.json
+# Gzipped JS payload: built from the frontend, reproducible
+/script/data/dealers.js.gz.b64
+# Local debug artifacts
+/script/data/debug/
+# Everything else under /script/data is critical state we DO track:
+#   - deployments/{network}.json (contract addresses per network)
+#   - {network}/pointers.json    (FileStore pointers per network)
 
 # Dependencies
 /lib
