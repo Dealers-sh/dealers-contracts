@@ -41,7 +41,6 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
 
     uint256 public constant MAX_SUPPLY = 8888;
     uint256 public constant ROYALTY_PERCENTAGE = 500; // 5%
-    uint256 public constant MINT_PRICE = 0.01 ether;
     uint256 public constant MAX_PER_WALLET = 10;
 
     // =============================================================
@@ -68,11 +67,20 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     IDealerRendererSVG  public contractRendererSVG;
     IDealerRendererHTML public contractRendererHTML;
 
+    uint256 public mintPrice = 0.01 ether;
+
+    string public contractDescription;
+    string public contractImage;
+    string public contractBannerImage;
+    string public contractFeaturedImage;
+    string public contractExternalLink;
+
     // =============================================================
     //                            EVENTS
     // =============================================================
 
     event MintStatusChanged(MintStatus newStatus);
+    event MintPriceChanged(uint256 oldPrice, uint256 newPrice);
     event DealerInitialized(uint256 indexed tokenId, address indexed owner);
     event RendererSVGChanged(address indexed newAddress);
     event RendererHTMLChanged(address indexed newAddress);
@@ -83,6 +91,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     event RoyaltyReceiverChanged(address indexed oldReceiver, address indexed newReceiver);
     event Paused(address account);
     event Unpaused(address account);
+    event ContractURIUpdated();
 
     // =============================================================
     //                            ERRORS
@@ -222,7 +231,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
 
     /**
      * @notice Mint NFTs during whitelist phase with merkle proof verification
-     * @dev Whitelist mint requires payment at MINT_PRICE per NFT
+     * @dev Whitelist mint requires payment at mintPrice per NFT
      * @param count Number of NFTs to mint
      * @param maxAllocation Maximum allocation for this address in merkle tree
      * @param proof Merkle proof for whitelist inclusion
@@ -240,7 +249,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         checkAndUpdateBuyerMintCount(count)
         checkAndUpdateTotalMinted(count)
     {
-        uint256 requiredPayment = MINT_PRICE * count;
+        uint256 requiredPayment = mintPrice * count;
         if (msg.value < requiredPayment) revert InsufficientETH();
 
         if (whitelistMerkleRoot == bytes32(0)) revert MerkleRootNotSet();
@@ -276,7 +285,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         checkAndUpdateBuyerMintCount(count)
         checkAndUpdateTotalMinted(count)
     {
-        uint256 requiredPayment = MINT_PRICE * count;
+        uint256 requiredPayment = mintPrice * count;
         if (msg.value < requiredPayment) revert InsufficientETH();
         _mintDealer(dest, count);
 
@@ -355,6 +364,26 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
                 Base64.encode(bytes(tokenJson(tokenId)))
             )
         );
+    }
+
+    /**
+     * @notice Get collection-level metadata per EIP-7572
+     * @return Base64-encoded data URI containing collection metadata
+     */
+    function contractURI() external view returns (string memory) {
+        bytes memory json = abi.encodePacked(
+            '{"name":"', name(),
+            '","description":"', contractDescription,
+            '","image":"', contractImage,
+            '","banner_image":"', contractBannerImage,
+            '","featured_image":"', contractFeaturedImage,
+            '","external_link":"', contractExternalLink,
+            '"}'
+        );
+        return string(abi.encodePacked(
+            "data:application/json;base64,",
+            Base64.encode(json)
+        ));
     }
 
     function _getStaticTraits(uint256 tokenId) private view returns (bytes memory) {
@@ -540,6 +569,16 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     }
 
     /**
+     * @notice Set the mint price for whitelist and public minting
+     * @param newPrice New mint price in wei (per NFT)
+     */
+    function setMintPrice(uint256 newPrice) external onlyOwner {
+        uint256 oldPrice = mintPrice;
+        mintPrice = newPrice;
+        emit MintPriceChanged(oldPrice, newPrice);
+    }
+
+    /**
      * @notice Pause minting operations
      */
     function pause() external onlyOwner {
@@ -582,6 +621,30 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         address oldReceiver = royaltyReceiver;
         royaltyReceiver = _receiver;
         emit RoyaltyReceiverChanged(oldReceiver, _receiver);
+    }
+
+    /**
+     * @notice Set collection-level metadata fields exposed via contractURI()
+     * @dev Values must not contain unescaped double quotes or backslashes
+     * @param description Collection description
+     * @param image Collection image URL (HTTPS recommended)
+     * @param bannerImage Banner image URL
+     * @param featuredImage Featured image URL
+     * @param externalLink External project URL
+     */
+    function setContractURI(
+        string calldata description,
+        string calldata image,
+        string calldata bannerImage,
+        string calldata featuredImage,
+        string calldata externalLink
+    ) external onlyOwner {
+        contractDescription = description;
+        contractImage = image;
+        contractBannerImage = bannerImage;
+        contractFeaturedImage = featuredImage;
+        contractExternalLink = externalLink;
+        emit ContractURIUpdated();
     }
 
     /**
@@ -636,7 +699,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         uint256 maxSupply
     ) {
         status = mintStatus;
-        price = MINT_PRICE;
+        price = mintPrice;
         maxPerWallet = MAX_PER_WALLET;
         currentSupply = totalSupply();
         maxSupply = MAX_SUPPLY;
