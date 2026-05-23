@@ -17,7 +17,7 @@ import "../base/DeployBase.s.sol";
  *
  * Step 2: Set filename on renderer (zkSync mode):
  *   forge script script/upload/UploadGzipJs.s.sol:UploadGzipJs \
-      --sig "setFilename(string)" "dealers-testnet-1777921620.js.gz" \
+      --sig "setFilename(string)" "dealers-testnet-1779291187.js.gz" \
       --zksync --skip "RendererSVG" \
       --rpc-url https://api.testnet.abs.xyz \
       --account dealersKeystore --broadcast

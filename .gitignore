@@ -9,6 +9,8 @@
 /script/data/traits.json
 # Gzipped JS payload: built from the frontend, reproducible
 /script/data/dealers.js.gz.b64
+# assignments.json
+/script/data/assignments.json
 # Local debug artifacts
 /script/data/debug/
 # Everything else under /script/data is critical state we DO track:

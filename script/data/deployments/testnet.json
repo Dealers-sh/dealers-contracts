@@ -6,6 +6,7 @@
   "claims": "0x34690639CcEe05e5e46aaf53e1Dd65e33E2ce623",
   "core": "0x36395fECc7BC90845BcB9fdE01d6d323eED437ed",
   "drugRegistry": "0x6adC6FB93f0445a09750a22E97D896327b3e307D",
+  "gzipFilename": "dealers-testnet-1779291187.js.gz",
   "multicall": "0x85AD92E139b0bfd492d8A1Ec8f957b1906E96580",
   "nft": "0xCa4BC92b565A110952933C90f581A7765415e6Ed",
   "paymentHandler": "0x759C484eAb3B56757E05597A5597bfC982BEAA76",

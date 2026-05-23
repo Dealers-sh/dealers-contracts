@@ -6,32 +6,134 @@ import "../base/DeployBase.s.sol";
 
 /**
  * @title AssignTraits - Reveal-time assignments on the renderer
- * @notice Two operations:
- *           - `assignTokenTraits` packs trait-combo bytes32 per token via batchSetTraits
- *           - `assignOneOfOnes` maps cached one-of-one pointers (from traits.json)
- *             to specific token IDs via batchSetOneOfOnes
+ * @notice Two scopes of operations:
  *
- *         Both are owner-only and intended to be run once, at reveal.
- *         Upload-side prep (FileStore + batchAddTraits) lives in UploadTraits.s.sol.
+ *   Manifest-driven (reads script/data/assignments.json, produced by
+ *   ../generateAssignments.py):
+ *     - `assignTokenTraitsRange(start, count)` -- slice of normal+special
+ *       entries, calls batchSetTraits.
+ *     - `assignOneOfOnesFromManifest()` -- all one-of-one entries, looks up
+ *       each name in script/data/{network}/pointers.json, calls
+ *       batchSetOneOfOnes.
+ *
+ *   Low-level escape hatches (still useful for ad-hoc fixes):
+ *     - `assignTokenTraits(uint256[], bytes32[])` -- raw passthrough.
+ *     - `assignOneOfOnes(uint256[])` -- index-aligned with traits.json oneofone[].
+ *
+ *   All entry points are owner-only and intended for reveal-time. Upload-side
+ *   prep (FileStore + batchAddTraits) lives in UploadTraits.s.sol.
+ *
  * @dev Run as EVM mode (no --zksync flag).
  *
  * Usage:
  *   forge script script/upload/AssignTraits.s.sol:AssignTraits \
- *     --sig "assignTokenTraits(uint256[],bytes32[])" "[1,2,3]" "[0x..,0x..,0x..]" \
- *     --rpc-url https://api.testnet.abs.xyz \
- *     --account dealersKeystore \
- *     --broadcast
+ *     --sig "assignTokenTraitsRange(uint256,uint256)" 0 500 \
+ *     --rpc-url https://api.testnet.abs.xyz --account dealersKeystore --broadcast
  *
  *   forge script script/upload/AssignTraits.s.sol:AssignTraits \
- *     --sig "assignOneOfOnes(uint256[])" "[1,42,99,...]" \
- *     --rpc-url https://api.testnet.abs.xyz \
- *     --account dealersKeystore \
- *     --broadcast
+ *     --sig "assignOneOfOnesFromManifest()" \
+ *     --rpc-url https://api.testnet.abs.xyz --account dealersKeystore --broadcast
  *
  * @author Berny0x
  */
 contract AssignTraits is DeployBase {
     string constant TRAITS_JSON_PATH = "script/data/traits.json";
+    string constant ASSIGNMENTS_JSON_PATH = "script/data/assignments.json";
+
+    // -------------------------------------------------------------------
+    // Manifest-driven entry points
+    // -------------------------------------------------------------------
+
+    function assignTokenTraitsRange(uint256 start, uint256 count) external {
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
+
+        AssignmentEntry[] memory manifest = _readManifest();
+
+        (uint256[] memory tokenIds, bytes32[] memory packedTraits) =
+            _sliceNormalAndSpecial(manifest, start, count);
+
+        vm.startBroadcast();
+        console.log("==============================================");
+        console.log("   Assigning Token Traits (range)");
+        console.log("==============================================");
+        console.log("Renderer:", rendererSvg);
+        console.log("Range start:", start);
+        console.log("Range count:", count);
+        console.log("Tokens in slice:", tokenIds.length);
+        console.log("");
+
+        if (tokenIds.length > 0) {
+            IDealerRendererSVG(rendererSvg).batchSetTraits(tokenIds, packedTraits);
+        }
+
+        vm.stopBroadcast();
+        console.log("Done.");
+    }
+
+    function assignOneOfOnesFromManifest() external {
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
+
+        AssignmentEntry[] memory manifest = _readManifest();
+        PointerEntry[] memory oneOfOnePointers = _loadPointerEntries(_readPointersJson(), "oneofone");
+
+        uint256 ooCount = 0;
+        for (uint256 i = 0; i < manifest.length; i++) {
+            if (_isOneOfOne(manifest[i].kind)) ooCount++;
+        }
+
+        uint256[] memory tokenIds = new uint256[](ooCount);
+        string[] memory names = new string[](ooCount);
+        address[] memory pointers = new address[](ooCount);
+        uint256 w = 0;
+        for (uint256 i = 0; i < manifest.length; i++) {
+            if (!_isOneOfOne(manifest[i].kind)) continue;
+            address ptr = _findPointerByName(oneOfOnePointers, manifest[i].name);
+            require(
+                ptr != address(0),
+                string.concat("Pointer not found for one-of-one '", manifest[i].name, "'")
+            );
+            tokenIds[w] = manifest[i].tokenId;
+            names[w] = manifest[i].name;
+            pointers[w] = ptr;
+            w++;
+        }
+
+        vm.startBroadcast();
+        console.log("==============================================");
+        console.log("   Assigning One-of-Ones (from manifest)");
+        console.log("==============================================");
+        console.log("Renderer:", rendererSvg);
+        console.log("Count:", ooCount);
+        console.log("");
+
+        if (ooCount > 0) {
+            IDealerRendererSVG(rendererSvg).batchSetOneOfOnes(tokenIds, names, pointers);
+            for (uint256 i = 0; i < ooCount; i++) {
+                console.log(string.concat(
+                    "  ", names[i], " -> token ", vm.toString(tokenIds[i])
+                ));
+            }
+        }
+
+        vm.stopBroadcast();
+        console.log("Done.");
+    }
+
+    function manifestNormalSpecialCount() external returns (uint256) {
+        AssignmentEntry[] memory manifest = _readManifest();
+        uint256 n = 0;
+        for (uint256 i = 0; i < manifest.length; i++) {
+            if (!_isOneOfOne(manifest[i].kind)) n++;
+        }
+        console.log("Normal+special in manifest:", n);
+        return n;
+    }
+
+    // -------------------------------------------------------------------
+    // Low-level entry points
+    // -------------------------------------------------------------------
 
     function assignTokenTraits(
         uint256[] calldata tokenIds,
@@ -52,7 +154,6 @@ contract AssignTraits is DeployBase {
         IDealerRendererSVG(rendererSvg).batchSetTraits(tokenIds, packedTraits);
 
         vm.stopBroadcast();
-
         console.log("Done.");
     }
 
@@ -100,13 +201,71 @@ contract AssignTraits is DeployBase {
         }
 
         vm.stopBroadcast();
-
-        console.log("");
         console.log("Done.");
+    }
+
+    // -------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------
+
+    function _readManifest() internal view returns (AssignmentEntry[] memory) {
+        string memory path = string.concat(vm.projectRoot(), "/", ASSIGNMENTS_JSON_PATH);
+        string memory json = vm.readFile(path);
+        bytes memory raw = vm.parseJson(json, ".tokens");
+        return abi.decode(raw, (AssignmentEntry[]));
+    }
+
+    function _sliceNormalAndSpecial(
+        AssignmentEntry[] memory manifest,
+        uint256 start,
+        uint256 count
+    ) internal pure returns (uint256[] memory tokenIds, bytes32[] memory packed) {
+        uint256 totalNs = 0;
+        for (uint256 i = 0; i < manifest.length; i++) {
+            if (!_isOneOfOne(manifest[i].kind)) totalNs++;
+        }
+        if (start > totalNs) start = totalNs;
+        uint256 end = start + count;
+        if (end < start || end > totalNs) end = totalNs;
+        uint256 sliceLen = end - start;
+
+        tokenIds = new uint256[](sliceLen);
+        packed = new bytes32[](sliceLen);
+
+        uint256 nsIdx = 0;
+        uint256 w = 0;
+        for (uint256 i = 0; i < manifest.length && w < sliceLen; i++) {
+            if (_isOneOfOne(manifest[i].kind)) continue;
+            if (nsIdx >= start) {
+                tokenIds[w] = manifest[i].tokenId;
+                packed[w] = manifest[i].packed;
+                w++;
+            }
+            nsIdx++;
+        }
+    }
+
+    function _isOneOfOne(string memory kind) internal pure returns (bool) {
+        return keccak256(bytes(kind)) == keccak256(bytes("oneOfOne"));
+    }
+
+    function _findPointerByName(PointerEntry[] memory pool, string memory name) internal pure returns (address) {
+        bytes32 needle = keccak256(bytes(name));
+        for (uint256 i = 0; i < pool.length; i++) {
+            if (keccak256(bytes(pool[i].name)) == needle) return pool[i].pointer;
+        }
+        return address(0);
     }
 }
 
 struct OneOfOneJson {
     string content;
     string name;
+}
+
+struct AssignmentEntry {
+    string kind;
+    string name;
+    bytes32 packed;
+    uint256 tokenId;
 }

@@ -122,6 +122,44 @@ contract UploadTraits is DeployBase {
         vm.stopBroadcast();
     }
 
+    function uploadNormalIndices(uint256[] calldata indices) external {
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
+
+        vm.startBroadcast();
+        console.log("==============================================");
+        console.log("   Uploading Normal Traits (indices)");
+        console.log("==============================================");
+        console.log("Renderer:", rendererSvg);
+        console.log("indices:", indices.length);
+        console.log("");
+
+        _uploadTraitsFromJsonIndices(rendererSvg, 0, indices);
+
+        vm.stopBroadcast();
+    }
+
+    function uploadSpecialIndices(uint256[] calldata indices) external {
+        _loadAddresses();
+        _requireAddress(rendererSvg, "RENDERER_SVG");
+
+        vm.startBroadcast();
+        console.log("==============================================");
+        console.log("   Uploading Special Traits (indices)");
+        console.log("==============================================");
+        console.log("Renderer:", rendererSvg);
+        console.log("indices:", indices.length);
+        console.log("");
+
+        _uploadTraitsFromJsonIndices(rendererSvg, 1, indices);
+
+        vm.stopBroadcast();
+    }
+
+    function uploadOneOfOnesIndices(uint256[] calldata indices) external {
+        _uploadOneOfOnesContentIndices(indices);
+    }
+
     function uploadFirstNormalPerCategory(uint256 perCat) external {
         _loadAddresses();
         _requireAddress(rendererSvg, "RENDERER_SVG");
@@ -335,6 +373,96 @@ contract UploadTraits is DeployBase {
         ));
     }
 
+    function _uploadTraitsFromJsonIndices(
+        address renderer,
+        uint8 charType,
+        uint256[] calldata indices
+    ) internal {
+        string memory traitsPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
+        string memory traitsJson = vm.readFile(traitsPath);
+
+        string memory typeKey = charType == 0 ? "normal" : "special";
+        TraitJson[] memory traits = abi.decode(
+            vm.parseJson(traitsJson, string.concat(".", typeKey)),
+            (TraitJson[])
+        );
+
+        bool[] memory selected = new bool[](traits.length);
+        uint256 maxIdx = 0;
+        bool hasAny = false;
+        for (uint256 k = 0; k < indices.length; k++) {
+            uint256 idx = indices[k];
+            require(idx < traits.length, "index out of range");
+            if (!selected[idx]) {
+                selected[idx] = true;
+                if (!hasAny || idx > maxIdx) {
+                    maxIdx = idx;
+                    hasAny = true;
+                }
+            }
+        }
+
+        console.log(string.concat(
+            "Found ", vm.toString(traits.length), " ", typeKey,
+            " traits; processing ", vm.toString(indices.length), " indices"
+        ));
+
+        if (!hasAny) {
+            console.log("No indices to process; nothing to do.");
+            return;
+        }
+
+        TraitsCtx memory ctx;
+        ctx.renderer = renderer;
+        ctx.charType = charType;
+        ctx.traits = traits;
+        ctx.pointers = _loadPointerArray(_readPointersJson(), typeKey, traits.length);
+        ctx.addCharacterTypes = new uint8[](indices.length);
+        ctx.addCategories = new uint8[](indices.length);
+        ctx.addNames = new string[](indices.length);
+        ctx.addPointers = new address[](indices.length);
+        ctx.writePointerIndices = new uint256[](indices.length);
+        ctx.writePointerValues = new address[](indices.length);
+        ctx.perCatCap = type(uint256).max;
+
+        for (uint8 c = 0; c < 12; c++) {
+            ctx.onchainCount[c] = IDealerRendererSVG(renderer).traitCount(charType, c);
+        }
+
+        for (uint256 i = 0; i <= maxIdx; i++) {
+            if (selected[i]) {
+                _processTraitEntry(ctx, i);
+            } else {
+                ctx.positionInCat[traits[i].category]++;
+            }
+        }
+
+        if (ctx.addCount > 0) {
+            uint256 finalAddCount = ctx.addCount;
+            uint8[] memory addCT = ctx.addCharacterTypes;
+            uint8[] memory addCat = ctx.addCategories;
+            string[] memory addNm = ctx.addNames;
+            address[] memory addPt = ctx.addPointers;
+            assembly ("memory-safe") {
+                mstore(addCT, finalAddCount)
+                mstore(addCat, finalAddCount)
+                mstore(addNm, finalAddCount)
+                mstore(addPt, finalAddCount)
+            }
+            IDealerRendererSVG(renderer).batchAddTraits(addCT, addCat, addNm, addPt);
+            console.log(string.concat("Registered ", vm.toString(finalAddCount), " new traits with renderer"));
+        }
+
+        _commitPointerUpdates(typeKey, _traitNames(ctx.traits), ctx.pointers, ctx.writePointerIndices, ctx.writePointerValues, ctx.writePointerCount);
+
+        console.log("");
+        console.log(string.concat(
+            "Summary: uploaded ", vm.toString(ctx.uploadCount),
+            " (",  vm.toString(ctx.updateCount), " re-uploads via updateTraitPointer), added ",
+            vm.toString(ctx.addCount), ", skipped ", vm.toString(ctx.skipCount)
+        ));
+    }
+
     function _processTraitEntry(TraitsCtx memory ctx, uint256 i) internal {
         TraitJson memory t = ctx.traits[i];
         address cached = ctx.pointers[i];
@@ -446,6 +574,65 @@ contract UploadTraits is DeployBase {
         uint256 skipCount = 0;
 
         for (uint256 i = start; i < end; i++) {
+            OneOfOneJson memory t = traits[i];
+            address cached = pointers[i];
+
+            if (cached != address(0)) {
+                console.log(string.concat("  Skip (cached): ", t.name, " -> ", vm.toString(cached)));
+                skipCount++;
+                continue;
+            }
+
+            string memory uniqueName = string.concat(
+                "dealers-oneofone-", t.name, "-",
+                vm.toString(block.timestamp), "-", vm.toString(i)
+            );
+            address[] memory chunkPointers = _writeChunkPointers(t.content);
+            (address pointer,) = FILE_STORE.createFileFromPointers(uniqueName, chunkPointers);
+
+            uploadedIndices[uploadCount] = i;
+            uploadedPointers[uploadCount] = pointer;
+            uploadCount++;
+
+            console.log(string.concat(
+                "  Uploaded: ", t.name, " (", vm.toString(chunkPointers.length),
+                " chunks) -> ", vm.toString(pointer)
+            ));
+        }
+
+        vm.stopBroadcast();
+
+        _commitPointerUpdates("oneofone", _oneOfOneNames(traits), pointers, uploadedIndices, uploadedPointers, uploadCount);
+
+        console.log("");
+        console.log(string.concat("Summary: uploaded ", vm.toString(uploadCount), ", skipped ", vm.toString(skipCount)));
+    }
+
+    function _uploadOneOfOnesContentIndices(uint256[] calldata indices) internal {
+        string memory traitsPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
+        string memory traitsJson = vm.readFile(traitsPath);
+        OneOfOneJson[] memory traits = abi.decode(
+            vm.parseJson(traitsJson, ".oneofone"),
+            (OneOfOneJson[])
+        );
+        address[] memory pointers = _loadPointerArray(_readPointersJson(), "oneofone", traits.length);
+
+        vm.startBroadcast();
+        console.log("==============================================");
+        console.log("   Uploading One-of-Ones (indices)");
+        console.log("==============================================");
+        console.log(string.concat("Found ", vm.toString(traits.length), " one-of-ones"));
+        console.log(string.concat("Processing ", vm.toString(indices.length), " indices"));
+        console.log("");
+
+        uint256[] memory uploadedIndices = new uint256[](indices.length);
+        address[] memory uploadedPointers = new address[](indices.length);
+        uint256 uploadCount = 0;
+        uint256 skipCount = 0;
+
+        for (uint256 k = 0; k < indices.length; k++) {
+            uint256 i = indices[k];
+            require(i < traits.length, "index out of range");
             OneOfOneJson memory t = traits[i];
             address cached = pointers[i];
 

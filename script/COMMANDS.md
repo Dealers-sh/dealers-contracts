@@ -3,3 +3,9 @@ cast send 0xCa4BC92b565A110952933C90f581A7765415e6Ed "reserveTo(uint256,address)
 
 # set appUrl on renderer
 cast send 0xECD68943649cdd75679f6eba1d426593dC839022 "setAppUrl(string)" "https://dealers.sh" --rpc-url https://api.testnet.abs.xyz --account dealersKeystore
+
+source .env && cast send 0x026fE01BC06Bc56e52cdB77BF0Aba6c119d32583 "reveal()" --rpc-url $ABSTRACT_TESTNET_RPC --account dealersKeystore 
+
+source .env && cast send 0x026fE01BC06Bc56e52cdB77BF0Aba6c119d32583 \
+    "setTraitForToken(uint256,uint8,uint8)" 1 2 18 \
+    --rpc-url $ABSTRACT_TESTNET_RPC --account dealersKeystore 

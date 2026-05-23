@@ -28,7 +28,8 @@ For Solidity scripts the network is detected from `block.chainid` via the `--rpc
 11. UploadGzipJs.s.sol upload()    NO --zksync           (upload JS to FileStore)
 12. UploadGzipJs.s.sol setFilename --zksync              (set filename on HTML renderer)
 13. SetupTestnetPricing.s.sol  --zksync                  (optional: 10x fee reduction)
-14. AssignTraits — assignTokenTraits()/assignOneOfOnes() NO --zksync (reveal-time mapping)
+14a. ../generateAssignments.py                          (per-token trait combos → assignments.json)
+14b. assign-traits.sh                                    (chunked batchSetTraits + batchSetOneOfOnes)
 15. reveal() on RendererSVG                               (switch from placeholder)
 16. setMintStatus(3) on NFT                               (enable public mint)
 17. VerifyConfig.s.sol                                    (read-only sanity check)
@@ -195,14 +196,53 @@ source .env && forge script script/setup/SetupTestnetPricing.s.sol:SetupTestnetP
 
 ## 10. Assign Traits to Tokens
 
-After minting, assign traits to token IDs. Traits are generated off-chain and packed into bytes32.
+Traits can be assigned **before mint** — `batchSetTraits` and `batchSetOneOfOnes`
+have no `_exists` check, only `onlyOwner`. The renderer stores the packed bytes32
+per tokenId in `storedTraits[tokenId]` independently of ownership.
+
+### Step 1: Generate the assignment manifest (off-chain, deterministic)
 
 ```bash
-RENDERER_SVG=$(jq -r .rendererSvg script/data/deployments/testnet.json)
-cast send $RENDERER_SVG "batchSetTraits(uint256[],bytes32[])" "[1,2,3]" "[0x...,0x...,0x...]" --rpc-url $ABSTRACT_TESTNET_RPC --account dealersKeystore
+cd .. && python3 generateAssignments.py
 ```
 
-Each bytes32: 12 trait uint8s (bytes 0-11) + character type uint8 (byte 12).
+Reads `script/data/traits.json` and `incompatibility_rules`, emits
+`script/data/assignments.json` — one entry per tokenId in 1..8888 with the
+packed `bytes32` and the kind (`normal` / `special` / `oneOfOne`). RNG is seeded
+per-tokenId so output is fully reproducible. Tunable constants
+(`SPECIAL_COUNT`, `ONE_OF_ONE_IDS`, `BASE_SEED`) live at the top of the
+generator file.
+
+### Step 2: Push assignments on-chain in chunks
+
+```bash
+NETWORK=testnet ./script/assign-traits.sh            # all 8888 in chunks of 250
+CHUNK=100 NETWORK=mainnet ./script/assign-traits.sh  # smaller chunks for mainnet
+```
+
+The orchestrator walks the manifest in `CHUNK`-sized slices, calling
+`assignTokenTraitsRange` per slice, then a single `assignOneOfOnesFromManifest`.
+Idempotent — re-running re-applies identical writes.
+
+Toggle phases independently:
+
+```bash
+DO_TRAITS=0   NETWORK=testnet ./script/assign-traits.sh   # only one-of-ones
+DO_ONEOFONES=0 NETWORK=testnet ./script/assign-traits.sh  # only traits
+```
+
+### Packed format (`storedTraits[tokenId]`)
+
+```
+bits  [0..7]    cat 0  (backdrop)        1-indexed (0 = no trait)
+bits  [8..15]   cat 1  (head)
+...
+bits  [88..95]  cat 11 (accessory)
+bits  [96..103] character type           0=NORMAL, 1=SPECIAL
+```
+
+SPECIAL falls back to NORMAL per-category if `traits[SPECIAL][cat]` is empty —
+the generator mirrors that behavior.
 
 ---
 

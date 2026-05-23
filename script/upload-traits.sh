@@ -6,9 +6,12 @@
 # while trait content (SVGs, names, categories) stays in the shared
 #   script/data/traits.json
 #
-# Resilient to broadcast failures mid-chunk: on failure we restore the slice's
-# pointers from a pre-chunk snapshot (foundry's simulation can inject phantom
-# pointers when the broadcast then fails). Successful chunks are durable.
+# Only entries whose pointer is null/missing in pointers.json are uploaded.
+# Filled entries are not scanned by the forge script — the null-index list is
+# computed in shell and fed to upload{Normal,Special,OneOfOnes}Indices in chunks.
+#
+# Resilient to broadcast failures mid-chunk: on failure we restore pointers.json
+# from a pre-chunk file snapshot. Successful chunks are durable.
 #
 # Tunables via env:
 #   NETWORK         (default: testnet)         testnet | mainnet | local
@@ -49,6 +52,7 @@ DO_REVEAL="${DO_REVEAL:-0}"
 TRAITS_JSON="script/data/traits.json"
 DEPLOY_JSON="script/data/deployments/${NETWORK}.json"
 POINTERS_JSON="script/data/${NETWORK}/pointers.json"
+POINTERS_SNAPSHOT="${POINTERS_JSON}.snapshot"
 
 if [ ! -f "$DEPLOY_JSON" ]; then
   echo "FATAL: $DEPLOY_JSON not found. Deploy the renderer first." >&2
@@ -70,7 +74,7 @@ fi
 PASS_FILE="$(mktemp -t dealers-keystore-pass.XXXXXX)"
 chmod 600 "$PASS_FILE"
 cleanup() {
-  rm -f "$PASS_FILE"
+  rm -f "$PASS_FILE" "$POINTERS_SNAPSHOT"
 }
 trap cleanup EXIT INT TERM
 
@@ -97,62 +101,47 @@ echo "  DO_ONEOFONE:    $DO_ONEOFONE"
 echo "  DO_REVEAL:      $DO_REVEAL"
 echo ""
 
-snapshot_slice() {
+# Comma-separated indices into traits.json[$typeKey] whose corresponding
+# pointers.json[$typeKey][i].pointer is null or missing.
+null_indices() {
   local typeKey=$1
-  local start=$2
-  local end=$3
-  jq --arg tk "$typeKey" --argjson s "$start" --argjson e "$end" \
-    '(.[$tk] // []) | .[$s:$e]' "$POINTERS_JSON"
-}
-
-restore_slice() {
-  local typeKey=$1
-  local start=$2
-  local snapshot=$3
-  jq --arg tk "$typeKey" --argjson s "$start" --argjson snap "$snapshot" '
-    . as $root
-    | ($root[$tk] // []) as $arr
-    | ($arr | length) as $alen
-    | ($snap | length) as $slen
-    | ([$alen, $s + $slen] | max) as $newLen
-    | .[$tk] = [
-        range(0; $newLen) as $i
-        | if ($i >= $s and ($i - $s) < $slen) then $snap[$i - $s]
-          elif ($i < $alen) then $arr[$i]
-          else null end
-      ]
-  ' "$POINTERS_JSON" > "$POINTERS_JSON.tmp" && mv "$POINTERS_JSON.tmp" "$POINTERS_JSON"
+  jq -r --slurpfile P "$POINTERS_JSON" --arg tk "$typeKey" '
+    ($P[0][$tk] // []) as $ptrs
+    | [ .[$tk] | to_entries[]
+        | .key as $i
+        | select($ptrs[$i].pointer == null)
+        | $i ]
+    | join(",")
+  ' "$TRAITS_JSON"
 }
 
 run_chunk() {
-  local typeKey=$1
-  local sig=$2
-  local start=$3
-  local count=$4
-  local end=$((start + count))
+  local sig=$1
+  local indices_csv=$2
 
-  local snapshot
-  snapshot=$(snapshot_slice "$typeKey" "$start" "$end")
+  cp "$POINTERS_JSON" "$POINTERS_SNAPSHOT"
 
   for attempt in $(seq 1 "$RETRIES"); do
-    echo "---- $typeKey [$start, $end)  attempt $attempt/$RETRIES ----"
+    echo "---- $sig indices=[$indices_csv]  attempt $attempt/$RETRIES ----"
     if forge script script/upload/UploadTraits.s.sol:UploadTraits \
-         --sig "$sig" "$start" "$count" \
+         --sig "$sig" "[$indices_csv]" \
          --rpc-url "$RPC" $KEY --broadcast --slow; then
+      rm -f "$POINTERS_SNAPSHOT"
       return 0
     fi
-    echo ">> $typeKey [$start, $end) failed on attempt $attempt."
+    echo ">> chunk failed on attempt $attempt."
     if [ "$attempt" -lt "$RETRIES" ]; then
-      echo ">> Restoring pre-chunk pointer snapshot and retrying..."
-      restore_slice "$typeKey" "$start" "$snapshot"
+      echo ">> Restoring pre-chunk pointers.json snapshot and retrying..."
+      cp "$POINTERS_SNAPSHOT" "$POINTERS_JSON"
     fi
   done
 
   echo ""
-  echo "ABORT: $typeKey [$start, $end) failed all $RETRIES attempts." >&2
-  echo ">> Restoring pre-chunk pointer snapshot." >&2
-  restore_slice "$typeKey" "$start" "$snapshot"
-  echo "Inspect, then re-run this script. Already-registered chunks will be skipped." >&2
+  echo "ABORT: chunk failed all $RETRIES attempts." >&2
+  echo ">> Restoring pre-chunk pointers.json snapshot." >&2
+  cp "$POINTERS_SNAPSHOT" "$POINTERS_JSON"
+  rm -f "$POINTERS_SNAPSHOT"
+  echo "Inspect, then re-run this script. Already-filled pointers will be skipped." >&2
   exit 1
 }
 
@@ -160,30 +149,38 @@ upload_type() {
   local typeKey=$1
   local sig=$2
   local chunkSize=${3:-$CHUNK}
-  local total
-  total=$(jq ".$typeKey | length" "$TRAITS_JSON")
-  if [ "$total" = "0" ] || [ -z "$total" ]; then
-    echo "=== $typeKey: 0 entries, skipping ==="
+
+  local csv
+  csv=$(null_indices "$typeKey")
+
+  if [ -z "$csv" ]; then
+    echo "=== $typeKey: no null pointers, skipping ==="
     return
   fi
-  echo "=== $typeKey: $total entries, chunk size $chunkSize ==="
+
+  IFS=',' read -r -a arr <<< "$csv"
+  local total=${#arr[@]}
+  echo "=== $typeKey: $total null entries, chunk size $chunkSize ==="
+
   local s=0
   while [ "$s" -lt "$total" ]; do
     local c="$chunkSize"
     if [ $((s + c)) -gt "$total" ]; then
       c=$((total - s))
     fi
-    run_chunk "$typeKey" "$sig" "$s" "$c"
+    local slice_csv
+    slice_csv=$(IFS=','; echo "${arr[*]:s:c}")
+    run_chunk "$sig" "$slice_csv"
     s=$((s + c))
   done
   echo ""
 }
 
-upload_type "normal"  "uploadNormalRange(uint256,uint256)"
-upload_type "special" "uploadSpecialRange(uint256,uint256)"
+upload_type "normal"  "uploadNormalIndices(uint256[])"
+upload_type "special" "uploadSpecialIndices(uint256[])"
 
 if [ "$DO_ONEOFONE" = "1" ]; then
-  upload_type "oneofone" "uploadOneOfOnesRange(uint256,uint256)" "$ONEOFONE_CHUNK"
+  upload_type "oneofone" "uploadOneOfOnesIndices(uint256[])" "$ONEOFONE_CHUNK"
 fi
 
 if [ "$DO_PLACEHOLDER" = "1" ]; then
