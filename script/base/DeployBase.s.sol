@@ -68,11 +68,13 @@ interface IAreaRegistry {
 
 interface IPVPContract {
     function setCore(address _core) external;
+    function setNFTContract(address _nftContract) external;
     function setDrugRegistry(address _drugRegistry) external;
     function setAreaRegistry(address _areaRegistry) external;
     function setRandomness(address _randomness) external;
     function setActions(address _actions) external;
     function core() external view returns (address);
+    function nftContract() external view returns (address);
     function drugRegistry() external view returns (address);
     function areaRegistry() external view returns (address);
     function randomness() external view returns (address);
@@ -81,10 +83,12 @@ interface IPVPContract {
 
 interface IPVEContract {
     function setDealersCore(address _core) external;
+    function setDealersNFT(address _nft) external;
     function setAreaRegistry(address _areaRegistry) external;
     function setRandomness(address _randomness) external;
     function setActions(address _actions) external;
     function dealersCore() external view returns (address);
+    function dealersNFT() external view returns (address);
     function areaRegistry() external view returns (address);
     function randomness() external view returns (address);
     function actions() external view returns (address);
@@ -154,10 +158,12 @@ interface IClaimsContract {
 interface IActionsContract {
     function setPaymentHandler(address _handler) external;
     function setRandomness(address _randomness) external;
+    function setNFTContract(address _nftContract) external;
     function setAreaRegistry(address _areaRegistry) external;
     function authorizeJailer(address module, bool authorized) external;
     function paymentHandler() external view returns (address);
     function randomness() external view returns (address);
+    function nftContract() external view returns (address);
     function areaRegistry() external view returns (address);
     function authorizedJailers(address) external view returns (bool);
 }
@@ -180,6 +186,8 @@ interface IChatFactory {
     function createRoom(RoomType roomType, uint8 id, address gate) external returns (address room);
     function getRoomInfo(bytes32 roomKey) external view returns (address room, address gate, uint8 roomId);
     function roomKey(RoomType roomType, uint8 id) external pure returns (bytes32);
+    function setNFTContract(address _nftContract) external;
+    function nftContract() external view returns (address);
 }
 
 // =============================================================================
@@ -206,6 +214,11 @@ abstract contract DeployBase is Script {
 
     // Config values
     string public gzipFilename;
+
+    // Placeholder NFT address used in Boosts/PVE/PVP/Claims/Actions/ChatFactory constructors
+    // when NFT deploy is deferred (game-only mode). Persisted to deployments JSON so the
+    // verifier can re-encode ctor args correctly. address(0) when a real NFT was used.
+    address public nftCtor;
 
     // Wallet addresses
     address public devWallet;
@@ -289,6 +302,7 @@ abstract contract DeployBase is Script {
             rendererHtml = _jsonAddrOr(json, ".rendererHtml", "RENDERER_HTML");
             multicall = _jsonAddrOr(json, ".multicall", "DEALER_MULTICALL");
             chatFactory = _jsonAddrOr(json, ".chatFactory", "CHAT_FACTORY");
+            nftCtor = _jsonAddrOr(json, ".nftCtor", "NFT_CTOR");
             try vm.parseJsonString(json, ".gzipFilename") returns (string memory val) {
                 gzipFilename = val;
             } catch {}
@@ -308,11 +322,48 @@ abstract contract DeployBase is Script {
             rendererHtml = vm.envOr("RENDERER_HTML", address(0));
             multicall = vm.envOr("DEALER_MULTICALL", address(0));
             chatFactory = vm.envOr("CHAT_FACTORY", address(0));
+            nftCtor = vm.envOr("NFT_CTOR", address(0));
         }
 
-        devWallet = vm.envOr("DEV_WALLET", address(0));
-        bankVault = vm.envOr("BANK_VAULT", address(0));
-        royaltyReceiver = vm.envOr("ROYALTY_RECEIVER", address(0));
+        devWallet = _envAddrForNetwork("DEV_WALLET");
+        bankVault = _envAddrForNetwork("BANK_VAULT");
+        royaltyReceiver = _envAddrForNetwork("ROYALTY_RECEIVER");
+    }
+
+    /**
+     * @dev Resolve an env-var address with chain-prefixed lookup. On mainnet (chainid 2741) the
+     *      `MAINNET_<KEY>` form is REQUIRED — falling back to an unprefixed var is treated as a
+     *      misconfiguration and reverts loudly. On testnet (chainid 11124) `TESTNET_<KEY>` is
+     *      preferred, with a fallback to unprefixed for backwards compatibility. Anywhere else
+     *      (local chains, anvil, etc.) only the unprefixed key is consulted.
+     *
+     *      This is the single safety rail that prevents accidentally pushing testnet wallet
+     *      addresses (or vice-versa) into a mainnet deploy when `.env` is shared.
+     */
+    function _envAddrForNetwork(string memory key) internal returns (address) {
+        uint256 chainId = block.chainid;
+
+        if (chainId == 2741) {
+            string memory prefixed = string.concat("MAINNET_", key);
+            address val = vm.envOr(prefixed, address(0));
+            require(
+                val != address(0),
+                string.concat(
+                    "Mainnet deploy requires explicit ",
+                    prefixed,
+                    " in .env (unprefixed fallback is disabled on mainnet for safety)"
+                )
+            );
+            return val;
+        }
+
+        if (chainId == 11124) {
+            address val = vm.envOr(string.concat("TESTNET_", key), address(0));
+            if (val != address(0)) return val;
+            return vm.envOr(key, address(0));
+        }
+
+        return vm.envOr(key, address(0));
     }
 
     function _jsonAddrOr(string memory json, string memory key, string memory envKey) internal returns (address) {
@@ -343,7 +394,8 @@ abstract contract DeployBase is Script {
         if (bytes(gzipFilename).length > 0) {
             vm.serializeString(obj, "gzipFilename", gzipFilename);
         }
-        string memory json = vm.serializeAddress(obj, "chatFactory", chatFactory);
+        vm.serializeAddress(obj, "chatFactory", chatFactory);
+        string memory json = vm.serializeAddress(obj, "nftCtor", nftCtor);
 
         string memory path = _getDeploymentPath();
         vm.writeJson(json, path);
@@ -368,6 +420,7 @@ abstract contract DeployBase is Script {
             if (rendererHtml == address(0)) rendererHtml = _jsonAddr(json, ".rendererHtml");
             if (multicall == address(0)) multicall = _jsonAddr(json, ".multicall");
             if (chatFactory == address(0)) chatFactory = _jsonAddr(json, ".chatFactory");
+            if (nftCtor == address(0)) nftCtor = _jsonAddr(json, ".nftCtor");
         } catch {}
     }
 

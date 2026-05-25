@@ -19,6 +19,7 @@ For Solidity scripts the network is detected from `block.chainid` via the `--rpc
  2. Create .env with DEV_WALLET, BANK_VAULT, ROYALTY_RECEIVER, ETHERSCAN_API_KEY
  3. forge build && forge build --zksync --skip "RendererSVG"  (EVM + zkSync)
  4. DeployAll.s.sol            --zksync                  (13 contracts + drugs/areas + wire + tiers + claims + chat)
+    (or: DeployAll --sig "runGameOnly()"                  game contracts only — defer NFT/renderers)
  5. DeployRendererSVG.s.sol    NO --zksync               (SVG renderer, EVM mode)
  6. cast send NFT setContractRendererSVG(address)         (link SVG to NFT)
  7. DeployHtmlRenderer.s.sol   --zksync                  (HTML renderer + config + link to NFT)
@@ -82,6 +83,44 @@ Contracts deployed: DealersDrugRegistry, DealersAreaRegistry, DealersCore, Deale
 Setups included: 11 drugs, 7 areas, all cross-contract wiring + authorizations, 10-tier reputation system, 24 achievements, WORLD + 9 area chat rooms.
 
 Addresses auto-saved to `script/data/deployments/testnet.json`.
+
+### 2a. Game-Only Mode (defer NFT)
+
+Use this when you need stable game-contract addresses (e.g. for session-key approval on mainnet) before
+locking in NFT details. Deploys every game contract **except** `DealersNFT` and the renderers. Modules that
+require an NFT address in their constructor (Boosts, PVE, PVP, Claims, Actions, ChatFactory) are given
+`DEV_WALLET` as a placeholder; the real NFT is wired in later via `SetupWiring`.
+
+```bash
+source .env && forge script script/deploy/DeployAll.s.sol:DeployAll \
+  --sig "runGameOnly()" \
+  --rpc-url abstract --account dealersKeystore --broadcast --zksync --skip "RendererSVG"
+```
+
+What this does:
+- Deploys: DrugRegistry, AreaRegistry, Core, PaymentHandler, Randomness, Boosts, PVE, PVP, Claims, Actions, Multicall, ChatFactory + AreaChatGate.
+- Skips: DealersNFT (and SVG + HTML renderers, which live in their own scripts).
+- Skips NFT-touching wiring: `Core.setNFTContract`, `Core.authorizeContract(nft)`, `NFT.setDealersCore`, `Boosts.setDealersNFT`, `Claims.setDealersNFT`.
+- Saves addresses to `script/data/deployments/{network}.json` with `nft` left as `0x0`.
+- `ROYALTY_RECEIVER` is not required in this mode.
+
+Module addresses are stable — they're determined by deploy nonce, not by NFT, so the session-key approval
+you submit from this deploy remains valid after the NFT lands.
+
+**Follow-up once NFT design is final:**
+
+```bash
+# 1. Deploy NFT
+source .env && forge script script/deploy/DeployNFT.s.sol:DeployNFT \
+  --rpc-url abstract-mainnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG"
+
+# 2. Re-wire (idempotent — points every module's NFT ref at the real NFT, authorizes NFT on Core,
+#    sets NFT.dealersCore. Covers Core, NFT, Boosts, Claims, PVE, PVP, Actions, ChatFactory.)
+source .env && forge script script/setup/SetupWiring.s.sol:SetupWiring \
+  --rpc-url abstract-mainnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG"
+
+# 3. SVG + HTML renderers, gzip upload, mint enable — steps 3-12 above.
+```
 
 ---
 

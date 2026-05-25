@@ -33,7 +33,35 @@ esac
 
 VERIFIER_URL="https://api.etherscan.io/v2/api?chainid=${CHAIN_ID}"
 SOLC_VERSION="0.8.28"
+OPTIMIZER_RUNS=100                              # MUST match foundry.toml profile.default.optimizer_runs
+EVM_VERSION="prague"                             # MUST match what zksolc selected at deploy time
 DEPLOY_JSON="script/data/deployments/${NETWORK}.json"
+
+# Per-network env-var resolution that mirrors DeployBase._envAddrForNetwork.
+# Looks up <PREFIX>_<KEY> first (MAINNET_/TESTNET_), falls back to <KEY> unprefixed.
+# DEV_WALLET / BANK_VAULT / ROYALTY_RECEIVER MUST come through this so the ctor
+# args we re-encode match what DeployAll actually broadcasted.
+_resolve_env() {
+    local key="$1"
+    local prefix="$2"
+    local prefixed_name="${prefix}${key}"
+    local val="${!prefixed_name}"
+    if [ -n "$val" ]; then
+        echo "$val"
+    else
+        echo "${!key}"
+    fi
+}
+
+case "$NETWORK" in
+  mainnet) ENV_PREFIX="MAINNET_" ;;
+  testnet) ENV_PREFIX="TESTNET_" ;;
+  *)       ENV_PREFIX="" ;;
+esac
+
+DEV_WALLET="$(_resolve_env DEV_WALLET "$ENV_PREFIX")"
+BANK_VAULT="$(_resolve_env BANK_VAULT "$ENV_PREFIX")"
+ROYALTY_RECEIVER="$(_resolve_env ROYALTY_RECEIVER "$ENV_PREFIX")"
 
 if [ ! -f "$DEPLOY_JSON" ]; then
     echo "FATAL: $DEPLOY_JSON not found." >&2
@@ -75,6 +103,13 @@ CHAT_FACTORY="${CHAT_FACTORY:-$(_addr chatFactory)}"
 RENDERER_SVG="${RENDERER_SVG:-$(_addr rendererSvg)}"
 RENDERER_HTML="${RENDERER_HTML:-$(_addr rendererHtml)}"
 
+# nftCtor is the placeholder NFT address baked into Boosts/PVE/PVP/Claims/Actions/ChatFactory
+# constructors when DeployAll.runGameOnly() defers the real NFT. When present, verify-source.sh
+# must use it (NOT $DEALERS_NFT) for those 6 contracts' ctor args — Etherscan checks the
+# constructor-args bytes against the bytecode tail, which is immutable.
+NFT_CTOR_FROM_JSON=$(_addr nftCtor)
+NFT_FOR_CTOR="${NFT_CTOR_FROM_JSON:-$DEALERS_NFT}"
+
 verify_contract() {
     local address=$1
     local contract_path=$2
@@ -91,6 +126,8 @@ verify_contract() {
 
     local output
     local rc=0
+    # Compiler settings MUST match foundry.toml profile.default so the verifier
+    # recompiles bytecode that hashes identically to what was deployed.
     if [ "$use_zksync" = "true" ]; then
         if [ -z "$constructor_args" ]; then
             output=$(forge verify-contract "$address" \
@@ -98,6 +135,10 @@ verify_contract() {
                 --verifier zksync \
                 --verifier-url "$ZKSYNC_VERIFIER_URL" \
                 --chain "$CHAIN_ID" \
+                --compiler-version "$SOLC_VERSION" \
+                --num-of-optimizations "$OPTIMIZER_RUNS" \
+                --evm-version "$EVM_VERSION" \
+                --via-ir \
                 --zksync \
                 --watch 2>&1) || rc=$?
         else
@@ -107,6 +148,10 @@ verify_contract() {
                 --verifier zksync \
                 --verifier-url "$ZKSYNC_VERIFIER_URL" \
                 --chain "$CHAIN_ID" \
+                --compiler-version "$SOLC_VERSION" \
+                --num-of-optimizations "$OPTIMIZER_RUNS" \
+                --evm-version "$EVM_VERSION" \
+                --via-ir \
                 --zksync \
                 --watch 2>&1) || rc=$?
         fi
@@ -119,7 +164,8 @@ verify_contract() {
                 --etherscan-api-key "$ETHERSCAN_API_KEY" \
                 --chain "$CHAIN_ID" \
                 --compiler-version "$SOLC_VERSION" \
-                --num-of-optimizations 200 \
+                --num-of-optimizations "$OPTIMIZER_RUNS" \
+                --evm-version "$EVM_VERSION" \
                 --via-ir \
                 --watch 2>&1) || rc=$?
         else
@@ -131,7 +177,8 @@ verify_contract() {
                 --etherscan-api-key "$ETHERSCAN_API_KEY" \
                 --chain "$CHAIN_ID" \
                 --compiler-version "$SOLC_VERSION" \
-                --num-of-optimizations 200 \
+                --num-of-optimizations "$OPTIMIZER_RUNS" \
+                --evm-version "$EVM_VERSION" \
                 --via-ir \
                 --watch 2>&1) || rc=$?
         fi
@@ -181,31 +228,31 @@ verify_nft() {
 }
 
 verify_boosts() {
-    local args=$(cast abi-encode "constructor(address,address,address)" "$DEALERS_CORE" "$DEALERS_NFT" "$PAYMENT_HANDLER")
+    local args=$(cast abi-encode "constructor(address,address,address)" "$DEALERS_CORE" "$NFT_FOR_CTOR" "$PAYMENT_HANDLER")
     verify_contract "$DEALERS_BOOSTS" \
         "src/core/DealersBoosts.sol:DealersBoosts" "$args" "true"
 }
 
 verify_pve() {
-    local args=$(cast abi-encode "constructor(address,address,address)" "$DEALERS_CORE" "$DEALERS_NFT" "$AREA_REGISTRY")
+    local args=$(cast abi-encode "constructor(address,address,address)" "$DEALERS_CORE" "$NFT_FOR_CTOR" "$AREA_REGISTRY")
     verify_contract "$DEALERS_PVE" \
         "src/core/DealersPVE.sol:DealersPVE" "$args" "true"
 }
 
 verify_pvp() {
-    local args=$(cast abi-encode "constructor(address,address,address)" "$DEALERS_CORE" "$DEALERS_NFT" "$AREA_REGISTRY")
+    local args=$(cast abi-encode "constructor(address,address,address)" "$DEALERS_CORE" "$NFT_FOR_CTOR" "$AREA_REGISTRY")
     verify_contract "$DEALERS_PVP" \
         "src/core/DealersPVP.sol:DealersPVP" "$args" "true"
 }
 
 verify_claims() {
-    local args=$(cast abi-encode "constructor(address,address,address,address)" "$DEALERS_CORE" "$DEALERS_NFT" "$DEALERS_PVE" "$DEALERS_PVP")
+    local args=$(cast abi-encode "constructor(address,address,address,address)" "$DEALERS_CORE" "$NFT_FOR_CTOR" "$DEALERS_PVE" "$DEALERS_PVP")
     verify_contract "$DEALERS_CLAIMS" \
         "src/core/DealersClaims.sol:DealersClaims" "$args" "true"
 }
 
 verify_actions() {
-    local args=$(cast abi-encode "constructor(address,address,address)" "$DEALERS_CORE" "$DEALERS_NFT" "$AREA_REGISTRY")
+    local args=$(cast abi-encode "constructor(address,address,address)" "$DEALERS_CORE" "$NFT_FOR_CTOR" "$AREA_REGISTRY")
     verify_contract "$DEALERS_ACTIONS" \
         "src/core/DealersActions.sol:DealersActions" "$args" "true"
 }
@@ -217,7 +264,7 @@ verify_multicall() {
 }
 
 verify_chat_factory() {
-    local args=$(cast abi-encode "constructor(address)" "$DEALERS_NFT")
+    local args=$(cast abi-encode "constructor(address)" "$NFT_FOR_CTOR")
     verify_contract "$CHAT_FACTORY" \
         "src/social/DealersChatFactory.sol:DealersChatFactory" "$args" "true"
 }

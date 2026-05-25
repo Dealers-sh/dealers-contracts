@@ -19,14 +19,37 @@ import "../base/DeployBase.s.sol";
       --skip "RendererSVG"
  */
 contract DeployAll is DeployBase {
+    bool internal skipNFT;
+
     function run() external {
+        _runImpl();
+    }
+
+    /**
+     * @notice Deploy every game contract EXCEPT DealersNFT (and renderers, which live in separate scripts).
+     * @dev Use when you need stable game-contract addresses (e.g. session-key approval) before locking in
+     *      NFT/GTM details. Boosts/PVE/PVP/Claims/Actions/ChatFactory are constructed with `devWallet` as a
+     *      placeholder NFT and re-pointed later via SetupWiring once the real NFT is deployed.
+     *      NFT-touching Core wiring (setNFTContract, authorize NFT, NFT.setDealersCore) is skipped here and
+     *      picked up idempotently by SetupWiring on the follow-up run.
+     */
+    function runGameOnly() external {
+        skipNFT = true;
+        _runImpl();
+    }
+
+    function _runImpl() internal {
         _loadAddresses();
         _requireAddress(devWallet, "DEV_WALLET");
         _requireAddress(bankVault, "BANK_VAULT");
-        _requireAddress(royaltyReceiver, "ROYALTY_RECEIVER");
+        if (!skipNFT) _requireAddress(royaltyReceiver, "ROYALTY_RECEIVER");
 
         console.log("==============================================");
-        console.log("   Dealers.sh - Deploy All");
+        if (skipNFT) {
+            console.log("   Dealers.sh - Deploy Game Only (NFT skipped)");
+        } else {
+            console.log("   Dealers.sh - Deploy All");
+        }
         console.log("==============================================");
         console.log("");
 
@@ -58,6 +81,22 @@ contract DeployAll is DeployBase {
 
         _saveAddresses();
         _printSummary();
+    }
+
+    /**
+     * @dev Returns the NFT address to embed in module constructors.
+     *      In skipNFT mode the real NFT doesn't exist yet, so we use devWallet as a non-zero
+     *      placeholder that satisfies the ctor's `address(0)` check without granting any privileges.
+     *      Subsequent SetupWiring run replaces it with the real NFT via the modules' setters.
+     *      The chosen address is persisted to deployments JSON as `nftCtor` so verify-source.sh
+     *      can re-encode constructor args correctly when verifying on Etherscan.
+     */
+    function _nftForCtor() internal returns (address) {
+        if (skipNFT) {
+            nftCtor = devWallet;
+            return devWallet;
+        }
+        return nft;
     }
 
     // =========================================================================
@@ -110,7 +149,9 @@ contract DeployAll is DeployBase {
             console.log("DealersRandomness: skipped (exists)");
         }
 
-        if (nft == address(0)) {
+        if (skipNFT) {
+            console.log("DealersNFT: skipped (game-only mode, placeholder=devWallet)");
+        } else if (nft == address(0)) {
             nft = _zkCreate(abi.encodePacked(
                 vm.getCode("DealersNFT.sol:DealersNFT"),
                 abi.encode(royaltyReceiver)
@@ -120,13 +161,15 @@ contract DeployAll is DeployBase {
             console.log("DealersNFT: skipped (exists)");
         }
 
+        address nftCtor = _nftForCtor();
+
         if (boosts == address(0)) {
             _requireAddress(core, "DEALERS_CORE");
-            _requireAddress(nft, "DEALERS_NFT");
+            _requireAddress(nftCtor, "DEALERS_NFT or DEV_WALLET (game-only)");
             _requireAddress(paymentHandler, "PAYMENT_HANDLER");
             boosts = _zkCreate(abi.encodePacked(
                 vm.getCode("DealersBoosts.sol:DealersBoosts"),
-                abi.encode(core, nft, paymentHandler)
+                abi.encode(core, nftCtor, paymentHandler)
             ));
             console.log("DealersBoosts deployed:", boosts);
         } else {
@@ -135,11 +178,11 @@ contract DeployAll is DeployBase {
 
         if (pve == address(0)) {
             _requireAddress(core, "DEALERS_CORE");
-            _requireAddress(nft, "DEALERS_NFT");
+            _requireAddress(nftCtor, "DEALERS_NFT or DEV_WALLET (game-only)");
             _requireAddress(areaRegistry, "AREA_REGISTRY");
             pve = _zkCreate(abi.encodePacked(
                 vm.getCode("DealersPVE.sol:DealersPVE"),
-                abi.encode(core, nft, areaRegistry)
+                abi.encode(core, nftCtor, areaRegistry)
             ));
             console.log("DealersPVE deployed:", pve);
         } else {
@@ -148,11 +191,11 @@ contract DeployAll is DeployBase {
 
         if (pvp == address(0)) {
             _requireAddress(core, "DEALERS_CORE");
-            _requireAddress(nft, "DEALERS_NFT");
+            _requireAddress(nftCtor, "DEALERS_NFT or DEV_WALLET (game-only)");
             _requireAddress(areaRegistry, "AREA_REGISTRY");
             pvp = _zkCreate(abi.encodePacked(
                 vm.getCode("DealersPVP.sol:DealersPVP"),
-                abi.encode(core, nft, areaRegistry)
+                abi.encode(core, nftCtor, areaRegistry)
             ));
             console.log("DealersPVP deployed:", pvp);
         } else {
@@ -161,12 +204,12 @@ contract DeployAll is DeployBase {
 
         if (claims == address(0)) {
             _requireAddress(core, "DEALERS_CORE");
-            _requireAddress(nft, "DEALERS_NFT");
+            _requireAddress(nftCtor, "DEALERS_NFT or DEV_WALLET (game-only)");
             _requireAddress(pve, "DEALERS_PVE");
             _requireAddress(pvp, "DEALERS_PVP");
             claims = _zkCreate(abi.encodePacked(
                 vm.getCode("DealersClaims.sol:DealersClaims"),
-                abi.encode(core, nft, pve, pvp)
+                abi.encode(core, nftCtor, pve, pvp)
             ));
             console.log("DealersClaims deployed:", claims);
         } else {
@@ -175,11 +218,11 @@ contract DeployAll is DeployBase {
 
         if (actions == address(0)) {
             _requireAddress(core, "DEALERS_CORE");
-            _requireAddress(nft, "DEALERS_NFT");
+            _requireAddress(nftCtor, "DEALERS_NFT or DEV_WALLET (game-only)");
             _requireAddress(areaRegistry, "AREA_REGISTRY");
             actions = _zkCreate(abi.encodePacked(
                 vm.getCode("DealersActions.sol:DealersActions"),
-                abi.encode(core, nft, areaRegistry)
+                abi.encode(core, nftCtor, areaRegistry)
             ));
             console.log("DealersActions deployed:", actions);
         } else {
@@ -197,10 +240,10 @@ contract DeployAll is DeployBase {
         }
 
         if (chatFactory == address(0)) {
-            _requireAddress(nft, "DEALERS_NFT");
+            _requireAddress(nftCtor, "DEALERS_NFT or DEV_WALLET (game-only)");
             chatFactory = _zkCreate(abi.encodePacked(
                 vm.getCode("DealersChatFactory.sol:DealersChatFactory"),
-                abi.encode(nft)
+                abi.encode(nftCtor)
             ));
             console.log("DealersChatFactory deployed:", chatFactory);
         } else {
@@ -222,14 +265,14 @@ contract DeployAll is DeployBase {
         // Core references
         _setIfDifferent(c.drugRegistry(), drugRegistry, c.setDrugRegistry);
         _setIfDifferent(c.areaRegistry(), areaRegistry, c.setAreaRegistry);
-        _setIfDifferent(c.nftContract(), nft, c.setNFTContract);
+        if (!skipNFT) _setIfDifferent(c.nftContract(), nft, c.setNFTContract);
         _setIfDifferent(c.paymentHandler(), paymentHandler, c.setPaymentHandler);
 
         // Core authorizations
         _authorizeIfNeeded(c, pve);
         _authorizeIfNeeded(c, pvp);
         _authorizeIfNeeded(c, boosts);
-        _authorizeIfNeeded(c, nft);
+        if (!skipNFT) _authorizeIfNeeded(c, nft);
         if (claims != address(0)) _authorizeIfNeeded(c, claims);
         if (actions != address(0)) _authorizeIfNeeded(c, actions);
 
@@ -261,12 +304,14 @@ contract DeployAll is DeployBase {
         }
 
         // Module references
-        IDealersNFT nftC = IDealersNFT(nft);
-        _setIfDifferent(nftC.dealersCore(), core, nftC.setDealersCore);
+        if (!skipNFT) {
+            IDealersNFT nftC = IDealersNFT(nft);
+            _setIfDifferent(nftC.dealersCore(), core, nftC.setDealersCore);
+        }
 
         IBoostsContract boostsC = IBoostsContract(boosts);
         _setIfDifferent(boostsC.dealersCore(), core, boostsC.setDealersCore);
-        _setIfDifferent(boostsC.dealersNFT(), nft, boostsC.setDealersNFT);
+        if (!skipNFT) _setIfDifferent(boostsC.dealersNFT(), nft, boostsC.setDealersNFT);
         _setIfDifferent(boostsC.paymentHandler(), paymentHandler, boostsC.setPaymentHandler);
 
         IPVEContract pveC = IPVEContract(pve);
@@ -289,7 +334,7 @@ contract DeployAll is DeployBase {
         if (claims != address(0)) {
             IClaimsContract claimsC = IClaimsContract(claims);
             _setIfDifferent(claimsC.dealersCore(), core, claimsC.setDealersCore);
-            _setIfDifferent(claimsC.dealersNFT(), nft, claimsC.setDealersNFT);
+            if (!skipNFT) _setIfDifferent(claimsC.dealersNFT(), nft, claimsC.setDealersNFT);
             _setIfDifferent(address(claimsC.pveContract()), pve, claimsC.setPVE);
             _setIfDifferent(address(claimsC.pvpContract()), pvp, claimsC.setPVP);
         }
@@ -622,7 +667,11 @@ contract DeployAll is DeployBase {
 
     function _printSummary() internal view {
         console.log("==============================================");
-        console.log("   Deployment Complete!");
+        if (skipNFT) {
+            console.log("   Game-only Deployment Complete!");
+        } else {
+            console.log("   Deployment Complete!");
+        }
         console.log("==============================================");
         console.log("");
         console.log("DRUG_REGISTRY=", drugRegistry);
@@ -630,7 +679,11 @@ contract DeployAll is DeployBase {
         console.log("DEALERS_CORE=", core);
         console.log("PAYMENT_HANDLER=", paymentHandler);
         console.log("RANDOMNESS=", randomness);
-        console.log("DEALERS_NFT=", nft);
+        if (skipNFT) {
+            console.log("DEALERS_NFT= <DEFERRED - placeholder=devWallet in module ctors>");
+        } else {
+            console.log("DEALERS_NFT=", nft);
+        }
         console.log("DEALERS_BOOSTS=", boosts);
         console.log("DEALERS_PVE=", pve);
         console.log("DEALERS_PVP=", pvp);
@@ -639,10 +692,26 @@ contract DeployAll is DeployBase {
         console.log("DEALER_MULTICALL=", multicall);
         console.log("CHAT_FACTORY=", chatFactory);
         console.log("");
-        console.log("Remaining:");
-        console.log("  1. Deploy SVG renderer (EVM mode, no --zksync)");
-        console.log("  2. Deploy HTML renderer (--zksync)");
-        console.log("  3. Upload gzip JS + set gzip filename on HTML renderer");
-        console.log("  4. Enable minting: cast send $DEALERS_NFT \"setMintStatus(uint8)\" 3");
+        if (skipNFT) {
+            console.log("Game-only mode notes:");
+            console.log("  - NFT NOT deployed; nft saved as 0x0 in deployments JSON.");
+            console.log("  - Boosts/PVE/PVP/Claims/Actions/ChatFactory hold devWallet as placeholder NFT.");
+            console.log("  - Core.nftContract NOT set; NFT NOT authorized on Core.");
+            console.log("");
+            console.log("To finish later:");
+            console.log("  1. Deploy NFT:    forge script ... DeployNFT.s.sol --broadcast --zksync");
+            console.log("  2. Re-wire:       forge script ... SetupWiring.s.sol --broadcast --zksync");
+            console.log("                    (idempotent; points every module's NFT ref at the real NFT)");
+            console.log("  3. Deploy SVG renderer (EVM mode, no --zksync)");
+            console.log("  4. Deploy HTML renderer (--zksync)");
+            console.log("  5. Upload gzip JS + set gzip filename on HTML renderer");
+            console.log("  6. Enable minting: cast send $DEALERS_NFT \"setMintStatus(uint8)\" 3");
+        } else {
+            console.log("Remaining:");
+            console.log("  1. Deploy SVG renderer (EVM mode, no --zksync)");
+            console.log("  2. Deploy HTML renderer (--zksync)");
+            console.log("  3. Upload gzip JS + set gzip filename on HTML renderer");
+            console.log("  4. Enable minting: cast send $DEALERS_NFT \"setMintStatus(uint8)\" 3");
+        }
     }
 }

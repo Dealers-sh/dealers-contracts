@@ -196,6 +196,7 @@ contract SetupWiring is DeployBase {
 
         IPVEContract pveContract = IPVEContract(pve);
         _setIfNeeded(pveContract.dealersCore(), core, "PVE -> Core", pveContract.setDealersCore);
+        _setIfNeeded(pveContract.dealersNFT(), nft, "PVE -> NFT", pveContract.setDealersNFT);
         _setIfNeeded(pveContract.randomness(), randomness, "PVE -> Randomness", pveContract.setRandomness);
         if (actions != address(0)) {
             _setIfNeeded(pveContract.actions(), actions, "PVE -> Actions", pveContract.setActions);
@@ -203,6 +204,7 @@ contract SetupWiring is DeployBase {
 
         IPVPContract pvpContract = IPVPContract(pvp);
         _setIfNeeded(pvpContract.core(), core, "PVP -> Core", pvpContract.setCore);
+        _setIfNeeded(pvpContract.nftContract(), nft, "PVP -> NFT", pvpContract.setNFTContract);
         _setIfNeeded(pvpContract.drugRegistry(), drugRegistry, "PVP -> DrugRegistry", pvpContract.setDrugRegistry);
         _setIfNeeded(pvpContract.randomness(), randomness, "PVP -> Randomness", pvpContract.setRandomness);
         if (actions != address(0)) {
@@ -221,6 +223,12 @@ contract SetupWiring is DeployBase {
             IActionsContract actionsContract = IActionsContract(actions);
             _setIfNeeded(actionsContract.paymentHandler(), paymentHandler, "Actions -> PaymentHandler", actionsContract.setPaymentHandler);
             _setIfNeeded(actionsContract.randomness(), randomness, "Actions -> Randomness", actionsContract.setRandomness);
+            _setIfNeeded(actionsContract.nftContract(), nft, "Actions -> NFT", actionsContract.setNFTContract);
+        }
+
+        if (chatFactory != address(0)) {
+            IChatFactory chatContract = IChatFactory(chatFactory);
+            _setIfNeeded(chatContract.nftContract(), nft, "ChatFactory -> NFT", chatContract.setNFTContract);
         }
 
         console.log("");
