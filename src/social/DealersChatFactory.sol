@@ -48,6 +48,7 @@ contract DealersChatFactory is Ownable {
     event DealerBlocked(uint16 indexed tokenId, bool blocked);
     event CooldownUpdated(uint32 newCooldown);
     event ContractAuthorized(address indexed contractAddress, bool authorized);
+    event NFTContractUpdated(address indexed oldAddress, address indexed newAddress);
 
     // =============================================================
     //                          ERRORS
@@ -71,14 +72,10 @@ contract DealersChatFactory is Ownable {
     uint256 private constant MAX_MESSAGE_LENGTH = 256;
 
     // =============================================================
-    //                        IMMUTABLES
-    // =============================================================
-
-    IERC721Minimal public immutable nftContract;
-
-    // =============================================================
     //                         STORAGE
     // =============================================================
+
+    IERC721Minimal public nftContract;
 
     mapping(bytes32 => RoomInfo) public rooms;
     mapping(uint16 => bool) public blocked;
@@ -146,6 +143,16 @@ contract DealersChatFactory is Ownable {
     function setCooldown(uint32 _cooldown) external onlyOwner {
         cooldown = _cooldown;
         emit CooldownUpdated(_cooldown);
+    }
+
+    /**
+     * @param _nftContract Address of the DealersNFT contract
+     */
+    function setNFTContract(address _nftContract) external onlyOwner {
+        if (_nftContract == address(0)) revert InvalidAddress();
+        address old = address(nftContract);
+        nftContract = IERC721Minimal(_nftContract);
+        emit NFTContractUpdated(old, _nftContract);
     }
 
     // =============================================================

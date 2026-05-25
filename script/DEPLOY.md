@@ -207,7 +207,7 @@ cd .. && python3 generateAssignments.py
 ```
 
 Reads `script/data/traits.json` and `incompatibility_rules`, emits
-`script/data/assignments.json` — one entry per tokenId in 1..8888 with the
+`script/data/assignments.json` — one entry per tokenId in 1..10000 with the
 packed `bytes32` and the kind (`normal` / `special` / `oneOfOne`). RNG is seeded
 per-tokenId so output is fully reproducible. Tunable constants
 (`SPECIAL_COUNT`, `ONE_OF_ONE_IDS`, `BASE_SEED`) live at the top of the
@@ -216,7 +216,7 @@ generator file.
 ### Step 2: Push assignments on-chain in chunks
 
 ```bash
-NETWORK=testnet ./script/assign-traits.sh            # all 8888 in chunks of 250
+NETWORK=testnet ./script/assign-traits.sh            # all 10000 in chunks of 250
 CHUNK=100 NETWORK=mainnet ./script/assign-traits.sh  # smaller chunks for mainnet
 ```
 

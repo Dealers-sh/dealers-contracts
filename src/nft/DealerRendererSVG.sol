@@ -27,7 +27,7 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     //                            CONSTANTS
     // =============================================================
 
-    uint256 public constant MAX_SUPPLY = 8888;
+    uint256 public constant MAX_SUPPLY = 10000;
     uint8 public constant CATEGORY_COUNT = 12;
 
     // =============================================================

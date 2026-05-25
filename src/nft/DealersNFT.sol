@@ -39,7 +39,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     //                            CONSTANTS
     // =============================================================
 
-    uint256 public constant MAX_SUPPLY = 8888;
+    uint256 public constant MAX_SUPPLY = 10000;
     uint256 public constant ROYALTY_PERCENTAGE = 500; // 5%
     uint256 public constant MAX_PER_WALLET = 10;
 

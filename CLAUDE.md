@@ -61,7 +61,7 @@ The project follows a **modular architecture** where a central data contract (`D
 
 **DealersNFT** ([src/DealersNFT.sol](src/DealersNFT.sol))
 - ERC721 with dynamic on-chain metadata and embedded HTML gameplay UI
-- Max supply: 8,888 NFTs with 200 reserved
+- Max supply: 10000 NFTs with 100 reserved
 - Minting stages: DISABLED → FAMILY → WHITELIST → PUBLIC
 - Per-token seed generation for deterministic trait rendering
 - Integrates with renderer contracts (SVG + HTML) for fully on-chain visuals
