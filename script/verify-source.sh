@@ -35,6 +35,15 @@ VERIFIER_URL="https://api.etherscan.io/v2/api?chainid=${CHAIN_ID}"
 SOLC_VERSION="0.8.28"
 OPTIMIZER_RUNS=100                              # MUST match foundry.toml profile.default.optimizer_runs
 EVM_VERSION="prague"                             # MUST match what zksolc selected at deploy time
+
+# Etherscan-V2 fallback path: when the zksync verifier silently strips viaIR
+# (stack-too-deep on contracts like AreaRegistry/PVE/PVP/Multicall that need IR
+# codegen), we re-submit directly to Etherscan V2 which honors viaIR. These
+# strings must match what was on disk at deploy time (~/.zksync/zksolc-* and
+# ~/.zksync/solc-zkVM-*). Bump them if foundry-zksync upgrades.
+ETHERSCAN_COMPILER_VERSION="v${SOLC_VERSION}-1.0.1"
+ETHERSCAN_ZKSOLC_VERSION="v1.5.15"
+
 DEPLOY_JSON="script/data/deployments/${NETWORK}.json"
 
 # Per-network env-var resolution that mirrors DeployBase._envAddrForNetwork.
@@ -109,6 +118,68 @@ RENDERER_HTML="${RENDERER_HTML:-$(_addr rendererHtml)}"
 # constructor-args bytes against the bytecode tail, which is immutable.
 NFT_CTOR_FROM_JSON=$(_addr nftCtor)
 NFT_FOR_CTOR="${NFT_CTOR_FROM_JSON:-$DEALERS_NFT}"
+
+# Fallback path for zksync contracts whose viaIR gets silently dropped by the
+# api-explorer-verify.* zksync verifier (manifests as `Stack too deep` despite
+# `via-ir = true` in foundry.toml). Submits directly to Etherscan V2, which
+# honors viaIR in the standard JSON. Only invoked when the primary forge
+# verify-contract call against the zksync verifier returns non-zero.
+_etherscan_v2_fallback() {
+    local address=$1
+    local contract_path=$2
+    local constructor_args=$3
+
+    local std_json
+    std_json=$(forge verify-contract "$address" "$contract_path" --zksync --show-standard-json-input 2>/dev/null) || return 1
+    if [ -z "$std_json" ] || [ "${std_json:0:1}" != "{" ]; then
+        echo "    (could not generate standard JSON)"
+        return 1
+    fi
+
+    local args_no0x="${constructor_args#0x}"
+    local resp
+    resp=$(curl -sS -X POST "$VERIFIER_URL" \
+        --data-urlencode "module=contract" \
+        --data-urlencode "action=verifysourcecode" \
+        --data-urlencode "apikey=$ETHERSCAN_API_KEY" \
+        --data-urlencode "codeformat=solidity-standard-json-input" \
+        --data-urlencode "contractaddress=$address" \
+        --data-urlencode "contractname=$contract_path" \
+        --data-urlencode "compilerversion=$ETHERSCAN_COMPILER_VERSION" \
+        --data-urlencode "zksolcVersion=$ETHERSCAN_ZKSOLC_VERSION" \
+        --data-urlencode "optimizationUsed=1" \
+        --data-urlencode "runs=$OPTIMIZER_RUNS" \
+        --data-urlencode "constructorArguements=$args_no0x" \
+        --data-urlencode "evmversion=$EVM_VERSION" \
+        --data-urlencode "sourceCode=$std_json")
+
+    local submit_status submit_result guid
+    submit_status=$(echo "$resp" | jq -r '.status // empty' 2>/dev/null)
+    submit_result=$(echo "$resp" | jq -r '.result // empty' 2>/dev/null)
+    if echo "$submit_result" | grep -qi 'already verified'; then
+        return 0
+    fi
+    guid="$submit_result"
+    if [ "$submit_status" != "1" ] || [ -z "$guid" ]; then
+        echo "    submit: $resp"
+        return 1
+    fi
+
+    local poll s r
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        sleep 6
+        poll=$(curl -sS "${VERIFIER_URL}&module=contract&action=checkverifystatus&guid=${guid}&apikey=${ETHERSCAN_API_KEY}")
+        s=$(echo "$poll" | jq -r '.status // empty' 2>/dev/null)
+        r=$(echo "$poll" | jq -r '.result // empty' 2>/dev/null)
+        if [ "$s" = "1" ]; then return 0; fi
+        if echo "$r" | grep -qiE 'Fail|Error'; then
+            echo "    $r"
+            return 1
+        fi
+    done
+    echo "    timed out polling Etherscan V2"
+    return 1
+}
 
 verify_contract() {
     local address=$1
@@ -186,10 +257,19 @@ verify_contract() {
 
     if [ $rc -eq 0 ]; then
         echo -e "${GREEN}OK${NC}"
-    else
-        echo -e "${RED}FAILED${NC}"
-        echo "$output" | tail -5 | sed 's/^/    /'
+        return 0
     fi
+
+    if [ "$use_zksync" = "true" ]; then
+        echo -ne "${YELLOW}primary failed, retrying via Etherscan V2${NC}... "
+        if _etherscan_v2_fallback "$address" "$contract_path" "$constructor_args"; then
+            echo -e "${GREEN}OK${NC}"
+            return 0
+        fi
+    fi
+
+    echo -e "${RED}FAILED${NC}"
+    echo "$output" | tail -5 | sed 's/^/    /'
 }
 
 # ── Contract definitions ─────────────────────────────────────────────────────
