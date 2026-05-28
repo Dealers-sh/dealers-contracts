@@ -886,12 +886,17 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
         }
 
         BoostData storage boost = dealerBoosts[tokenId];
+        DealerData storage d = dealers[tokenId];
 
-        uint64 newExpiry;
-        if (boost.expiresAt > block.timestamp) {
-            newExpiry = boost.expiresAt + duration;
-        } else {
-            newExpiry = uint64(block.timestamp) + duration;
+        bool boostActive = boost.expiresAt > block.timestamp;
+        uint8 oldExtra = boostActive ? boost.extraAttempts : 0;
+
+        uint64 newExpiry = boostActive
+            ? boost.expiresAt + duration
+            : uint64(block.timestamp) + duration;
+
+        if (_shouldResetAttempts(tokenId)) {
+            d.dailyAttemptsRemaining = BASE_MAX_ATTEMPTS + oldExtra;
         }
 
         dealerBoosts[tokenId] = BoostData({
@@ -903,7 +908,11 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
             cashMultiplier: cashMultiplier
         });
 
-        dealers[tokenId].dailyAttemptsRemaining = getMaxAttempts(tokenId);
+        if (extraAttempts > oldExtra) {
+            uint8 newMax = BASE_MAX_ATTEMPTS + extraAttempts;
+            uint16 sum = uint16(d.dailyAttemptsRemaining) + uint16(extraAttempts - oldExtra);
+            d.dailyAttemptsRemaining = sum > newMax ? newMax : uint8(sum);
+        }
 
         emit BoostApplied(tokenId, newExpiry);
 

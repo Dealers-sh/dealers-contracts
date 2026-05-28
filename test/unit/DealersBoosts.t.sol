@@ -423,7 +423,7 @@ contract DealersBoostsTest is BaseTest {
         boosts.unpause();
     }
 
-    function test_purchaseBoost_resetsAttempts() public {
+    function test_purchaseBoost_pouredOverFromZero() public {
         for (uint256 i = 0; i < 5; i++) {
             core.useAttempt(dealer1);
         }
@@ -434,6 +434,76 @@ contract DealersBoostsTest is BaseTest {
         boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
 
         (, , uint8 attemptsAfter, , ,) = core.getDealerData(dealer1);
-        assertEq(attemptsAfter, 7); // 5 base + 2 extra
+        assertEq(attemptsAfter, 2, "pour-over: only +2 extras, base not refilled");
+    }
+
+    function test_purchaseBoost_pouredOverFromPartial() public {
+        core.useAttempt(dealer1);
+        core.useAttempt(dealer1);
+        (, , uint8 attemptsBefore, , ,) = core.getDealerData(dealer1);
+        assertEq(attemptsBefore, 3);
+
+        vm.prank(player1);
+        boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
+
+        (, , uint8 attemptsAfter, , ,) = core.getDealerData(dealer1);
+        assertEq(attemptsAfter, 5, "pour-over: 3 left + 2 extras = 5");
+    }
+
+    function test_purchaseBoost_upgradeAddsDeltaOnly() public {
+        vm.prank(player1);
+        boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
+
+        for (uint256 i = 0; i < 7; i++) {
+            core.useAttempt(dealer1);
+        }
+        (, , uint8 attemptsBeforeUpgrade, , ,) = core.getDealerData(dealer1);
+        assertEq(attemptsBeforeUpgrade, 0);
+
+        vm.prank(player1);
+        boosts.purchaseBoost{value: HUSTLER_PRICE}(dealer1, HUSTLER_TIER);
+
+        (, , uint8 attemptsAfterUpgrade, , ,) = core.getDealerData(dealer1);
+        assertEq(attemptsAfterUpgrade, 1, "pour-over upgrade: only +1 delta (Hustler 3 - Grinder 2)");
+    }
+
+    function test_purchaseBoost_ladderedGrindBlocked() public {
+        for (uint256 i = 0; i < 5; i++) {
+            core.useAttempt(dealer1);
+        }
+
+        vm.prank(player1);
+        boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
+        for (uint256 i = 0; i < 2; i++) {
+            core.useAttempt(dealer1);
+        }
+
+        vm.prank(player1);
+        boosts.purchaseBoost{value: HUSTLER_PRICE}(dealer1, HUSTLER_TIER);
+        for (uint256 i = 0; i < 1; i++) {
+            core.useAttempt(dealer1);
+        }
+
+        vm.prank(player1);
+        boosts.purchaseBoost{value: KINGPIN_PRICE}(dealer1, KINGPIN_TIER);
+        for (uint256 i = 0; i < 3; i++) {
+            core.useAttempt(dealer1);
+        }
+
+        (, , uint8 attemptsLeft, , ,) = core.getDealerData(dealer1);
+        assertEq(attemptsLeft, 0, "laddered grind only yielded 5+2+1+3=11 total attempts");
+    }
+
+    function test_purchaseBoost_crossesMidnightThenBuys() public {
+        core.useAttempt(dealer1);
+        core.useAttempt(dealer1);
+
+        vm.warp(block.timestamp + 2 days);
+
+        vm.prank(player1);
+        boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
+
+        (, , uint8 attemptsAfter, , ,) = core.getDealerData(dealer1);
+        assertEq(attemptsAfter, 7, "lazy reset restores BASE before adding extras: 5 + 2");
     }
 }
