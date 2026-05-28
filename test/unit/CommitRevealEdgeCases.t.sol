@@ -286,6 +286,85 @@ contract CommitRevealEdgeCasesTest is BaseTest {
     }
 
     // =========================================================================
+    //                  PVP EXPIRY — TREATED AS ATTACKER LOSS (audit H-2)
+    // =========================================================================
+
+    function _permissivePvpConfig() internal {
+        vm.prank(owner);
+        pvp.setPVPConfig(IDealersPVP.PVPConfig({
+            minReputation: 0,
+            baseWinChance: 50,
+            minWinChance: 25,
+            maxWinChance: 75,
+            maxAttacksPerDay: 3,
+            drugStealPercent: 2,
+            cashStealPercent: 1,
+            rarityWeightCommon: 50,
+            rarityWeightUncommon: 30,
+            rarityWeightRare: 20,
+            repRangePercent: 100,
+            defenderRepBonus: 2,
+            repRangeThreshold: 0
+        }));
+    }
+
+    function test_pvpExpiry_appliesAttackerLossOutcome() public {
+        _permissivePvpConfig();
+
+        uint256 atkRepBefore = core.getGameState(tokenA).reputation;
+        uint256 defRepBefore = core.getGameState(tokenB).reputation;
+        uint8 atkHeatBefore = core.getGameState(tokenA).heatLevel;
+        IDealersPVP.PvpStats memory atkStatsBefore = pvp.getDealerPvpStats(tokenA);
+        IDealersPVP.PvpStats memory defStatsBefore = pvp.getDealerPvpStats(tokenB);
+
+        vm.prank(player1);
+        uint64 seq = pvp.commitAttack(tokenA, tokenB);
+
+        _advanceToExpired();
+        pvp.resolveAttack(seq);
+
+        assertEq(pvp.activePvpRoundOf(tokenA), 0, "round cleared on expiry");
+        assertEq(core.getGameState(tokenA).heatLevel, atkHeatBefore + 1, "attacker heat incremented");
+        assertLt(core.getGameState(tokenA).reputation, atkRepBefore, "attacker rep dropped");
+        assertEq(core.getGameState(tokenB).reputation, defRepBefore + 2, "defender got rep bonus");
+        assertEq(
+            pvp.getDealerPvpStats(tokenA).attackLosses,
+            atkStatsBefore.attackLosses + 1,
+            "attacker loss counted"
+        );
+        assertEq(
+            pvp.getDealerPvpStats(tokenB).defendWins,
+            defStatsBefore.defendWins + 1,
+            "defender win counted"
+        );
+    }
+
+    function test_pvpExpiry_attackerJailedExternally_noExtraPunishment() public {
+        _permissivePvpConfig();
+
+        vm.prank(player1);
+        uint64 seq = pvp.commitAttack(tokenA, tokenB);
+
+        core.forceMove(tokenA, core.JAIL_AREA());
+
+        uint256 atkRepBeforeExpiry = core.getGameState(tokenA).reputation;
+        uint8 atkHeatBeforeExpiry = core.getGameState(tokenA).heatLevel;
+        IDealersPVP.PvpStats memory atkStatsBeforeExpiry = pvp.getDealerPvpStats(tokenA);
+
+        _advanceToExpired();
+        pvp.resolveAttack(seq);
+
+        assertEq(pvp.activePvpRoundOf(tokenA), 0, "round cleared");
+        assertEq(core.getGameState(tokenA).reputation, atkRepBeforeExpiry, "no extra rep loss on jailed attacker");
+        assertEq(core.getGameState(tokenA).heatLevel, atkHeatBeforeExpiry, "no extra heat on jailed attacker");
+        assertEq(
+            pvp.getDealerPvpStats(tokenA).attackLosses,
+            atkStatsBeforeExpiry.attackLosses,
+            "no extra loss recorded on jailed attacker"
+        );
+    }
+
+    // =========================================================================
     //              PVP DEFENDER STATE DRIFT — STALE-OK BEHAVIOR
     // =========================================================================
 

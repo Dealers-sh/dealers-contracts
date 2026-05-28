@@ -260,9 +260,10 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     /**
      * @notice Resolve a previously committed PVP attack. Anyone may call.
      * @dev Combat stats and balances are read live — see `PvpRound` natspec for why.
-     *      On expiry the attacker's attempt is forfeit (no stake to refund). If the
-     *      attacker is jailed by some other action between commit and resolve, the
-     *      round is cleaned up with no payout.
+     *      Expiry is settled as an attacker LOSS — closes the simulate-then-skip flaw
+     *      that let the attacker dodge rep loss / heat / infamy by waiting out a bad roll.
+     *      If the attacker is jailed by some other action between commit and resolve,
+     *      the round is cleaned up with no payout.
      */
     function resolveAttack(uint64 seq) external nonReentrant {
         PvpRound memory r = pendingPvpRounds[seq];
@@ -272,6 +273,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
         delete activePvpRoundOf[r.attackerId];
 
         if (randomness.isExpired(seq)) {
+            _applyExpiryAsLoss(r);
             emit PvpExpired(seq, r.attackerId);
             return;
         }
@@ -622,6 +624,25 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
         int16 defenderRepChange;
         bool attackerWon;
         uint16 winChancePct;
+    }
+
+    function _applyExpiryAsLoss(PvpRound memory r) private {
+        (IDealersCore.GameState memory atk, IDealersCore.GameState memory def) =
+            core.getBothGameStates(r.attackerId, r.defenderId);
+
+        if (atk.isJailed) {
+            return;
+        }
+
+        IDealersCore.GameOutcome memory atkOut;
+        IDealersCore.GameOutcome memory defOut;
+        atkOut.incrementHeat = true;
+        atkOut.repDelta = int256(atk.repLossPenalty);
+        defOut.repDelta = int256(int16(uint16(config.defenderRepBonus)));
+
+        _recordPvpStats(r.attackerId, r.defenderId, false);
+        core.applyPVPOutcome(r.attackerId, r.defenderId, atkOut, defOut);
+        core.updateInfamy(r.attackerId, -1);
     }
 
     function _executeBattle(
