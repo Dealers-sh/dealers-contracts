@@ -41,6 +41,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
 
     mapping(uint256 => PveStats) public dealerPveStats;
 
+    /** @dev Heat and boost multipliers read live at resolve. bribeCop / purchaseBoost between commit and resolve is revenue — pay to grow faster, by design. */
     struct PveRound {
         uint256 tokenId;
         address player;
@@ -262,7 +263,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
 
     /**
      * @notice Resolve a previously committed round. Anyone may call.
-     * @dev Expiry is settled as a LOSS — closes the simulate-then-skip refund loophole.
+     * @dev Expiry = loss (stake forfeit + heat + rep). Arrest skip via expiry is accepted; jailing honest users on frontend failure is worse than the dodge.
  */
     function resolveGame(uint64 seq) external nonReentrant {
         PveRound memory r = pendingRounds[seq];

@@ -268,10 +268,8 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     /**
      * @notice Resolve a previously committed PVP attack. Anyone may call.
      * @dev Combat stats and balances are read live — see `PvpRound` natspec for why.
-     *      Expiry is settled as an attacker LOSS — closes the simulate-then-skip flaw
-     *      that let the attacker dodge rep loss / heat / infamy by waiting out a bad roll.
-     *      If the attacker is jailed by some other action between commit and resolve,
-     *      the round is cleaned up with no payout.
+     * @dev Expiry = attacker loss (rep + heat + infamy -1). Post-commit simulation IS possible, acknowledged. No real impact.
+     * @dev If the attacker is jailed by some other action between commit and resolve, the round is cleaned up with no payout.
  */
     function resolveAttack(uint64 seq) external nonReentrant {
         PvpRound memory r = pendingPvpRounds[seq];

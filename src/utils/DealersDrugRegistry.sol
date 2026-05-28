@@ -168,18 +168,6 @@ contract DealersDrugRegistry is Ownable, IDrugRegistry {
         emit DrugUpdated(drugId, newBaseCashValue, _drugs[drugId].isActive);
     }
 
-    /**
-     * @notice Activate or deactivate a drug
-     * @dev Only callable by owner
-     * @param drugId The drug ID to update
-     * @param active Whether the drug should be active
- */
-    function setDrugActive(uint256 drugId, bool active) external onlyOwner {
-        if (drugId == 0 || drugId > _totalDrugs) revert InvalidDrugId();
-        _drugs[drugId].isActive = active;
-        emit DrugUpdated(drugId, _drugs[drugId].baseCashValue, active);
-    }
-
     // =============================================================
     //                    INTERNAL HELPER FUNCTIONS
     // =============================================================
