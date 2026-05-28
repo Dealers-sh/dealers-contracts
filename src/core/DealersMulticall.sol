@@ -76,7 +76,6 @@ contract DealersMulticall is Ownable {
         IDrugRegistry.DrugRarity rarity;
         uint256 buyPrice;
         uint256 sellPrice;
-        uint256 globalSupply;
         bool isAvailable;
     }
 
@@ -292,7 +291,6 @@ contract DealersMulticall is Ownable {
                 rarity: drugInfo.rarity,
                 buyPrice: drugConfig.buyPrice,
                 sellPrice: drugConfig.sellPrice,
-                globalSupply: drugInfo.totalSupply,
                 isAvailable: drugConfig.isAvailable
             });
             unchecked { ++i; }

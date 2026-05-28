@@ -276,10 +276,6 @@ contract DeployAll is DeployBase {
         if (claims != address(0)) _authorizeIfNeeded(c, claims);
         if (actions != address(0)) _authorizeIfNeeded(c, actions);
 
-        // DrugRegistry auth
-        IDrugRegistry drugReg = IDrugRegistry(drugRegistry);
-        if (!drugReg.authorizedContracts(core)) drugReg.authorizeContract(core, true);
-
         // PaymentHandler auth
         IPaymentHandler payHandler = IPaymentHandler(paymentHandler);
         if (!payHandler.authorizedContracts(core)) payHandler.authorizeContract(core, true);

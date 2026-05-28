@@ -9,7 +9,6 @@ import "../base/DeployBase.s.sol";
  *      Post-deploy wiring needed:
  *        - Core.set{DrugRegistry,AreaRegistry,NFTContract,PaymentHandler,Randomness}
  *        - Core.authorizeContract for PVE, PVP, Boosts, NFT
- *        - DrugRegistry.authorizeContract(core)
  *        - PaymentHandler.authorizeContract(core)
  *        - AreaRegistry.setCoreContract(core)
  *        - NFT.setDealersCore(core)

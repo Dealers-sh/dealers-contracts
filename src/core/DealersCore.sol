@@ -269,10 +269,6 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
         drugBalances[tokenId][5] = STARTER_XTC;
         drugBalances[tokenId][6] = STARTER_COCAINE;
 
-        drugRegistry.incrementSupply(4, STARTER_WEED);
-        drugRegistry.incrementSupply(5, STARTER_XTC);
-        drugRegistry.incrementSupply(6, STARTER_COCAINE);
-
         areaRegistry.updateDealerLocation(tokenId, 0, STARTING_AREA);
 
         emit DealerInitialized(tokenId, STARTING_AREA);
@@ -578,11 +574,8 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
             uint256 dec = uint256(-delta);
             if (dec > bal) revert InsufficientDrugBalance();
             drugBalances[tokenId][drugId] = bal - dec;
-            drugRegistry.decrementSupply(drugId, dec);
         } else if (delta > 0) {
-            uint256 inc = uint256(delta);
-            drugBalances[tokenId][drugId] = bal + inc;
-            drugRegistry.incrementSupply(drugId, inc);
+            drugBalances[tokenId][drugId] = bal + uint256(delta);
         }
         emit DrugBalanceUpdated(tokenId, drugId, drugBalances[tokenId][drugId], delta);
     }

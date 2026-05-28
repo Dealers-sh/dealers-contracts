@@ -352,28 +352,23 @@ contract CommitRevealEdgeCasesTest is BaseTest {
     }
 
     // =========================================================================
-    //                  SELL EXPIRY — SUPPLY SYMMETRY
+    //                  SELL EXPIRY — STAKE REFUND
     // =========================================================================
 
-    function test_pveSellExpiry_supplySymmetry() public {
+    function test_pveSellExpiry_drugRefund() public {
         uint256 drugId = 4; // Weed
         uint256 amount = 50;
 
-        uint256 supplyBefore = drugRegistry.getDrugSupply(drugId);
         uint256 dealerDrugsBefore = core.getDrugBalance(tokenA, drugId);
 
         vm.prank(player1);
         uint64 seq = pve.commitGame(tokenA, 0, IDealersPVE.HustleType.SELL, drugId, amount);
 
-        // Commit decrements both the dealer's balance and the global supply.
-        assertEq(drugRegistry.getDrugSupply(drugId), supplyBefore - amount, "supply debited at commit");
         assertEq(core.getDrugBalance(tokenA, drugId), dealerDrugsBefore - amount, "drugs debited at commit");
 
         _advanceToExpired();
         pve.resolveGame(seq);
 
-        // Expiry refund restores both — proves commit/refund symmetry.
-        assertEq(drugRegistry.getDrugSupply(drugId), supplyBefore, "supply restored after expiry");
         assertEq(core.getDrugBalance(tokenA, drugId), dealerDrugsBefore, "drugs restored after expiry");
     }
 }

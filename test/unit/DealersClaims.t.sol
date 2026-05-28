@@ -102,7 +102,6 @@ contract DealersClaimsTest is Test, IERC721Receiver {
 
         core.authorizeContract(address(nft), true);
         core.authorizeContract(address(claims), true);
-        drugRegistry.authorizeContract(address(core), true);
         areaRegistry.setCoreContract(address(core));
         paymentHandler.authorizeContract(address(core), true);
 

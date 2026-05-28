@@ -90,7 +90,6 @@ contract DealersPVETest is Test, IERC721Receiver {
         core.authorizeContract(address(nft), true);
         core.authorizeContract(address(pve), true);
         core.authorizeContract(address(actions), true);
-        drugRegistry.authorizeContract(address(core), true);
         areaRegistry.setCoreContract(address(core));
         paymentHandler.authorizeContract(address(core), true);
         paymentHandler.authorizeContract(address(actions), true);

@@ -10,7 +10,7 @@ import {IDrugRegistry} from "./IDrugRegistry.sol";
  * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀ █░█
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ▄█ █▀█
  *
- * @dev Manages all drug definitions, supply tracking, and base values
+ * @dev Manages all drug definitions and base values
  * @author Berny0x
  */
 contract DealersDrugRegistry is Ownable, IDrugRegistry {
@@ -34,35 +34,19 @@ contract DealersDrugRegistry is Ownable, IDrugRegistry {
     /// @notice Array of all drug IDs for iteration
     uint256[] private _drugIds;
 
-    /// @notice Authorized contracts that can modify supply
-    mapping(address => bool) public authorizedContracts;
-
     // =============================================================
     //                            ERRORS
     // =============================================================
 
-    error NotAuthorized();
     error InvalidDrugId();
     error DrugNotActive();
-    error InsufficientSupply();
     error InvalidBaseCashValue();
     error DrugNameTooLong();
-    error InvalidAddress();
-
-    // =============================================================
-    //                            EVENTS
-    // =============================================================
-
-    event ContractAuthorizationChanged(address indexed contractAddress, bool authorized);
 
     // =============================================================
     //                            CONSTRUCTOR
     // =============================================================
 
-    /**
-     * @notice Initializes the Drug Registry with default drugs
-     * @dev Creates Weed, XTC, and Cocaine as the initial 3 drugs
-     */
     constructor() {
         _initializeOwner(msg.sender);
     }
@@ -70,13 +54,6 @@ contract DealersDrugRegistry is Ownable, IDrugRegistry {
     // =============================================================
     //                            MODIFIERS
     // =============================================================
-
-    modifier onlyAuthorized() {
-        if (!authorizedContracts[msg.sender] && msg.sender != owner()) {
-            revert NotAuthorized();
-        }
-        _;
-    }
 
     modifier validDrug(uint256 drugId) {
         if (drugId == 0 || drugId > _totalDrugs) revert InvalidDrugId();
@@ -88,15 +65,6 @@ contract DealersDrugRegistry is Ownable, IDrugRegistry {
     //                        VIEW FUNCTIONS
     // =============================================================
 
-    /**
-     * @notice Check if a contract is authorized to modify supply
-     * @param contractAddress The contract to check
-     * @return Whether the contract is authorized
-     */
-    function isAuthorized(address contractAddress) external view returns (bool) {
-        return authorizedContracts[contractAddress] || contractAddress == owner();
-    }
-
     /// @inheritdoc IDrugRegistry
     function getDrugInfo(uint256 drugId) external view validDrug(drugId) returns (DrugInfo memory) {
         return _drugs[drugId];
@@ -105,11 +73,6 @@ contract DealersDrugRegistry is Ownable, IDrugRegistry {
     /// @inheritdoc IDrugRegistry
     function getDrugBaseCashValue(uint256 drugId) external view validDrug(drugId) returns (uint256) {
         return _drugs[drugId].baseCashValue;
-    }
-
-    /// @inheritdoc IDrugRegistry
-    function getDrugSupply(uint256 drugId) external view validDrug(drugId) returns (uint256) {
-        return _drugs[drugId].totalSupply;
     }
 
     /// @inheritdoc IDrugRegistry
@@ -173,30 +136,6 @@ contract DealersDrugRegistry is Ownable, IDrugRegistry {
     }
 
     // =============================================================
-    //                    SUPPLY MANAGEMENT
-    // =============================================================
-
-    /// @inheritdoc IDrugRegistry
-    function incrementSupply(uint256 drugId, uint256 amount) external onlyAuthorized validDrug(drugId) {
-        DrugInfo storage drug = _drugs[drugId];
-        drug.totalSupply += amount;
-        emit SupplyIncremented(drugId, amount, drug.totalSupply);
-    }
-
-    /// @inheritdoc IDrugRegistry
-    function decrementSupply(uint256 drugId, uint256 amount) external onlyAuthorized validDrug(drugId) {
-        DrugInfo storage drug = _drugs[drugId];
-
-        if (amount > drug.totalSupply) revert InsufficientSupply();
-
-        unchecked {
-            drug.totalSupply -= amount;
-        }
-
-        emit SupplyDecremented(drugId, amount, drug.totalSupply);
-    }
-
-    // =============================================================
     //                        ADMIN FUNCTIONS
     // =============================================================
 
@@ -241,18 +180,6 @@ contract DealersDrugRegistry is Ownable, IDrugRegistry {
         emit DrugUpdated(drugId, _drugs[drugId].baseCashValue, active);
     }
 
-    /**
-     * @notice Authorize a contract to modify supply
-     * @dev Only callable by owner
-     * @param contractAddress The contract to authorize
-     * @param authorized Whether to grant or revoke authorization
-     */
-    function authorizeContract(address contractAddress, bool authorized) external onlyOwner {
-        if (contractAddress == address(0)) revert InvalidAddress();
-        authorizedContracts[contractAddress] = authorized;
-        emit ContractAuthorizationChanged(contractAddress, authorized);
-    }
-
     // =============================================================
     //                    INTERNAL HELPER FUNCTIONS
     // =============================================================
@@ -275,7 +202,6 @@ contract DealersDrugRegistry is Ownable, IDrugRegistry {
             name: name,
             rarity: rarity,
             baseCashValue: baseCashValue,
-            totalSupply: 0,
             isActive: true
         });
 

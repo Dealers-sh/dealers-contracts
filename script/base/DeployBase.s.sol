@@ -47,8 +47,6 @@ interface IDealersNFT {
 }
 
 interface IDrugRegistry {
-    function authorizeContract(address contractAddress, bool authorized) external;
-    function authorizedContracts(address) external view returns (bool);
     function createDrug(string calldata name, uint8 rarity, uint256 baseCashValue) external returns (uint256);
     function getTotalDrugs() external view returns (uint256);
 }

@@ -153,8 +153,6 @@ abstract contract BaseTest is Test, IERC721Receiver {
         core.authorizeContract(address(boosts), true);
         core.authorizeContract(address(actions), true);
 
-        drugRegistry.authorizeContract(address(core), true);
-
         areaRegistry.setCoreContract(address(core));
 
         paymentHandler.authorizeContract(address(core), true);

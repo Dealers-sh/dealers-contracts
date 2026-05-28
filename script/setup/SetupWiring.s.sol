@@ -21,7 +21,6 @@ import "../base/DeployBase.s.sol";
  *
  *   AUTHORIZATIONS:
  *     Core.authorizeContract:           PVE, PVP, Boosts, NFT, Claims (optional), Actions (optional)
- *     DrugRegistry.authorizeContract:   Core
  *     PaymentHandler.authorizeContract: Core, Boosts, Actions (optional)
  *     Randomness.authorizeResolver:     PVE, PVP, Actions (optional)
  *     Actions.authorizeJailer:          PVE, PVP
@@ -126,14 +125,6 @@ contract SetupWiring is DeployBase {
 
     function _setupRegistryAuthorizations() internal {
         console.log("Registry authorizations:");
-
-        IDrugRegistry drugReg = IDrugRegistry(drugRegistry);
-        if (!drugReg.authorizedContracts(core)) {
-            drugReg.authorizeContract(core, true);
-            console.log("  DrugRegistry -> Core: AUTHORIZED");
-        } else {
-            console.log("  DrugRegistry -> Core: ok");
-        }
 
         IPaymentHandler payHandler = IPaymentHandler(paymentHandler);
         if (!payHandler.authorizedContracts(core)) {

@@ -55,7 +55,7 @@ The project follows a **modular architecture** where a central data contract (`D
 - Central state management hub for all game data
 - Stores dealer stats (reputation, area, heat level, attempts)
 - Manages drug balances per dealer (tokenId => drugId => amount)
-- Handles area/drug configuration, supply caps, jail/safe house mechanics
+- Handles area/drug configuration, jail/safe house mechanics
 - Boost system for time-limited multipliers
 - Authorization system: Only authorized contracts can modify state via `onlyAuthorized` modifier
 
@@ -113,11 +113,8 @@ Deployment uses `--zksync` flag for Abstract Chain compatibility.
 ### Authorization Pattern
 All game modules must be authorized in `DealersCore.authorizeContract()` before they can modify state.
 
-### Supply Management
-Drug supply is capped per rarity:
-- Common: 10,000,000
-- Uncommon: 1,000,000
-- Rare: 100,000
+### Drug Supply
+Drug supply is not tracked on-chain — there is no global cap. Frontend / analytics should reconstruct supply from `DealersCore.DrugBalanceUpdated` events.
 
 ### Heat & Jail System
 - Heat level 0-5 determines jail chance percentage
