@@ -280,14 +280,12 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
         tierActive(tierId)
         dealerExists(dealerId)
     {
-        bool isAdmin = msg.sender == owner();
         BoostTier memory tier = boostTiers[tierId];
 
         if (!_canUpgradeBoost(dealerId, tier.price)) revert BoostTierTooLow();
 
-        if (!isAdmin) {
-            if (msg.value < tier.price) revert InsufficientPayment();
-        }
+        uint256 fee = msg.sender == owner() ? 0 : tier.price;
+        if (msg.value < fee) revert InsufficientPayment();
 
         uint64 expiresAt = dealersCore.applyBoost(
             dealerId,
@@ -303,11 +301,11 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
 
         emit BoostPurchased(dealerId, tierId, msg.sender, expiresAt);
 
-        if (!isAdmin) {
-            paymentHandler.processMarketplaceFee{value: tier.price}(msg.sender, tier.price);
-            if (msg.value > tier.price) {
-                _safeTransferETH(msg.sender, msg.value - tier.price);
-            }
+        if (fee > 0) {
+            paymentHandler.processMarketplaceFee{value: fee}(msg.sender, fee);
+        }
+        if (msg.value > fee) {
+            _safeTransferETH(msg.sender, msg.value - fee);
         }
     }
 

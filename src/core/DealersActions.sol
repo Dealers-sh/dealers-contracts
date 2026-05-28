@@ -381,18 +381,12 @@ contract DealersActions is ReentrancyGuard, Ownable {
         payable
         nonReentrant
     {
-        bool isAdmin = msg.sender == owner();
-        uint256 attemptResetFee = core.config().attemptResetFee;
-
-        if (!isAdmin) {
-            if (msg.value < attemptResetFee) revert InsufficientPayment();
-        }
+        uint256 fee = msg.sender == owner() ? 0 : core.config().attemptResetFee;
+        if (msg.value < fee) revert InsufficientPayment();
 
         core.resetDailyAttempts(tokenId);
 
-        if (!isAdmin) {
-            _settleMarketplaceFee(attemptResetFee);
-        }
+        _settleMarketplaceFee(fee);
     }
 
     /**
@@ -404,22 +398,18 @@ contract DealersActions is ReentrancyGuard, Ownable {
         payable
         nonReentrant
     {
-        bool isAdmin = msg.sender == owner();
         DealersCore.CoreConfig memory cfg = core.config();
 
         if (core.getCashBalance(tokenId) >= cfg.cashPurchaseThreshold) revert CashBalanceTooHigh();
 
-        if (!isAdmin) {
-            if (msg.value < cfg.cashTopupPrice) revert InsufficientPayment();
-        }
+        uint256 fee = msg.sender == owner() ? 0 : cfg.cashTopupPrice;
+        if (msg.value < fee) revert InsufficientPayment();
 
         core.addCash(tokenId, cfg.cashTopupAmount);
 
         emit CashPurchased(tokenId, cfg.cashTopupAmount, cfg.cashTopupPrice);
 
-        if (!isAdmin) {
-            _settleMarketplaceFee(cfg.cashTopupPrice);
-        }
+        _settleMarketplaceFee(fee);
     }
 
     /**
@@ -564,7 +554,8 @@ contract DealersActions is ReentrancyGuard, Ownable {
      *      msg.value >= fee.
  */
     function _settleMovementFee(uint256 fee) private {
-        if (fee > 0 && address(paymentHandler) != address(0)) {
+        if (fee > 0) {
+            if (address(paymentHandler) == address(0)) revert ContractNotSet();
             paymentHandler.processMovementFee{value: fee}(msg.sender, fee);
         }
         if (msg.value > fee) {
@@ -577,7 +568,8 @@ contract DealersActions is ReentrancyGuard, Ownable {
      *      any excess. Caller must have already validated msg.value >= fee.
  */
     function _settleMarketplaceFee(uint256 fee) private {
-        if (address(paymentHandler) != address(0)) {
+        if (fee > 0) {
+            if (address(paymentHandler) == address(0)) revert ContractNotSet();
             paymentHandler.processMarketplaceFee{value: fee}(msg.sender, fee);
         }
         if (msg.value > fee) {

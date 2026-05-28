@@ -303,7 +303,7 @@ contract DealersAreaRegistry is Ownable, IAreaRegistry {
         bool isJailArea
     ) external onlyOwner returns (uint8 areaId) {
         if (bytes(name).length > 32) revert AreaNameTooLong();
-        if (_totalAreas >= 254) revert MaxAreasReached();
+        if (_totalAreas >= BLACK_MARKET_AREA - 1) revert MaxAreasReached();
 
         unchecked {
             ++_totalAreas;
