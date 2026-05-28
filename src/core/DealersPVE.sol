@@ -262,7 +262,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
 
     /**
      * @notice Resolve a previously committed round. Anyone may call.
-     * @dev On expiry the stake is fully refunded; the attempt is forfeit.
+     * @dev Expiry is settled as a LOSS — closes the simulate-then-skip refund loophole.
      */
     function resolveGame(uint64 seq) external nonReentrant {
         PveRound memory r = pendingRounds[seq];
@@ -272,11 +272,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         delete activePveRoundOf[r.tokenId];
 
         if (randomness.isExpired(seq)) {
-            if (r.hustleType == HustleType.BUY) {
-                dealersCore.addCash(r.tokenId, r.amount * r.buyPrice);
-            } else {
-                dealersCore.updateDrugBalance(r.tokenId, r.drugId, int256(r.amount));
-            }
+            _applyExpiryAsLoss(r);
             emit GameExpired(seq, r.tokenId);
             return;
         }
@@ -363,6 +359,31 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     // =============================================================
     //                   INTERNAL/PRIVATE HELPER FUNCTIONS
     // =============================================================
+
+    function _applyExpiryAsLoss(PveRound memory r) private {
+        IDealersCore.GameState memory live = dealersCore.getGameState(r.tokenId);
+
+        uint256 stakeValue = r.hustleType == HustleType.BUY
+            ? r.amount * r.buyPrice
+            : r.amount * r.sellPrice;
+
+        int256 repChange = _calculateScaledRep(live, 2, stakeValue);
+
+        unchecked {
+            PveStats storage stats = dealerPveStats[r.tokenId];
+            stats.losses++;
+            if (r.choice == 0) stats.dealChoices++;
+            else if (r.choice == 1) stats.threatenChoices++;
+            else stats.bailChoices++;
+        }
+
+        IDealersCore.GameOutcome memory outcome;
+        outcome.incrementHeat = true;
+        outcome.drugId = r.drugId;
+        outcome.repDelta = repChange;
+
+        dealersCore.applyGameOutcome(r.tokenId, outcome);
+    }
 
     function _calculateBiasedHouseChoice(uint8 roll, uint8 playerChoice) internal view returns (uint8 houseChoice, uint8 outcome) {
         if (roll < tieChance) {

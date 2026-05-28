@@ -30,33 +30,37 @@ contract CommitRevealEdgeCasesTest is BaseTest {
     }
 
     // =========================================================================
-    //                         PVE EXPIRY REFUND PATHS
+    //                  PVE EXPIRY — TREATED AS LOSS (audit C-1)
     // =========================================================================
 
-    function test_pveExpiry_refundsCashOnBuy() public {
+    function test_pveExpiry_buyStakeForfeitedAsLoss() public {
         uint256 amount = 5;
-        (uint256 buyPrice, , ) = (1, 0, true);   // weed in Manhattan: buy=1
+        uint256 buyPrice = 1;
         uint256 stake = amount * buyPrice;
 
         uint256 cashBefore = core.getCashBalance(tokenA);
+        uint8 heatBefore = core.getGameState(tokenA).heatLevel;
+        IDealersPVE.PveStats memory statsBefore = pve.getDealerPveStats(tokenA);
 
         vm.prank(player1);
         uint64 seq = pve.commitGame(tokenA, 0, IDealersPVE.HustleType.BUY, 4, amount);
 
-        // Stake is debited at commit
         assertEq(core.getCashBalance(tokenA), cashBefore - stake, "stake debited at commit");
 
-        // Advance past expiry
         _advanceToExpired();
         pve.resolveGame(seq);
 
-        // Stake refunded
-        assertEq(core.getCashBalance(tokenA), cashBefore, "stake fully refunded on expiry");
+        assertEq(core.getCashBalance(tokenA), cashBefore - stake, "stake forfeited on expiry");
+        assertEq(core.getGameState(tokenA).heatLevel, heatBefore + 1, "heat incremented");
+        assertEq(pve.getDealerPveStats(tokenA).losses, statsBefore.losses + 1, "loss counted");
+        assertEq(pve.activePveRoundOf(tokenA), 0, "round cleared");
     }
 
-    function test_pveExpiry_refundsDrugsOnSell() public {
+    function test_pveExpiry_sellStakeForfeitedAsLoss() public {
         uint256 amount = 10;
         uint256 drugsBefore = core.getDrugBalance(tokenA, 4);
+        uint8 heatBefore = core.getGameState(tokenA).heatLevel;
+        IDealersPVE.PveStats memory statsBefore = pve.getDealerPveStats(tokenA);
 
         vm.prank(player1);
         uint64 seq = pve.commitGame(tokenA, 0, IDealersPVE.HustleType.SELL, 4, amount);
@@ -66,7 +70,10 @@ contract CommitRevealEdgeCasesTest is BaseTest {
         _advanceToExpired();
         pve.resolveGame(seq);
 
-        assertEq(core.getDrugBalance(tokenA, 4), drugsBefore, "drugs fully refunded on expiry");
+        assertEq(core.getDrugBalance(tokenA, 4), drugsBefore - amount, "drugs forfeited on expiry");
+        assertEq(core.getGameState(tokenA).heatLevel, heatBefore + 1, "heat incremented");
+        assertEq(pve.getDealerPveStats(tokenA).losses, statsBefore.losses + 1, "loss counted");
+        assertEq(pve.activePveRoundOf(tokenA), 0, "round cleared");
     }
 
     function test_pveExpiry_attemptIsForfeit() public {
@@ -84,6 +91,24 @@ contract CommitRevealEdgeCasesTest is BaseTest {
             before.dailyAttemptsRemaining - 1,
             "attempt forfeit on expiry"
         );
+    }
+
+    function test_pveExpiry_appliesScaledRepLoss() public {
+        // Use a large stake so the loss penalty does not round to zero after stake scaling.
+        // weed sellPrice in Manhattan is configured via BaseTest; we only need a stake
+        // big enough that (lossPenalty * stake) / repStakeDivisor != 0.
+        core.updateDrugBalance(tokenA, 4, 10_000);
+        uint256 amount = 1_000;
+
+        uint256 repBefore = core.getGameState(tokenA).reputation;
+
+        vm.prank(player1);
+        uint64 seq = pve.commitGame(tokenA, 0, IDealersPVE.HustleType.SELL, 4, amount);
+
+        _advanceToExpired();
+        pve.resolveGame(seq);
+
+        assertLt(core.getGameState(tokenA).reputation, repBefore, "rep dropped on expired loss");
     }
 
     // =========================================================================
@@ -248,14 +273,14 @@ contract CommitRevealEdgeCasesTest is BaseTest {
         // Round still pending — the deletes were rolled back along with the revert.
         assertEq(pve.activePveRoundOf(tokenA), seq, "round still pending after arrest revert");
 
-        // Recovery path: wait for expiry, resolve refunds the stake.
+        // Recovery path: wait for expiry, resolve clears the round as a loss
+        // (stake stays forfeited per C-1 fix; the slot frees so the dealer can play again).
         _advanceToExpired();
         pve.resolveGame(seq);
 
         assertEq(pve.activePveRoundOf(tokenA), 0, "round cleared after expiry resolve");
-        assertEq(core.getCashBalance(tokenA), cashBefore, "stake refunded via expiry path");
+        assertEq(core.getCashBalance(tokenA), cashBefore - stake, "stake forfeited via expiry-as-loss");
 
-        // Dealer can commit a new round.
         vm.prank(player1);
         pve.commitGame(tokenA, 0, IDealersPVE.HustleType.BUY, 4, amount);
     }
@@ -351,24 +376,4 @@ contract CommitRevealEdgeCasesTest is BaseTest {
         actions.commitWantedPoster(tokenA);
     }
 
-    // =========================================================================
-    //                  SELL EXPIRY — STAKE REFUND
-    // =========================================================================
-
-    function test_pveSellExpiry_drugRefund() public {
-        uint256 drugId = 4; // Weed
-        uint256 amount = 50;
-
-        uint256 dealerDrugsBefore = core.getDrugBalance(tokenA, drugId);
-
-        vm.prank(player1);
-        uint64 seq = pve.commitGame(tokenA, 0, IDealersPVE.HustleType.SELL, drugId, amount);
-
-        assertEq(core.getDrugBalance(tokenA, drugId), dealerDrugsBefore - amount, "drugs debited at commit");
-
-        _advanceToExpired();
-        pve.resolveGame(seq);
-
-        assertEq(core.getDrugBalance(tokenA, drugId), dealerDrugsBefore, "drugs restored after expiry");
-    }
 }
