@@ -223,6 +223,26 @@ contract DealersClaimsTest is Test, IERC721Receiver {
         assertEq(core.getDrugBalance(DEALER_1, DRUG_WEED), drugBefore + 25);
     }
 
+    function test_claimAchievement_attemptsReward_refillsToMax() public {
+        // PVE_WINS >= 1 → ATTEMPTS reward (rewardAmount ignored; resets to max)
+        _setAchievement(0, 1, 0, 1, 3, 0, 0);
+        mockPVE.setStats(DEALER_1, 1, 0, 0);
+
+        core.useAttempt(DEALER_1);
+        core.useAttempt(DEALER_1);
+        uint8 maxAttempts = core.getGameState(DEALER_1).dailyAttemptsRemaining + 2;
+        assertLt(core.getGameState(DEALER_1).dailyAttemptsRemaining, maxAttempts, "attempts drained");
+
+        vm.prank(player1);
+        claims.claimAchievement(DEALER_1, 0);
+
+        assertEq(
+            core.getGameState(DEALER_1).dailyAttemptsRemaining,
+            maxAttempts,
+            "ATTEMPTS reward refills attempts to max"
+        );
+    }
+
     function test_claimAchievement_reputationCondition() public {
         core.updateReputation(DEALER_1, 100);
         _setAchievement(0, 8, 0, 50, 1, 0, 500); // REPUTATION >= 50 → 500 cash

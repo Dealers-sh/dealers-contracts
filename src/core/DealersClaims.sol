@@ -281,7 +281,7 @@ contract DealersClaims is ReentrancyGuard, Ownable {
         } else if (rewardType == uint8(RewardType.DRUG)) {
             dealersCore.updateDrugBalance(tokenId, rewardId, int256(amount));
         } else if (rewardType == uint8(RewardType.ATTEMPTS)) {
-            dealersCore.updateDailyPlays(tokenId, 0);
+            dealersCore.resetDailyAttempts(tokenId);
         } else {
             revert InvalidRewardType();
         }
