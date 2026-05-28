@@ -82,7 +82,7 @@ contract DealersClaims is ReentrancyGuard, Ownable {
     IDealersPVP public pvpContract;
 
     mapping(uint256 => Achievement) public achievements;
-    uint256 public achievementCount;
+    uint256 public nextAchievementId;
 
     mapping(uint256 achievementId => mapping(uint256 tokenId => bool)) public achievementClaimed;
 
@@ -298,7 +298,7 @@ contract DealersClaims is ReentrancyGuard, Ownable {
         if (achievement.rewardType > uint8(RewardType.ATTEMPTS)) revert InvalidAchievementConfig();
 
         achievements[achievementId] = achievement;
-        if (achievementId >= achievementCount) achievementCount = achievementId + 1;
+        if (achievementId >= nextAchievementId) nextAchievementId = achievementId + 1;
         emit AchievementSet(achievementId, achievement.conditionType, achievement.threshold, achievement.rewardType, achievement.rewardAmount);
     }
 

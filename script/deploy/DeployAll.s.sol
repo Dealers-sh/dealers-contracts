@@ -547,7 +547,7 @@ contract DeployAll is DeployBase {
     function _setupClaims() internal {
         IClaimsContract c = IClaimsContract(claims);
 
-        if (c.achievementCount() > 0) {
+        if (c.nextAchievementId() > 0) {
             console.log("Claims: already configured");
             return;
         }

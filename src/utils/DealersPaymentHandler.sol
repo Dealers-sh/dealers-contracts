@@ -127,7 +127,7 @@ contract DealersPaymentHandler is ReentrancyGuard, Ownable {
      * @notice Process area movement fee
      * @param player The player address (for event tracking)
      * @param amount Fee amount
-     */
+ */
     function processMovementFee(address player, uint256 amount) external payable onlyAuthorized nonReentrant {
         if (msg.value != amount || amount == 0) revert InvalidAmount();
         if (amount < MIN_AMOUNT) revert AmountTooSmall();
@@ -138,7 +138,7 @@ contract DealersPaymentHandler is ReentrancyGuard, Ownable {
      * @notice Process marketplace/boost fee
      * @param player The player address (for event tracking)
      * @param amount Fee amount
-     */
+ */
     function processMarketplaceFee(address player, uint256 amount) external payable onlyAuthorized nonReentrant {
         if (msg.value != amount || amount == 0) revert InvalidAmount();
         if (amount < MIN_AMOUNT) revert AmountTooSmall();

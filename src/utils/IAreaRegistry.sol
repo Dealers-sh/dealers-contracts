@@ -17,7 +17,7 @@ interface IAreaRegistry {
 
     /**
      * @dev Area-specific drug pricing configuration
-     */
+ */
     struct AreaDrugConfig {
         uint256 drugId;
         uint256 buyPrice;
@@ -27,7 +27,7 @@ interface IAreaRegistry {
 
     /**
      * @dev Area configuration structure
-     */
+ */
     struct AreaInfo {
         string name;
         uint256 movementFee;
@@ -53,75 +53,75 @@ interface IAreaRegistry {
     //                      VIEW FUNCTIONS
     // =============================================================
 
-    /// @notice Get detailed information about an area
+    /** @notice Get detailed information about an area */
     function getAreaInfo(uint8 areaId) external view returns (AreaInfo memory);
 
-    /// @notice Get the movement fee for an area
+    /** @notice Get the movement fee for an area */
     function getMovementFee(uint8 areaId) external view returns (uint256);
 
-    /// @notice Get the minimum reputation to enter an area
+    /** @notice Get the minimum reputation to enter an area */
     function getMinReputation(uint8 areaId) external view returns (uint256);
 
-    /// @notice Check if an area is active
+    /** @notice Check if an area is active */
     function isAreaActive(uint8 areaId) external view returns (bool);
 
-    /// @notice Check if an area is a safe house
+    /** @notice Check if an area is a safe house */
     function isSafeHouse(uint8 areaId) external view returns (bool);
 
-    /// @notice Check if an area is jail
+    /** @notice Check if an area is jail */
     function isJail(uint8 areaId) external view returns (bool);
 
-    /// @notice Check if an area is the Black Market
+    /** @notice Check if an area is the Black Market */
     function isBlackMarket(uint8 areaId) external view returns (bool);
 
-    /// @notice Get total number of areas (excluding special areas)
+    /** @notice Get total number of areas (excluding special areas) */
     function getTotalAreas() external view returns (uint8);
 
-    /// @notice Check if an area ID is valid
+    /** @notice Check if an area ID is valid */
     function isValidArea(uint8 areaId) external view returns (bool);
 
     // =============================================================
     //                    DRUG PRICING FUNCTIONS
     // =============================================================
 
-    /// @notice Get drug configuration for a specific drug in an area
+    /** @notice Get drug configuration for a specific drug in an area */
     function getAreaDrugConfig(uint8 areaId, uint256 drugId) external view returns (AreaDrugConfig memory);
 
-    /// @notice Get all drug IDs available in an area
+    /** @notice Get all drug IDs available in an area */
     function getAreaDrugIds(uint8 areaId) external view returns (uint256[] memory);
 
-    /// @notice Get buy and sell prices for a drug in an area
+    /** @notice Get buy and sell prices for a drug in an area */
     function getDrugPricing(uint8 areaId, uint256 drugId) external view returns (uint256 buyPrice, uint256 sellPrice);
 
-    /// @notice Check if a drug is available in an area
+    /** @notice Check if a drug is available in an area */
     function isDrugAvailableInArea(uint8 areaId, uint256 drugId) external view returns (bool);
 
-    /// @notice Get the number of drugs available in an area
+    /** @notice Get the number of drugs available in an area */
     function getAreaDrugCount(uint8 areaId) external view returns (uint256);
 
     // =============================================================
     //                    DEALER LOCATION FUNCTIONS
     // =============================================================
 
-    /// @notice Update a dealer's location (called by Core contract)
+    /** @notice Update a dealer's location (called by Core contract) */
     function updateDealerLocation(uint256 tokenId, uint8 oldArea, uint8 newArea) external;
 
-    /// @notice Get all dealer token IDs in an area (paginated)
+    /** @notice Get all dealer token IDs in an area (paginated) */
     function getDealersInArea(uint8 areaId, uint256 offset, uint256 limit) external view returns (uint256[] memory tokenIds, uint256 total);
 
-    /// @notice Get the count of dealers in an area
+    /** @notice Get the count of dealers in an area */
     function getDealerCountInArea(uint8 areaId) external view returns (uint256);
 
     // =============================================================
     //                          CONSTANTS
     // =============================================================
 
-    /// @notice Safe House area ID (always 0)
+    /** @notice Safe House area ID (always 0) */
     function SAFE_HOUSE_AREA() external view returns (uint8);
 
-    /// @notice Jail area ID (always 255)
+    /** @notice Jail area ID (always 255) */
     function JAIL_AREA() external view returns (uint8);
 
-    /// @notice Black Market area ID (always 254)
+    /** @notice Black Market area ID (always 254) */
     function BLACK_MARKET_AREA() external view returns (uint8);
 }

@@ -60,7 +60,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @dev Core dealer data structure (packed to 2 slots)
-     */
+ */
     struct DealerData {
         uint256 reputation;              // Slot 0
         uint32 lastPlayTimestamp;        // Slot 1 (below are tightly packed)
@@ -74,7 +74,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @dev Configurable game parameters
-     */
+ */
     struct CoreConfig {
         uint256 attemptResetFee;          // 0.001 ether - Buy mid-day reset
         uint256 bribeCopFee;              // 0.001 ether - Full heat reset
@@ -105,7 +105,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
     ReputationTier[] public reputationTiers;
 
     // Configurable parameters
-    CoreConfig public config;
+    CoreConfig internal _config;
     uint256 public MAX_REPUTATION = 75000;
     uint256 public MAX_INFAMY = 10000;
     bool public paused;
@@ -192,11 +192,11 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
     /**
      * @notice Initializes the contract with owner
      * @dev Registries must be set after deployment
-     */
+ */
     constructor() {
         _initializeOwner(msg.sender);
 
-        config = CoreConfig({
+        _config = CoreConfig({
             attemptResetFee: 0.001 ether,
             bribeCopFee: 0.001 ether,
             cashTopupPrice: 0.001 ether,
@@ -217,7 +217,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
     // =============================================================
 
     modifier onlyAuthorized() {
-        if (!authorizedContracts[msg.sender] && msg.sender != owner()) revert NotAuthorized();
+        if (!authorizedContracts[msg.sender]) revert NotAuthorized();
         _;
     }
 
@@ -246,7 +246,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
      * @notice Initialize a new dealer with starting configuration
      * @dev Dealers start in Safe House with starter $CASH and drugs
      * @param tokenId The token ID to initialize as a dealer
-     */
+ */
     function initializeDealer(uint256 tokenId) external onlyAuthorized registriesSet whenNotPaused {
         if (dealers[tokenId].isInitialized) revert DealerAlreadyInitialized();
 
@@ -262,7 +262,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
         });
 
         // Starter $CASH
-        dealerCash[tokenId] = config.starterCash;
+        dealerCash[tokenId] = _config.starterCash;
 
         // Starter drugs: 100 Weed (ID=4), 5 XTC (ID=5), 1 Cocaine (ID=6)
         drugBalances[tokenId][4] = STARTER_WEED;
@@ -272,7 +272,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
         areaRegistry.updateDealerLocation(tokenId, 0, STARTING_AREA);
 
         emit DealerInitialized(tokenId, STARTING_AREA);
-        emit CashUpdated(tokenId, config.starterCash, int256(config.starterCash));
+        emit CashUpdated(tokenId, _config.starterCash, int256(_config.starterCash));
         emit DrugBalanceUpdated(tokenId, 4, STARTER_WEED, int256(STARTER_WEED));
         emit DrugBalanceUpdated(tokenId, 5, STARTER_XTC, int256(STARTER_XTC));
         emit DrugBalanceUpdated(tokenId, 6, STARTER_COCAINE, int256(STARTER_COCAINE));
@@ -331,7 +331,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
             state.cashMultiplier = 100;
         }
 
-        state.jailChance = uint16(effectiveHeat) * config.jailChancePerHeat;
+        state.jailChance = uint16(effectiveHeat) * _config.jailChancePerHeat;
 
         state.threat = dealerThreatStat[tokenId];
         state.armor = dealerArmorStat[tokenId];
@@ -361,6 +361,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     function applyGameOutcome(uint256 tokenId, GameOutcome calldata outcome)
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         whenNotPaused
@@ -375,6 +376,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
         GameOutcome calldata defOut
     )
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(atk)
         dealerExists(def)
@@ -425,7 +427,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
     /**
      * @notice Get complete dealer data for a token ID
      * @dev Returns effective attempts remaining (accounts for daily reset)
-     */
+ */
     function getDealerData(uint256 tokenId)
         external
         view
@@ -445,7 +447,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Get drug balance for a specific dealer and drug
-     */
+ */
     function getDrugBalance(uint256 tokenId, uint256 drugId) external view returns (uint256) {
         return drugBalances[tokenId][drugId];
     }
@@ -456,7 +458,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Get the current reputation tier for a given reputation score
-     */
+ */
     function getCurrentTier(uint256 reputation) internal view returns (ReputationTier memory) {
         if (reputationTiers.length == 0) revert NoTiersConfigured();
         ReputationTier memory currentTier = reputationTiers[0];
@@ -474,7 +476,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
 /**
      * @notice Get the tier name for a given reputation score
-     */
+ */
     function getReputationTitle(uint256 reputation) external view returns (string memory) {
         return getCurrentTier(reputation).tierName;
     }
@@ -486,7 +488,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
      *      stashValue < 100,000  : dampened   bonus = 100 + (stashValue - 10k)/250 (cap 460)
      *      stashValue >= 100,000 : sqrt       bonus = 460 + sqrt((stashValue - 100k) / 10)
      *      Diminishing returns prevent whales from runaway-stash-bonuses.
-     */
+ */
     function getStashBonus(uint256 tokenId) public view dealerExists(tokenId) registriesSet returns (uint256) {
         uint256 stashValue = 0;
 
@@ -512,7 +514,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Get total reputation including stash bonus
-     */
+ */
     function getTotalReputation(uint256 tokenId) public view dealerExists(tokenId) returns (uint256) {
         return dealers[tokenId].reputation + getStashBonus(tokenId);
     }
@@ -523,9 +525,10 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Update a dealer's reputation
-     */
+ */
     function updateReputation(uint256 tokenId, int256 change)
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         whenNotPaused
@@ -536,9 +539,10 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
     /**
      * @notice Update a dealer's drug balance
      * @dev Calls DrugRegistry for supply tracking
-     */
+ */
     function updateDrugBalance(uint256 tokenId, uint256 drugId, int256 change)
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         registriesSet
@@ -594,9 +598,10 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
     /**
      * @notice Move a dealer to a different area
      * @dev Checks area requirements via AreaRegistry
-     */
+ */
     function moveToArea(uint256 tokenId, uint8 newAreaId)
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         registriesSet
@@ -624,6 +629,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     function forceMove(uint256 tokenId, uint8 newAreaId)
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         whenNotPaused
@@ -638,9 +644,10 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Update daily attempts remaining for a dealer
-     */
+ */
     function updateDailyPlays(uint256 tokenId, uint8 attemptsUsed)
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         whenNotPaused
@@ -653,6 +660,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     function setHeatLevel(uint256 tokenId, uint8 level)
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         whenNotPaused
@@ -664,6 +672,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     function setLastBreakoutAttempt(uint256 tokenId, uint32 timestamp)
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         whenNotPaused
@@ -673,6 +682,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     function resetDailyAttempts(uint256 tokenId)
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         whenNotPaused
@@ -685,6 +695,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     function updateInfamy(uint256 tokenId, int256 delta)
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         whenNotPaused
@@ -709,7 +720,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Authorize or deauthorize contracts to modify game state
-     */
+ */
     function authorizeContract(address contractAddress, bool authorized) external onlyOwner {
         if (contractAddress == address(0)) revert InvalidAddress();
         authorizedContracts[contractAddress] = authorized;
@@ -718,7 +729,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Set the reputation tier system
-     */
+ */
     function setReputationTiers(ReputationTier[] calldata _tiers) external onlyOwner {
         uint256 len = _tiers.length;
         if (len > MAX_TIERS) revert TooManyTiers();
@@ -742,7 +753,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Set maximum reputation limit
-     */
+ */
     function setMaxReputation(uint256 newMax) external onlyOwner {
         if (newMax < 1000) revert InvalidMaxReputation();
         uint256 oldMax = MAX_REPUTATION;
@@ -752,22 +763,22 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Set configurable game parameters
-     */
-    function setCoreConfig(CoreConfig calldata _config) external onlyOwner {
-        if (_config.jailRepPenaltyPercent > 100) revert InvalidCoreConfig();
-        if (_config.wantedPosterSuccessChance > 100) revert InvalidCoreConfig();
-        if (_config.breakoutSuccessChance > 100) revert InvalidCoreConfig();
-        if (_config.jailDrugConfiscationPercent > 100) revert InvalidCoreConfig();
-        if (_config.jailChancePerHeat > 1000) revert InvalidCoreConfig();
+ */
+    function setCoreConfig(CoreConfig calldata newConfig) external onlyOwner {
+        if (newConfig.jailRepPenaltyPercent > 100) revert InvalidCoreConfig();
+        if (newConfig.wantedPosterSuccessChance > 100) revert InvalidCoreConfig();
+        if (newConfig.breakoutSuccessChance > 100) revert InvalidCoreConfig();
+        if (newConfig.jailDrugConfiscationPercent > 100) revert InvalidCoreConfig();
+        if (newConfig.jailChancePerHeat > 1000) revert InvalidCoreConfig();
 
-        CoreConfig memory oldConfig = config;
-        config = _config;
-        emit CoreConfigUpdated(oldConfig, _config);
+        CoreConfig memory oldConfig = _config;
+        _config = newConfig;
+        emit CoreConfigUpdated(oldConfig, newConfig);
     }
 
     /**
      * @notice Pause the contract, disabling state-changing functions
-     */
+ */
     function pause() external onlyOwner {
         paused = true;
         emit Paused(msg.sender);
@@ -775,7 +786,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Unpause the contract, re-enabling state-changing functions
-     */
+ */
     function unpause() external onlyOwner {
         paused = false;
         emit Unpaused(msg.sender);
@@ -785,8 +796,16 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
     //                        VIEW FUNCTIONS
     // =============================================================
 
+    /**
+     * @notice Read the core config struct
+     * @dev Returns the struct (not a positional tuple) so consumers reference fields by name.
+ */
+    function config() external view returns (CoreConfig memory) {
+        return _config;
+    }
+
     function rollJailCheck(uint256 tokenId, uint256 rng) external view returns (bool) {
-        uint16 jailChance = uint16(_calcEffectiveHeat(tokenId)) * config.jailChancePerHeat;
+        uint16 jailChance = uint16(_calcEffectiveHeat(tokenId)) * _config.jailChancePerHeat;
         return uint16(rng % 1000) < jailChance;
     }
 
@@ -804,9 +823,10 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Use one attempt (auto-resets at midnight UTC)
-     */
+ */
     function useAttempt(uint256 tokenId)
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         whenNotPaused
@@ -828,9 +848,10 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Increment heat level by 1
-     */
+ */
     function incrementHeatLevel(uint256 tokenId)
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         whenNotPaused
@@ -850,7 +871,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Get the max attempts for a dealer
-     */
+ */
     function getMaxAttempts(uint256 tokenId) internal view returns (uint8) {
         BoostData storage boost = dealerBoosts[tokenId];
         if (boost.expiresAt > block.timestamp) {
@@ -865,7 +886,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Apply or extend a boost on a dealer
-     */
+ */
     function applyBoost(
         uint256 tokenId,
         uint64 duration,
@@ -876,6 +897,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
         uint8 cashMultiplier
     )
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         whenNotPaused
@@ -905,7 +927,8 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
             repMultiplier: repMultiplier,
             extraAttempts: extraAttempts,
             freeAreaMovement: freeAreaMovement,
-            cashMultiplier: cashMultiplier
+            cashMultiplier: cashMultiplier,
+            isActive: false
         });
 
         if (extraAttempts > oldExtra) {
@@ -921,16 +944,17 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Check if a dealer has an active boost
-     */
+ */
     function hasActiveBoost(uint256 tokenId) public view returns (bool) {
         return dealerBoosts[tokenId].expiresAt > block.timestamp;
     }
 
     /**
      * @notice Get boost data for a dealer
-     */
-    function getBoost(uint256 tokenId) external view returns (BoostData memory) {
-        return dealerBoosts[tokenId];
+ */
+    function getBoost(uint256 tokenId) external view returns (BoostData memory data) {
+        data = dealerBoosts[tokenId];
+        data.isActive = data.expiresAt > block.timestamp;
     }
 
 
@@ -940,9 +964,10 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Set combat stats for a dealer
-     */
+ */
     function setDealerStats(uint256 tokenId, uint8 threat, uint8 armor)
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         whenNotPaused
@@ -958,7 +983,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Get combat stats for a dealer
-     */
+ */
     function getDealerStats(uint256 tokenId)
         external
         view
@@ -974,16 +999,17 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Get the $CASH balance for a dealer
-     */
+ */
     function getCashBalance(uint256 tokenId) external view dealerExists(tokenId) returns (uint256) {
         return dealerCash[tokenId];
     }
 
     /**
      * @notice Add $CASH to a dealer's balance
-     */
+ */
     function addCash(uint256 tokenId, uint256 amount)
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         whenNotPaused
@@ -994,9 +1020,10 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Spend $CASH from a dealer's balance
-     */
+ */
     function spendCash(uint256 tokenId, uint256 amount)
         external
+        nonReentrant
         onlyAuthorized
         dealerExists(tokenId)
         whenNotPaused
@@ -1012,7 +1039,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Set the NFT contract reference
-     */
+ */
     function setNFTContract(address _nftContract) external onlyOwner {
         if (_nftContract == address(0)) revert InvalidAddress();
         nftContract = IERC721Minimal(_nftContract);
@@ -1021,7 +1048,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Set the payment handler contract reference
-     */
+ */
     function setPaymentHandler(address _paymentHandler) external onlyOwner {
         if (_paymentHandler == address(0)) revert InvalidAddress();
         paymentHandler = IDealersPaymentHandler(_paymentHandler);
@@ -1030,7 +1057,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Set the Drug Registry reference
-     */
+ */
     function setDrugRegistry(address _drugRegistry) external onlyOwner {
         if (_drugRegistry == address(0)) revert InvalidAddress();
         drugRegistry = IDrugRegistry(_drugRegistry);
@@ -1039,7 +1066,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Set the Area Registry reference
-     */
+ */
     function setAreaRegistry(address _areaRegistry) external onlyOwner {
         if (_areaRegistry == address(0)) revert InvalidAddress();
         areaRegistry = IAreaRegistry(_areaRegistry);
@@ -1054,7 +1081,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
      * @notice Pick one drug the dealer is currently holding, indexed by `rng`
      * @dev Caller-supplied randomness keeps Core deterministic. Returns (0, 0) if
      *      the dealer holds no drugs.
-     */
+ */
     function pickHeldDrugByRng(uint256 tokenId, uint256 rng)
         external
         view
@@ -1111,7 +1138,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
 
     /**
      * @notice Get the start of the current day (midnight UTC)
-     */
+ */
     function _getDayStart() private view returns (uint256) {
         return (block.timestamp / 1 days) * 1 days;
     }
@@ -1120,7 +1147,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
      * @notice Check if a dealer's attempts should be reset (new day)
      * @param tokenId The dealer token ID
      * @return True if last play was before today
-     */
+ */
     function _shouldResetAttempts(uint256 tokenId) private view returns (bool) {
         return dealers[tokenId].lastPlayTimestamp < _getDayStart();
     }
@@ -1129,7 +1156,7 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
      * @notice Get effective attempts remaining (accounts for daily reset)
      * @param tokenId The dealer token ID
      * @return Effective attempts remaining
-     */
+ */
     function _getEffectiveAttempts(uint256 tokenId) private view returns (uint8) {
         if (_shouldResetAttempts(tokenId)) {
             return getMaxAttempts(tokenId);

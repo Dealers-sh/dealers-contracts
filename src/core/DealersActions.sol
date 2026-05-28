@@ -33,7 +33,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     IAreaRegistry public areaRegistry;
     IDealersRandomness public randomness;
 
-    /// @dev Modules permitted to call arrest() — typically PVE and PVP
+    /** @dev Modules permitted to call arrest() — typically PVE and PVP */
     mapping(address => bool) public authorizedJailers;
 
 
@@ -118,7 +118,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Pay bail to release a jailed dealer, resetting heat and returning to previous area
      * @param tokenId The dealer NFT token ID
-     */
+ */
     function payBail(uint256 tokenId)
         external
         payable
@@ -164,7 +164,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
 
     /**
      * @notice Commit to a free daily jailbreak attempt; the outcome is revealed in a later tx.
-     */
+ */
     function commitBreakout(uint256 tokenId)
         external
         nonReentrant
@@ -198,7 +198,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
      * @notice Resolve a previously committed breakout. Anyone may call.
      * @dev If the reveal block has expired, the daily lockout still stands; this is a
      *      locked design decision (no attempt refund on expiry).
-     */
+ */
     function resolveBreakout(uint64 seq) external nonReentrant {
         BreakoutRound memory r = pendingBreakouts[seq];
         if (r.tokenId == 0) revert UnknownRound();
@@ -212,8 +212,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
         }
 
         uint256 rand = randomness.reveal(seq);
-        ( , , , , , , , , uint8 breakoutSuccessChance, , , ) = core.config();
-        bool success = (rand % 100) < breakoutSuccessChance;
+        bool success = (rand % 100) < core.config().breakoutSuccessChance;
 
         // If the dealer paid bail (or otherwise left jail) between commit and resolve,
         // skip the teleport — a successful breakout shouldn't yank them out of wherever
@@ -231,7 +230,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
      * @notice Move a dealer to a different area, paying the movement fee unless exempt
      * @param tokenId The dealer NFT token ID
      * @param destinationArea The target area ID (ignored when exiting black market)
-     */
+ */
     function travel(uint256 tokenId, uint8 destinationArea)
         external
         payable
@@ -287,7 +286,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Pay a fee to reset heat level to zero
      * @param tokenId The dealer NFT token ID
-     */
+ */
     function bribeCop(uint256 tokenId)
         external
         payable
@@ -298,7 +297,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
         if (gs.isJailed) revert DealerInJail();
         if (gs.heatLevel == 0) revert NoHeatToReduce();
 
-        (, uint256 bribeCopFee, , , , , , , , , , ) = core.config();
+        uint256 bribeCopFee = core.config().bribeCopFee;
         if (msg.value < bribeCopFee) revert InsufficientPayment();
 
         core.setHeatLevel(tokenId, 0);
@@ -324,7 +323,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
 
     /**
      * @notice Commit to spending an attempt to randomly clear heat. Outcome revealed later.
-     */
+ */
     function commitWantedPoster(uint256 tokenId)
         external
         nonReentrant
@@ -351,7 +350,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Resolve a previously committed wanted-poster round. Anyone may call.
      * @dev On expiry the attempt is forfeit (locked decision).
-     */
+ */
     function resolveWantedPoster(uint64 seq) external nonReentrant {
         WantedPosterRound memory r = pendingWantedPosters[seq];
         if (r.tokenId == 0) revert UnknownRound();
@@ -365,8 +364,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
         }
 
         uint256 rand = randomness.reveal(seq);
-        ( , , , , , , , uint8 wantedPosterSuccessChance, , , , ) = core.config();
-        bool success = (rand % 100) < wantedPosterSuccessChance;
+        bool success = (rand % 100) < core.config().wantedPosterSuccessChance;
 
         if (success) {
             core.setHeatLevel(r.tokenId, 0);
@@ -377,14 +375,14 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Purchase a daily attempt reset for a dealer (free for contract owner)
      * @param tokenId The dealer NFT token ID
-     */
+ */
     function purchaseAttemptReset(uint256 tokenId)
         external
         payable
         nonReentrant
     {
         bool isAdmin = msg.sender == owner();
-        (uint256 attemptResetFee, , , , , , , , , , , ) = core.config();
+        uint256 attemptResetFee = core.config().attemptResetFee;
 
         if (!isAdmin) {
             if (msg.value < attemptResetFee) revert InsufficientPayment();
@@ -400,27 +398,27 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Purchase $CASH for a dealer with ETH (free for contract owner, capped by threshold)
      * @param tokenId The dealer NFT token ID
-     */
+ */
     function purchaseCash(uint256 tokenId)
         external
         payable
         nonReentrant
     {
         bool isAdmin = msg.sender == owner();
-        (, , uint256 cashTopupPrice, uint256 cashTopupAmount, uint256 cashPurchaseThreshold, , , , , , , ) = core.config();
+        DealersCore.CoreConfig memory cfg = core.config();
 
-        if (core.getCashBalance(tokenId) >= cashPurchaseThreshold) revert CashBalanceTooHigh();
+        if (core.getCashBalance(tokenId) >= cfg.cashPurchaseThreshold) revert CashBalanceTooHigh();
 
         if (!isAdmin) {
-            if (msg.value < cashTopupPrice) revert InsufficientPayment();
+            if (msg.value < cfg.cashTopupPrice) revert InsufficientPayment();
         }
 
-        core.addCash(tokenId, cashTopupAmount);
+        core.addCash(tokenId, cfg.cashTopupAmount);
 
-        emit CashPurchased(tokenId, cashTopupAmount, cashTopupPrice);
+        emit CashPurchased(tokenId, cfg.cashTopupAmount, cfg.cashTopupPrice);
 
         if (!isAdmin) {
-            _settleMarketplaceFee(cashTopupPrice);
+            _settleMarketplaceFee(cfg.cashTopupPrice);
         }
     }
 
@@ -429,7 +427,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
      * @param tokenId The dealer NFT token ID
      * @param drugId The drug to sell
      * @param amount Quantity to sell
-     */
+ */
     function sellDrop(uint256 tokenId, uint256 drugId, uint256 amount)
         external
         nonReentrant
@@ -463,7 +461,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
      * @param confiscRng Caller-supplied entropy used to pick a held drug for confiscation
      * @return confiscDrugId Drug confiscated (0 if none)
      * @return confiscAmt Amount confiscated
-     */
+ */
     function arrest(uint256 tokenId, uint256 confiscRng)
         external
         nonReentrant
@@ -474,19 +472,19 @@ contract DealersActions is ReentrancyGuard, Ownable {
         IDealersCore.GameState memory s = core.getGameState(tokenId);
         if (s.currentArea == core.JAIL_AREA()) return (0, 0);
 
-        ( , , , , , uint8 jailRepPct, uint256 jailRepCap, , , uint8 jailDrugPct, , ) = core.config();
+        DealersCore.CoreConfig memory cfg = core.config();
 
-        uint256 repLoss = (s.reputation * jailRepPct) / 100;
-        if (repLoss > jailRepCap) repLoss = jailRepCap;
+        uint256 repLoss = (s.reputation * cfg.jailRepPenaltyPercent) / 100;
+        if (repLoss > cfg.jailRepPenaltyCap) repLoss = cfg.jailRepPenaltyCap;
 
         IDealersCore.GameOutcome memory ao;
         ao.repDelta = -int256(repLoss);
         ao.incrementHeat = true;
 
-        if (jailDrugPct > 0) {
+        if (cfg.jailDrugConfiscationPercent > 0) {
             (uint256 drugId, uint256 bal) = core.pickHeldDrugByRng(tokenId, confiscRng);
             if (drugId != 0 && bal > 0) {
-                confiscAmt = (bal * jailDrugPct + 99) / 100;
+                confiscAmt = (bal * cfg.jailDrugConfiscationPercent + 99) / 100;
                 ao.drugId = drugId;
                 ao.drugDelta = -int256(confiscAmt);
                 confiscDrugId = drugId;
@@ -505,7 +503,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
 
     /**
      * @notice Authorize or revoke a module's permission to call arrest()
-     */
+ */
     function authorizeJailer(address module, bool authorized) external onlyOwner {
         if (module == address(0)) revert InvalidAddress();
         authorizedJailers[module] = authorized;
@@ -515,7 +513,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Set the payment handler contract
      * @param _paymentHandler Address of the DealersPaymentHandler
-     */
+ */
     function setPaymentHandler(address _paymentHandler) external onlyOwner {
         if (_paymentHandler == address(0)) revert InvalidAddress();
         paymentHandler = IDealersPaymentHandler(_paymentHandler);
@@ -524,7 +522,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Set the randomness provider contract
      * @param _randomness Address of the DealersRandomness contract
-     */
+ */
     function setRandomness(address _randomness) external onlyOwner {
         if (_randomness == address(0)) revert InvalidAddress();
         randomness = IDealersRandomness(_randomness);
@@ -533,7 +531,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Set the NFT contract used for ownership checks
      * @param _nftContract Address of the DealersNFT contract
-     */
+ */
     function setNFTContract(address _nftContract) external onlyOwner {
         if (_nftContract == address(0)) revert InvalidAddress();
         nftContract = IERC721Minimal(_nftContract);
@@ -542,7 +540,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Set the area registry contract
      * @param _areaRegistry Address of the DealersAreaRegistry contract
-     */
+ */
     function setAreaRegistry(address _areaRegistry) external onlyOwner {
         if (_areaRegistry == address(0)) revert InvalidAddress();
         areaRegistry = IAreaRegistry(_areaRegistry);
@@ -564,7 +562,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
      * @dev Settle a movement fee: forward to the payment handler (when set and fee > 0)
      *      and refund any excess back to the caller. Caller must have already validated
      *      msg.value >= fee.
-     */
+ */
     function _settleMovementFee(uint256 fee) private {
         if (fee > 0 && address(paymentHandler) != address(0)) {
             paymentHandler.processMovementFee{value: fee}(msg.sender, fee);
@@ -577,7 +575,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @dev Settle a marketplace fee: forward to the payment handler (when set) and refund
      *      any excess. Caller must have already validated msg.value >= fee.
-     */
+ */
     function _settleMarketplaceFee(uint256 fee) private {
         if (address(paymentHandler) != address(0)) {
             paymentHandler.processMarketplaceFee{value: fee}(msg.sender, fee);

@@ -150,7 +150,7 @@ interface IClaimsContract {
     function dealersNFT() external view returns (address);
     function pveContract() external view returns (address);
     function pvpContract() external view returns (address);
-    function achievementCount() external view returns (uint256);
+    function nextAchievementId() external view returns (uint256);
 }
 
 interface IActionsContract {

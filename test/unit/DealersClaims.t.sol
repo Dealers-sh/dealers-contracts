@@ -102,6 +102,7 @@ contract DealersClaimsTest is Test, IERC721Receiver {
 
         core.authorizeContract(address(nft), true);
         core.authorizeContract(address(claims), true);
+        core.authorizeContract(address(this), true);
         areaRegistry.setCoreContract(address(core));
         paymentHandler.authorizeContract(address(core), true);
 
@@ -474,7 +475,7 @@ contract DealersClaimsTest is Test, IERC721Receiver {
         assertEq(a.rewardType, 1);
         assertEq(a.rewardAmount, 100);
         assertTrue(a.active);
-        assertEq(claims.achievementCount(), 1);
+        assertEq(claims.nextAchievementId(), 1);
     }
 
     function test_removeAchievement() public {

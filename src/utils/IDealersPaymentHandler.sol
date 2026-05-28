@@ -12,16 +12,16 @@ interface IDealersPaymentHandler {
     //                    STATE-MODIFYING FUNCTIONS
     // =============================================================
 
-    /// @notice Process area movement fee
+    /** @notice Process area movement fee */
     function processMovementFee(address player, uint256 amount) external payable;
 
-    /// @notice Process marketplace/boost fee
+    /** @notice Process marketplace/boost fee */
     function processMarketplaceFee(address player, uint256 amount) external payable;
 
     // =============================================================
     //                        VIEW FUNCTIONS
     // =============================================================
 
-    /// @notice Calculate fees for a given amount based on current split
+    /** @notice Calculate fees for a given amount based on current split */
     function calculateFees(uint256 amount) external view returns (uint256 bankFee, uint256 devFee);
 }

@@ -40,6 +40,9 @@ contract DealersBoostsTest is BaseTest {
         dealer1 = _mintNFT(player1);
         dealer2 = _mintNFT(player1);
         dealer3 = _mintNFT(player2);
+
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
     }
 
     // =============================================================
@@ -359,6 +362,38 @@ contract DealersBoostsTest is BaseTest {
         assertEq(storedTier.duration, 48 hours);
         assertEq(storedTier.drugMultiplier, 250);
         assertEq(storedTier.repMultiplier, 175);
+    }
+
+    function test_setBoostTier_revertsCashMultiplierBelow100() public {
+        DealersBoosts.BoostTier memory badTier = DealersBoosts.BoostTier({
+            price: 0.01 ether,
+            duration: 1 days,
+            drugMultiplier: 150,
+            repMultiplier: 150,
+            extraAttempts: 2,
+            freeAreaMovement: false,
+            cashMultiplier: 99,
+            isActive: true
+        });
+
+        vm.expectRevert(DealersBoosts.InvalidTier.selector);
+        boosts.setBoostTier(GRINDER_TIER, badTier);
+    }
+
+    function test_setBoostTier_revertsExtraAttemptsOverflow() public {
+        DealersBoosts.BoostTier memory badTier = DealersBoosts.BoostTier({
+            price: 0.01 ether,
+            duration: 1 days,
+            drugMultiplier: 150,
+            repMultiplier: 150,
+            extraAttempts: 251,
+            freeAreaMovement: false,
+            cashMultiplier: 150,
+            isActive: true
+        });
+
+        vm.expectRevert(DealersBoosts.InvalidTier.selector);
+        boosts.setBoostTier(GRINDER_TIER, badTier);
     }
 
     function test_setTierActive_toggles() public {

@@ -39,7 +39,7 @@ interface IDealersPVE {
         uint256 cashCostOnBuy
     );
 
-    /// @notice Raw mapping getter — returns tuple (for Claims compatibility)
+    /** @notice Raw mapping getter — returns tuple (for Claims compatibility) */
     function dealerPveStats(uint256 tokenId) external view returns (
         uint32 wins,
         uint32 losses,
@@ -53,7 +53,7 @@ interface IDealersPVE {
     //                    STATE-MODIFYING FUNCTIONS
     // =============================================================
 
-    /// @notice Commit a hustle round; outcome is revealed in a later tx
+    /** @notice Commit a hustle round; outcome is revealed in a later tx */
     function commitGame(
         uint256 tokenId,
         uint8 choice,
@@ -62,6 +62,6 @@ interface IDealersPVE {
         uint256 amount
     ) external returns (uint64 seq);
 
-    /// @notice Resolve a previously committed hustle round (anyone may call)
+    /** @notice Resolve a previously committed hustle round (anyone may call) */
     function resolveGame(uint64 seq) external;
 }

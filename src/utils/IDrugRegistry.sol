@@ -23,7 +23,7 @@ interface IDrugRegistry {
 
     /**
      * @dev Drug information structure
-     */
+ */
     struct DrugInfo {
         string name;
         DrugRarity rarity;
@@ -42,28 +42,28 @@ interface IDrugRegistry {
     //                      VIEW FUNCTIONS
     // =============================================================
 
-    /// @notice Get detailed information about a drug
+    /** @notice Get detailed information about a drug */
     function getDrugInfo(uint256 drugId) external view returns (DrugInfo memory);
 
-    /// @notice Get the base cash value for a drug
+    /** @notice Get the base cash value for a drug */
     function getDrugBaseCashValue(uint256 drugId) external view returns (uint256);
 
-    /// @notice Get the rarity of a drug
+    /** @notice Get the rarity of a drug */
     function getDrugRarity(uint256 drugId) external view returns (DrugRarity);
 
-    /// @notice Check if a drug is active
+    /** @notice Check if a drug is active */
     function isDrugActive(uint256 drugId) external view returns (bool);
 
-    /// @notice Get total number of drugs registered
+    /** @notice Get total number of drugs registered */
     function getTotalDrugs() external view returns (uint256);
 
-    /// @notice Get all drug IDs
+    /** @notice Get all drug IDs */
     function getAllDrugIds() external view returns (uint256[] memory);
 
-    /// @notice Get drugs by rarity
+    /** @notice Get drugs by rarity */
     function getDrugsByRarity(DrugRarity rarity) external view returns (uint256[] memory);
 
-    /// @notice Check if a drug ID is valid
+    /** @notice Check if a drug ID is valid */
     function isValidDrug(uint256 drugId) external view returns (bool);
 
 }

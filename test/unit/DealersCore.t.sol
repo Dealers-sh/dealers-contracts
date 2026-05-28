@@ -276,7 +276,7 @@ contract DealersCoreTest is BaseTest {
 
         assertEq(core.getGameState(tokenId1).heatLevel, 3);
 
-        (, uint256 bribeFee, , , , , , , , , , ) = core.config();
+        uint256 bribeFee = core.config().bribeCopFee;
         vm.prank(player1);
         actions.bribeCop{value: bribeFee}(tokenId1);
 
@@ -340,7 +340,7 @@ contract DealersCoreTest is BaseTest {
     }
 
     function dealers_resetAttempts(uint256 tokenId) internal {
-        (uint256 resetFee, , , , , , , , , , , ) = core.config();
+        uint256 resetFee = core.config().attemptResetFee;
         vm.prank(player1);
         actions.purchaseAttemptReset{value: resetFee}(tokenId);
     }
@@ -379,7 +379,7 @@ contract DealersCoreTest is BaseTest {
         core.useAttempt(tokenId1);
         core.useAttempt(tokenId1);
 
-        (uint256 resetFee, , , , , , , , , , , ) = core.config();
+        uint256 resetFee = core.config().attemptResetFee;
         vm.prank(player1);
         actions.purchaseAttemptReset{value: resetFee}(tokenId1);
 
@@ -433,6 +433,22 @@ contract DealersCoreTest is BaseTest {
         uint64 secondExpiry = boostSecond.expiresAt;
 
         assertEq(secondExpiry, firstExpiry + 1 days);
+    }
+
+    function test_getBoost_isActiveFlag() public {
+        vm.prank(owner);
+        core.authorizeContract(address(this), true);
+
+        IDealersCore.BoostData memory beforeBoost = core.getBoost(tokenId1);
+        assertFalse(beforeBoost.isActive, "no boost: isActive false");
+
+        core.applyBoost(tokenId1, 1 days, 200, 150, 3, false, 150);
+        IDealersCore.BoostData memory active = core.getBoost(tokenId1);
+        assertTrue(active.isActive, "fresh boost: isActive true");
+
+        vm.warp(block.timestamp + 2 days);
+        IDealersCore.BoostData memory expired = core.getBoost(tokenId1);
+        assertFalse(expired.isActive, "after expiry: isActive false");
     }
 
     function test_hasActiveBoost_checksExpiry() public {
@@ -512,27 +528,27 @@ contract DealersCoreTest is BaseTest {
 
         core.spendCash(tokenId1, 250 - 5);
 
-        (, , uint256 topupPrice, uint256 topupAmount, uint256 purchaseThreshold, , , , , , , ) = core.config();
+        DealersCore.CoreConfig memory cfg = core.config();
 
         uint256 cashBefore = core.getCashBalance(tokenId1);
-        assertLt(cashBefore, purchaseThreshold);
+        assertLt(cashBefore, cfg.cashPurchaseThreshold);
 
         vm.prank(player1);
-        actions.purchaseCash{value: topupPrice}(tokenId1);
+        actions.purchaseCash{value: cfg.cashTopupPrice}(tokenId1);
 
         uint256 cashAfter = core.getCashBalance(tokenId1);
-        assertEq(cashAfter, cashBefore + topupAmount);
+        assertEq(cashAfter, cashBefore + cfg.cashTopupAmount);
     }
 
     function test_purchaseCash_revertBalanceTooHigh() public {
-        (, , uint256 topupPrice, , uint256 purchaseThreshold, , , , , , , ) = core.config();
+        DealersCore.CoreConfig memory cfg = core.config();
 
         uint256 currentCash = core.getCashBalance(tokenId1);
-        assertGe(currentCash, purchaseThreshold);
+        assertGe(currentCash, cfg.cashPurchaseThreshold);
 
         vm.prank(player1);
         vm.expectRevert(DealersActions.CashBalanceTooHigh.selector);
-        actions.purchaseCash{value: topupPrice}(tokenId1);
+        actions.purchaseCash{value: cfg.cashTopupPrice}(tokenId1);
     }
 
     // =============================================================

@@ -15,6 +15,6 @@ interface IERC721Minimal {
     //                      VIEW FUNCTIONS
     // =============================================================
 
-    /// @notice Get the owner of a token
+    /** @notice Get the owner of a token */
     function ownerOf(uint256 tokenId) external view returns (address);
 }

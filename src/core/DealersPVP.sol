@@ -35,7 +35,15 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     IActionsArrest public actions;
 
     bool public paused;
-    PVPConfig public config;
+    PVPConfig internal _config;
+
+    /**
+     * @notice Drug-registry IDs reserved as PVP loot-drop rewards
+     * @dev Mirrors the order drugs are seeded in the deployment script (Goods/Contraband/Jewels).
+ */
+    uint256 public constant LOOT_DRUG_GOODS = 1;
+    uint256 public constant LOOT_DRUG_CONTRABAND = 2;
+    uint256 public constant LOOT_DRUG_JEWELS = 3;
 
     mapping(uint256 => uint256) public lastAttackDay;
     mapping(uint256 => uint256) public attacksReceivedToday;
@@ -43,12 +51,12 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
 
     uint256[3] public dropDrugIds;
 
-    /// @dev Only `areaAtCommit` is snapshotted — it locks which drug catalog the steal
-    ///      is computed against so a defender can't dodge by travelling. Combat stats
-    ///      (threat/armor/jailChance/infamy/rep) and balances (cash/drugs) are read
-    ///      live at resolve. Intentional: the protocol's paid heat-reduction
-    ///      (bribeCop / payBail) is revenue, and any defender self-mitigation via PVE
-    ///      escrow is economically worse than the 2% steal it would dodge.
+    /** @dev Only `areaAtCommit` is snapshotted — it locks which drug catalog the steal */
+    /**      is computed against so a defender can't dodge by travelling. Combat stats */
+    /**      (threat/armor/jailChance/infamy/rep) and balances (cash/drugs) are read */
+    /**      live at resolve. Intentional: the protocol's paid heat-reduction */
+    /**      (bribeCop / payBail) is revenue, and any defender self-mitigation via PVE */
+    /**      escrow is economically worse than the 2% steal it would dodge. */
     struct PvpRound {
         uint256 attackerId;
         uint256 defenderId;
@@ -135,7 +143,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
         nftContract = IERC721Minimal(_nftContract);
         areaRegistry = IAreaRegistry(_areaRegistry);
 
-        config = PVPConfig({
+        _config = PVPConfig({
             minReputation: 200,
             baseWinChance: 50,
             minWinChance: 25,
@@ -151,7 +159,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
             repRangeThreshold: 22000
         });
 
-        dropDrugIds = [uint256(1), 2, 3];
+        dropDrugIds = [LOOT_DRUG_GOODS, LOOT_DRUG_CONTRABAND, LOOT_DRUG_JEWELS];
     }
 
     // =============================================================
@@ -189,7 +197,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     /**
      * @notice Commit a PVP attack; outcome resolved later. Debits attacker's attempt
      *         and applies the per-defender daily-attack-rate limiter at commit time.
-     */
+ */
     function commitAttack(uint256 attackerId, uint256 defenderId)
         external
         nonReentrant
@@ -247,9 +255,9 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
         if (atkState.currentArea != defState.currentArea) revert DifferentArea();
         if (atkState.dailyAttemptsRemaining == 0) revert NoAttemptsRemaining();
 
-        if (config.minReputation > 0) {
-            if (atkState.totalReputation < config.minReputation) revert InsufficientReputation();
-            if (defState.totalReputation < config.minReputation) revert InsufficientReputation();
+        if (_config.minReputation > 0) {
+            if (atkState.totalReputation < _config.minReputation) revert InsufficientReputation();
+            if (defState.totalReputation < _config.minReputation) revert InsufficientReputation();
         }
 
         if (!_isInRepRange(atkState.totalReputation, defState.totalReputation)) {
@@ -264,7 +272,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
      *      that let the attacker dodge rep loss / heat / infamy by waiting out a bad roll.
      *      If the attacker is jailed by some other action between commit and resolve,
      *      the round is cleaned up with no payout.
-     */
+ */
     function resolveAttack(uint64 seq) external nonReentrant {
         PvpRound memory r = pendingPvpRounds[seq];
         if (r.attackerId == 0) revert UnknownRound();
@@ -273,6 +281,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
         delete activePvpRoundOf[r.attackerId];
 
         if (randomness.isExpired(seq)) {
+            _refundDefenderSlot(r.defenderId);
             _applyExpiryAsLoss(r);
             emit PvpExpired(seq, r.attackerId);
             return;
@@ -281,6 +290,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
         (IDealersCore.GameState memory atk, IDealersCore.GameState memory def) =
             core.getBothGameStates(r.attackerId, r.defenderId);
         if (atk.isJailed) {
+            _refundDefenderSlot(r.defenderId);
             emit PvpAttackerJailedExternally(seq, r.attackerId);
             return;
         }
@@ -294,10 +304,18 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     // =============================================================
 
     /**
+     * @notice Read the PVP config struct
+     * @dev Returns the struct (not a positional tuple) so consumers reference fields by name.
+ */
+    function config() external view returns (PVPConfig memory) {
+        return _config;
+    }
+
+    /**
      * @notice Get a dealer's PVP attack/defend win/loss record
      * @param tokenId The dealer NFT token ID
      * @return PVP statistics for the dealer
-     */
+ */
     function getDealerPvpStats(uint256 tokenId) external view returns (PvpStats memory) {
         return dealerPvpStats[tokenId];
     }
@@ -307,7 +325,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
      * @param attackerId The attacker's dealer NFT token ID
      * @param defenderId The defender's dealer NFT token ID
      * @return Win chance as a percentage (25-75)
-     */
+ */
     function calculateWinChance(uint256 attackerId, uint256 defenderId) public view returns (uint256) {
         (uint8 attackerThreat, ) = core.getDealerStats(attackerId);
         (, uint8 defenderArmor) = core.getDealerStats(defenderId);
@@ -321,7 +339,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
      * @param defenderId The defender's dealer NFT token ID
      * @return canFight True if the attack can proceed
      * @return reason 0 = can attack, 1-12 = specific blocker (same dealer, not init, jailed, etc.)
-     */
+ */
     function canAttack(uint256 attackerId, uint256 defenderId) external view returns (bool canFight, uint8 reason) {
         if (attackerId == defenderId) return (false, 1);
 
@@ -341,14 +359,14 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
         if (atkState.dailyAttemptsRemaining == 0) return (false, 9);
 
         uint256 currentDay = block.timestamp / 1 days;
-        if (lastAttackDay[defenderId] == currentDay && attacksReceivedToday[defenderId] >= config.maxAttacksPerDay) {
+        if (lastAttackDay[defenderId] == currentDay && attacksReceivedToday[defenderId] >= _config.maxAttacksPerDay) {
             return (false, 10);
         }
 
         if (!_isInRepRange(atkState.totalReputation, defState.totalReputation)) return (false, 11);
 
-        if (config.minReputation > 0) {
-            if (atkState.totalReputation < config.minReputation || defState.totalReputation < config.minReputation) {
+        if (_config.minReputation > 0) {
+            if (atkState.totalReputation < _config.minReputation || defState.totalReputation < _config.minReputation) {
                 return (false, 12);
             }
         }
@@ -363,7 +381,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
      * @param limit Maximum number of targets to return
      * @return targets Array of attackable dealers with stats and win chances
      * @return totalInArea Total dealers in the area (before filtering)
-     */
+ */
     function getPotentialTargets(
         uint256 attackerId,
         uint256 offset,
@@ -395,7 +413,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
                 continue;
             }
 
-            if (config.minReputation > 0 && candState.totalReputation < config.minReputation) {
+            if (_config.minReputation > 0 && candState.totalReputation < _config.minReputation) {
                 unchecked { ++i; }
                 continue;
             }
@@ -449,7 +467,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     /**
      * @notice Set the core state contract
      * @param _core Address of the DealersCore contract
-     */
+ */
     function setCore(address _core) external onlyOwner {
         if (_core == address(0)) revert ContractNotSet();
         address old = address(core);
@@ -460,7 +478,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     /**
      * @notice Set the NFT contract used for ownership checks
      * @param _nftContract Address of the DealersNFT contract
-     */
+ */
     function setNFTContract(address _nftContract) external onlyOwner {
         if (_nftContract == address(0)) revert ContractNotSet();
         address old = address(nftContract);
@@ -471,7 +489,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     /**
      * @notice Set the area registry contract
      * @param _areaRegistry Address of the DealersAreaRegistry contract
-     */
+ */
     function setAreaRegistry(address _areaRegistry) external onlyOwner {
         if (_areaRegistry == address(0)) revert ContractNotSet();
         address old = address(areaRegistry);
@@ -482,7 +500,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     /**
      * @notice Set the drug registry contract
      * @param _drugRegistry Address of the DealersDrugRegistry contract
-     */
+ */
     function setDrugRegistry(address _drugRegistry) external onlyOwner {
         if (_drugRegistry == address(0)) revert ContractNotSet();
         address old = address(drugRegistry);
@@ -493,7 +511,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     /**
      * @notice Set the randomness provider contract
      * @param _randomness Address of the DealersRandomness contract
-     */
+ */
     function setRandomness(address _randomness) external onlyOwner {
         if (_randomness == address(0)) revert ContractNotSet();
         address old = address(randomness);
@@ -504,7 +522,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
     /**
      * @notice Set the DealersActions contract used to delegate arrest policy
      * @param _actions Address of the DealersActions contract
-     */
+ */
     function setActions(address _actions) external onlyOwner {
         if (_actions == address(0)) revert InvalidAddress();
         address old = address(actions);
@@ -514,14 +532,14 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
 
     /**
      * @notice Update the full PVP configuration (win chances, steal rates, rep range, etc.)
-     * @param _config New PVP config struct
-     */
-    function setPVPConfig(PVPConfig calldata _config) external onlyOwner {
-        if (_config.maxWinChance > 100) revert InvalidPVPConfig();
+     * @param newConfig New PVP config struct
+ */
+    function setPVPConfig(PVPConfig calldata newConfig) external onlyOwner {
+        if (newConfig.maxWinChance > 100) revert InvalidPVPConfig();
 
-        PVPConfig memory oldConfig = config;
-        config = _config;
-        emit PVPConfigUpdated(oldConfig, _config);
+        PVPConfig memory oldConfig = _config;
+        _config = newConfig;
+        emit PVPConfigUpdated(oldConfig, newConfig);
     }
 
     /** @notice Pause all PVP battles */
@@ -542,19 +560,19 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
 
     function _isDefenderAvailable(uint256 defenderId) private view returns (bool) {
         uint256 currentDay = block.timestamp / 1 days;
-        if (lastAttackDay[defenderId] == currentDay && attacksReceivedToday[defenderId] >= config.maxAttacksPerDay) {
+        if (lastAttackDay[defenderId] == currentDay && attacksReceivedToday[defenderId] >= _config.maxAttacksPerDay) {
             return false;
         }
         return true;
     }
 
     function _isInRepRange(uint256 attackerRep, uint256 defenderRep) private view returns (bool) {
-        uint256 threshold = config.repRangeThreshold;
+        uint256 threshold = _config.repRangeThreshold;
         if (threshold > 0 && attackerRep >= threshold && defenderRep >= threshold) {
             return true;
         }
 
-        uint256 range = attackerRep * config.repRangePercent / 100;
+        uint256 range = attackerRep * _config.repRangePercent / 100;
         uint256 minRep = attackerRep > range ? attackerRep - range : 0;
         uint256 maxRep = (threshold > 0 && attackerRep >= threshold)
             ? type(uint256).max
@@ -564,9 +582,9 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
 
     function _calcWinChance(uint8 attackerThreat, uint8 defenderArmor) private view returns (uint256) {
         int256 statModifier = int256(uint256(attackerThreat)) - int256(uint256(defenderArmor));
-        int256 finalChance = int256(uint256(config.baseWinChance)) + statModifier;
-        if (finalChance < int256(uint256(config.minWinChance))) return config.minWinChance;
-        if (finalChance > int256(uint256(config.maxWinChance))) return config.maxWinChance;
+        int256 finalChance = int256(uint256(_config.baseWinChance)) + statModifier;
+        if (finalChance < int256(uint256(_config.minWinChance))) return _config.minWinChance;
+        if (finalChance > int256(uint256(_config.maxWinChance))) return _config.maxWinChance;
         return uint256(finalChance);
     }
 
@@ -598,6 +616,13 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
         return [uint8(40), 60, 0, 0];
     }
 
+    function _refundDefenderSlot(uint256 defenderId) private {
+        uint256 currentDay = block.timestamp / 1 days;
+        if (lastAttackDay[defenderId] == currentDay && attacksReceivedToday[defenderId] > 0) {
+            unchecked { --attacksReceivedToday[defenderId]; }
+        }
+    }
+
     function _checkDefenderProtection(uint256 defenderId) private {
         uint256 currentDay = block.timestamp / 1 days;
 
@@ -605,7 +630,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
             lastAttackDay[defenderId] = currentDay;
             attacksReceivedToday[defenderId] = 1;
         } else {
-            if (attacksReceivedToday[defenderId] >= config.maxAttacksPerDay) {
+            if (attacksReceivedToday[defenderId] >= _config.maxAttacksPerDay) {
                 revert DefenderExhausted();
             }
             unchecked {
@@ -638,7 +663,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
         IDealersCore.GameOutcome memory defOut;
         atkOut.incrementHeat = true;
         atkOut.repDelta = int256(atk.repLossPenalty);
-        defOut.repDelta = int256(int16(uint16(config.defenderRepBonus)));
+        defOut.repDelta = int256(int16(uint16(_config.defenderRepBonus)));
 
         _recordPvpStats(r.attackerId, r.defenderId, false);
         core.applyPVPOutcome(r.attackerId, r.defenderId, atkOut, defOut);
@@ -727,7 +752,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
             }
         } else {
             br.attackerRepChange = atk.repLossPenalty;
-            br.defenderRepChange = int16(uint16(config.defenderRepBonus));
+            br.defenderRepChange = int16(uint16(_config.defenderRepBonus));
             br.atkOut.repDelta = int256(br.attackerRepChange);
             br.defOut.repDelta = int256(br.defenderRepChange);
         }
@@ -822,14 +847,14 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
             rareDrugs, rareBalances, rareCount
         );
 
-        uint256 stolen = _ceilDiv(loserBalance * config.drugStealPercent, 100);
+        uint256 stolen = _ceilDiv(loserBalance * _config.drugStealPercent, 100);
 
         return (selectedDrugId, stolen);
     }
 
     function _computeCashSteal(uint256 loserCash) private view returns (uint256) {
         if (loserCash == 0) return 0;
-        return _ceilDiv(loserCash * config.cashStealPercent, 100);
+        return _ceilDiv(loserCash * _config.cashStealPercent, 100);
     }
 
     function _selectDrugByRarity(
@@ -848,10 +873,10 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
         uint256 pickRng = uint256(keccak256(abi.encodePacked(rng)));
         uint256 idx;
 
-        if (roll < config.rarityWeightCommon && commonCount > 0) {
+        if (roll < _config.rarityWeightCommon && commonCount > 0) {
             idx = pickRng % commonCount;
             return (commonDrugs[idx], commonBalances[idx]);
-        } else if (roll < uint256(config.rarityWeightCommon) + uint256(config.rarityWeightUncommon) && uncommonCount > 0) {
+        } else if (roll < uint256(_config.rarityWeightCommon) + uint256(_config.rarityWeightUncommon) && uncommonCount > 0) {
             idx = pickRng % uncommonCount;
             return (uncommonDrugs[idx], uncommonBalances[idx]);
         } else if (rareCount > 0) {

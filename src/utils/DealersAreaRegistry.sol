@@ -19,48 +19,48 @@ contract DealersAreaRegistry is Ownable, IAreaRegistry {
     //                            CONSTANTS
     // =============================================================
 
-    /// @notice Safe House area ID
+    /** @notice Safe House area ID */
     uint8 public constant SAFE_HOUSE_AREA = 0;
-    /// @notice Black Market ID
+    /** @notice Black Market ID */
     uint8 public constant BLACK_MARKET_AREA = 254;
-    /// @notice Jail area ID
+    /** @notice Jail area ID */
     uint8 public constant JAIL_AREA = 255;
 
     // =============================================================
     //                            STORAGE
     // =============================================================
 
-    /// @notice Area ID => Area Info
+    /** @notice Area ID => Area Info */
     mapping(uint8 => IAreaRegistry.AreaInfo) private _areas;
 
-    /// @notice Area ID => Drug ID => Drug Config
+    /** @notice Area ID => Drug ID => Drug Config */
     mapping(uint8 => mapping(uint256 => IAreaRegistry.AreaDrugConfig)) private _areaDrugs;
 
-    /// @notice Area ID => Array of drug IDs available in that area
+    /** @notice Area ID => Array of drug IDs available in that area */
     mapping(uint8 => uint256[]) private _areaDrugIds;
 
-    /// @notice Total number of regular areas (excludes Safe House and Jail)
+    /** @notice Total number of regular areas (excludes Safe House and Jail) */
     uint8 private _totalAreas;
 
-    /// @notice Reference to the Drug Registry for validation
+    /** @notice Reference to the Drug Registry for validation */
     IDrugRegistry public drugRegistry;
 
-    /// @notice Reference to the Core contract (authorized to update dealer locations)
+    /** @notice Reference to the Core contract (authorized to update dealer locations) */
     address public coreContract;
 
-    /// @notice Area ID => Array of dealer tokenIds in that area
+    /** @notice Area ID => Array of dealer tokenIds in that area */
     mapping(uint8 => uint256[]) private _dealersInArea;
 
-    /// @notice TokenId => Index position in the area's dealer array
+    /** @notice TokenId => Index position in the area's dealer array */
     mapping(uint256 => uint256) private _dealerAreaIndex;
 
-    /// @notice TokenId => Current area (to validate oldArea in updates)
+    /** @notice TokenId => Current area (to validate oldArea in updates) */
     mapping(uint256 => uint8) private _dealerCurrentArea;
 
-    /// @notice TokenId => Whether dealer has been registered
+    /** @notice TokenId => Whether dealer has been registered */
     mapping(uint256 => bool) private _dealerRegistered;
 
-    /// @notice Area ID => Whether this area is the Black Market
+    /** @notice Area ID => Whether this area is the Black Market */
     mapping(uint8 => bool) private _isBlackMarket;
 
     // =============================================================
@@ -88,7 +88,7 @@ contract DealersAreaRegistry is Ownable, IAreaRegistry {
     /**
      * @notice Initializes the Area Registry with Safe House, Jail, and Manhattan
      * @param _drugRegistry Address of the Drug Registry contract
-     */
+ */
     constructor(address _drugRegistry) {
         _initializeOwner(msg.sender);
         drugRegistry = IDrugRegistry(_drugRegistry);
@@ -232,8 +232,8 @@ contract DealersAreaRegistry is Ownable, IAreaRegistry {
         emit DealerLocationUpdated(tokenId, oldArea, newArea);
     }
 
-    /// @notice Seed the dealer-in-area reverse index after redeploying this contract.
-    ///         Call in batches (e.g. 500) to avoid gas limits. Skips already-registered dealers.
+    /** @notice Seed the dealer-in-area reverse index after redeploying this contract. */
+    /**         Call in batches (e.g. 500) to avoid gas limits. Skips already-registered dealers. */
     function seedDealerLocations(uint256[] calldata tokenIds, uint8[] calldata areas) external onlyOwner {
         if (tokenIds.length != areas.length) revert ArrayLengthMismatch();
 
@@ -294,7 +294,7 @@ contract DealersAreaRegistry is Ownable, IAreaRegistry {
      * @param isSafeHouseArea Whether this is a safe house
      * @param isJailArea Whether this is jail
      * @return areaId The ID of the newly created area
-     */
+ */
     function createArea(
         string calldata name,
         uint256 movementFee,
@@ -331,7 +331,7 @@ contract DealersAreaRegistry is Ownable, IAreaRegistry {
      * @param drugId The drug ID (must exist in DrugRegistry)
      * @param buyPrice Buy price in $CASH
      * @param sellPrice Sell price in $CASH
-     */
+ */
     function configureAreaDrug(
         uint8 areaId,
         uint256 drugId,
@@ -368,7 +368,7 @@ contract DealersAreaRegistry is Ownable, IAreaRegistry {
      * @dev Only callable by owner
      * @param areaId The area ID
      * @param drugId The drug ID to remove
-     */
+ */
     function removeAreaDrug(uint8 areaId, uint256 drugId) external onlyOwner validArea(areaId) {
         if (!_areaDrugs[areaId][drugId].isAvailable) revert DrugNotInArea();
 
@@ -393,7 +393,7 @@ contract DealersAreaRegistry is Ownable, IAreaRegistry {
      * @dev Only callable by owner
      * @param areaId The area ID
      * @param newFee The new movement fee in wei
-     */
+ */
     function updateMovementFee(uint8 areaId, uint256 newFee) external onlyOwner validArea(areaId) {
         _areas[areaId].movementFee = newFee;
         emit AreaUpdated(areaId, newFee, _areas[areaId].minReputation, _areas[areaId].isActive);
@@ -404,7 +404,7 @@ contract DealersAreaRegistry is Ownable, IAreaRegistry {
      * @dev Only callable by owner
      * @param areaId The area ID
      * @param newMinRep The new minimum reputation
-     */
+ */
     function updateMinReputation(uint8 areaId, uint256 newMinRep) external onlyOwner validArea(areaId) {
         _areas[areaId].minReputation = newMinRep;
         emit AreaUpdated(areaId, _areas[areaId].movementFee, newMinRep, _areas[areaId].isActive);
@@ -415,7 +415,7 @@ contract DealersAreaRegistry is Ownable, IAreaRegistry {
      * @dev Only callable by owner
      * @param areaId The area ID
      * @param active Whether the area should be active
-     */
+ */
     function setAreaActive(uint8 areaId, bool active) external onlyOwner {
         if (!_isValidAreaId(areaId)) revert InvalidAreaId();
         _areas[areaId].isActive = active;
@@ -429,7 +429,7 @@ contract DealersAreaRegistry is Ownable, IAreaRegistry {
      * @param drugId The drug ID
      * @param buyPrice New buy price
      * @param sellPrice New sell price
-     */
+ */
     function updateDrugPricing(
         uint8 areaId,
         uint256 drugId,
@@ -449,7 +449,7 @@ contract DealersAreaRegistry is Ownable, IAreaRegistry {
      * @notice Update the Drug Registry reference
      * @dev Only callable by owner
      * @param _drugRegistry The new Drug Registry address
-     */
+ */
     function setDrugRegistry(address _drugRegistry) external onlyOwner {
         if (_drugRegistry == address(0)) revert InvalidAddress();
         address oldRegistry = address(drugRegistry);
@@ -461,7 +461,7 @@ contract DealersAreaRegistry is Ownable, IAreaRegistry {
      * @notice Set the Core contract address (authorized to update dealer locations)
      * @dev Only callable by owner
      * @param _coreContract The Core contract address
-     */
+ */
     function setCoreContract(address _coreContract) external onlyOwner {
         if (_coreContract == address(0)) revert InvalidAddress();
         address oldCore = coreContract;
@@ -476,7 +476,7 @@ contract DealersAreaRegistry is Ownable, IAreaRegistry {
      * @param drugIds Array of drug IDs (must exist in DrugRegistry)
      * @param buyPrices Array of buy prices in $CASH
      * @param sellPrices Array of sell prices in $CASH
-     */
+ */
     function batchConfigureAreaDrugs(
         uint8 areaId,
         uint256[] calldata drugIds,

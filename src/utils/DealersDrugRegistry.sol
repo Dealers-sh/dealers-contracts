@@ -18,20 +18,20 @@ contract DealersDrugRegistry is Ownable, IDrugRegistry {
     //                            CONSTANTS
     // =============================================================
 
-    /// @notice Maximum length for drug names
+    /** @notice Maximum length for drug names */
     uint256 public constant MAX_DRUG_NAME_LENGTH = 32;
 
     // =============================================================
     //                            STORAGE
     // =============================================================
 
-    /// @notice Drug ID => Drug Info
+    /** @notice Drug ID => Drug Info */
     mapping(uint256 => DrugInfo) private _drugs;
 
-    /// @notice Total number of drugs registered
+    /** @notice Total number of drugs registered */
     uint256 private _totalDrugs;
 
-    /// @notice Array of all drug IDs for iteration
+    /** @notice Array of all drug IDs for iteration */
     uint256[] private _drugIds;
 
     // =============================================================
@@ -146,7 +146,7 @@ contract DealersDrugRegistry is Ownable, IDrugRegistry {
      * @param rarity Drug rarity tier
      * @param baseCashValue Base $CASH value for trading
      * @return drugId The ID of the newly created drug
-     */
+ */
     function createDrug(string calldata name, DrugRarity rarity, uint256 baseCashValue)
         external
         onlyOwner
@@ -161,7 +161,7 @@ contract DealersDrugRegistry is Ownable, IDrugRegistry {
      * @dev Only callable by owner
      * @param drugId The drug ID to update
      * @param newBaseCashValue The new base cash value
-     */
+ */
     function updateDrugBaseCashValue(uint256 drugId, uint256 newBaseCashValue) external onlyOwner validDrug(drugId) {
         if (newBaseCashValue == 0) revert InvalidBaseCashValue();
         _drugs[drugId].baseCashValue = newBaseCashValue;
@@ -173,7 +173,7 @@ contract DealersDrugRegistry is Ownable, IDrugRegistry {
      * @dev Only callable by owner
      * @param drugId The drug ID to update
      * @param active Whether the drug should be active
-     */
+ */
     function setDrugActive(uint256 drugId, bool active) external onlyOwner {
         if (drugId == 0 || drugId > _totalDrugs) revert InvalidDrugId();
         _drugs[drugId].isActive = active;
@@ -189,7 +189,7 @@ contract DealersDrugRegistry is Ownable, IDrugRegistry {
      * @param name Drug display name
      * @param rarity Drug rarity tier
      * @param baseCashValue Base $CASH value for trading
-     */
+ */
     function _createDrug(string memory name, DrugRarity rarity, uint256 baseCashValue) private {
         if (bytes(name).length > MAX_DRUG_NAME_LENGTH) revert DrugNameTooLong();
         if (baseCashValue == 0) revert InvalidBaseCashValue();
@@ -197,6 +197,7 @@ contract DealersDrugRegistry is Ownable, IDrugRegistry {
         ++_totalDrugs;
 
         uint256 drugId = _totalDrugs;
+        if (drugId == 0) revert InvalidDrugId();
 
         _drugs[drugId] = DrugInfo({
             name: name,

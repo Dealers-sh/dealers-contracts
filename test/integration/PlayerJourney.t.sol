@@ -207,12 +207,13 @@ contract PlayerJourneyTest is BaseTest {
         uint256 tokenId = _mintNFT(player1);
 
         vm.prank(owner);
+        core.authorizeContract(address(this), true);
+
         core.moveToArea(tokenId, MANHATTAN);
 
         (uint8 area, , , , , ) = core.getDealerData(tokenId);
         assertEq(area, MANHATTAN, "Should be in Manhattan");
 
-        vm.prank(owner);
         vm.expectRevert(DealersCore.CannotEnterSafeHouse.selector);
         core.moveToArea(tokenId, SAFE_HOUSE);
     }

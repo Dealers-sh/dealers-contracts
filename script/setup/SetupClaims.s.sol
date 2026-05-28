@@ -48,7 +48,7 @@ contract SetupClaims is DeployBase {
         IClaimsContract c = IClaimsContract(claims);
 
         console.log("Claims address:", claims);
-        console.log("Current achievement count:", c.achievementCount());
+        console.log("Current achievement count:", c.nextAchievementId());
 
         vm.startBroadcast();
 

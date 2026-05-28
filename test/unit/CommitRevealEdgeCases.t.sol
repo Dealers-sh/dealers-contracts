@@ -339,6 +339,22 @@ contract CommitRevealEdgeCasesTest is BaseTest {
         );
     }
 
+    function test_pvpExpiry_refundsDefenderSlot() public {
+        _permissivePvpConfig();
+
+        uint256 slotsBefore = pvp.attacksReceivedToday(tokenB);
+        assertEq(slotsBefore, 0);
+
+        vm.prank(player1);
+        uint64 seq = pvp.commitAttack(tokenA, tokenB);
+        assertEq(pvp.attacksReceivedToday(tokenB), 1, "slot consumed at commit");
+
+        _advanceToExpired();
+        pvp.resolveAttack(seq);
+
+        assertEq(pvp.attacksReceivedToday(tokenB), 0, "slot refunded on expiry");
+    }
+
     function test_pvpExpiry_attackerJailedExternally_noExtraPunishment() public {
         _permissivePvpConfig();
 

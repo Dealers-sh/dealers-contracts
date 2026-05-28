@@ -123,7 +123,7 @@ contract DealersMulticall is Ownable {
     /**
      * @notice Set the core state contract
      * @param _core Address of the DealersCore contract
-     */
+ */
     function setCore(address _core) external onlyOwner {
         if (_core == address(0)) revert InvalidAddress();
         core = IDealersCore(_core);
@@ -132,7 +132,7 @@ contract DealersMulticall is Ownable {
     /**
      * @notice Set the PVE game module contract
      * @param _pve Address of the DealersPVE contract
-     */
+ */
     function setPVE(address _pve) external onlyOwner {
         if (_pve == address(0)) revert InvalidAddress();
         pve = IDealersPVE(_pve);
@@ -141,7 +141,7 @@ contract DealersMulticall is Ownable {
     /**
      * @notice Set the PVP battle module contract
      * @param _pvp Address of the DealersPVP contract
-     */
+ */
     function setPVP(address _pvp) external onlyOwner {
         if (_pvp == address(0)) revert InvalidAddress();
         pvp = IDealersPVP(_pvp);
@@ -150,7 +150,7 @@ contract DealersMulticall is Ownable {
     /**
      * @notice Set the area registry contract
      * @param _areaRegistry Address of the DealersAreaRegistry contract
-     */
+ */
     function setAreaRegistry(address _areaRegistry) external onlyOwner {
         if (_areaRegistry == address(0)) revert InvalidAddress();
         areaRegistry = IAreaRegistry(_areaRegistry);
@@ -159,7 +159,7 @@ contract DealersMulticall is Ownable {
     /**
      * @notice Set the drug registry contract
      * @param _drugRegistry Address of the DealersDrugRegistry contract
-     */
+ */
     function setDrugRegistry(address _drugRegistry) external onlyOwner {
         if (_drugRegistry == address(0)) revert InvalidAddress();
         drugRegistry = IDrugRegistry(_drugRegistry);
@@ -169,7 +169,7 @@ contract DealersMulticall is Ownable {
      * @notice Aggregate a dealer's full game state into a single call
      * @param tokenId The dealer NFT token ID
      * @return state Complete dealer state including stats, drugs, boosts, and PVE/PVP records
-     */
+ */
     function getFullDealerState(uint256 tokenId) external view returns (FullDealerState memory state) {
         IDealersCore.GameState memory gs = core.getGameState(tokenId);
 
@@ -234,8 +234,7 @@ contract DealersMulticall is Ownable {
         state.infamy = core.getInfamy(tokenId);
 
         uint256 currentDay = block.timestamp / 1 days;
-        (,,,,uint8 maxAttacksPerDay,,,,,,,,) = pvp.config();
-        state.maxAttacksPerDay = maxAttacksPerDay;
+        state.maxAttacksPerDay = pvp.config().maxAttacksPerDay;
         if (pvp.lastAttackDay(tokenId) == currentDay) {
             uint256 received = pvp.attacksReceivedToday(tokenId);
             state.attacksReceivedToday = received > type(uint8).max ? type(uint8).max : uint8(received);
@@ -246,7 +245,7 @@ contract DealersMulticall is Ownable {
      * @notice Get the full economic state of a single area
      * @param areaId The area to query
      * @return Economy snapshot including drug market and dealer count
-     */
+ */
     function getAreaEconomy(uint8 areaId) external view returns (AreaEconomy memory) {
         return _buildAreaEconomy(areaId);
     }
@@ -254,7 +253,7 @@ contract DealersMulticall is Ownable {
     /**
      * @notice Get economic snapshots for all areas (including safe house, jail, and black market)
      * @return economies Array of area economies ordered by area ID
-     */
+ */
     function getAllAreas() external view returns (AreaEconomy[] memory economies) {
         uint8 totalAreas = areaRegistry.getTotalAreas();
         economies = new AreaEconomy[](totalAreas + 3);
@@ -265,7 +264,7 @@ contract DealersMulticall is Ownable {
             unchecked { ++i; }
         }
         economies[totalAreas + 1] = _buildAreaEconomy(areaRegistry.BLACK_MARKET_AREA());
-        economies[totalAreas + 2] = _buildAreaEconomy(255);
+        economies[totalAreas + 2] = _buildAreaEconomy(areaRegistry.JAIL_AREA());
     }
 
     function _buildAreaEconomy(uint8 areaId) internal view returns (AreaEconomy memory economy) {
