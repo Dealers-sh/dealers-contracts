@@ -35,7 +35,7 @@ interface IVerifyNFT {
 }
 
 interface IVerifyDrugRegistry {
-    function authorizedContracts(address) external view returns (bool);
+    function getTotalDrugs() external view returns (uint256);
     function owner() external view returns (address);
 }
 
@@ -203,8 +203,8 @@ contract VerifyConfig is DeployBase {
 
         IVerifyDrugRegistry dr = IVerifyDrugRegistry(drugRegistry);
 
-        console.log("  Authorizations:");
-        _checkAuth("    Core", dr.authorizedContracts(core), core);
+        console.log("  Status:");
+        console.log("    totalDrugs:", dr.getTotalDrugs());
 
         console.log("  Owner:", dr.owner());
         console.log("");
