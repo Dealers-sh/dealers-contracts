@@ -17,8 +17,12 @@ jobs:
 
       # Abstract is a zkSync chain — game contracts build/test with `--zksync`.
       # foundry-zksync's forge also handles plain EVM builds (the SVG renderer), so one toolchain covers both paths.
+      # Pinned to match the local toolchain that formatted the code — `forge fmt` output is
+      # version-specific, so `latest` would flag files the pinned version considers clean.
       - name: Install foundry-zksync
         uses: dutterbutter/foundry-zksync-toolchain@v2
+        with:
+          version: v0.0.25
 
       - name: Show toolchain
         run: forge --version
