@@ -18,20 +18,19 @@ jobs:
       # Abstract is a zkSync chain — game contracts build/test with `--zksync`.
       # foundry-zksync's forge also handles plain EVM builds (the SVG renderer), so one toolchain covers both paths.
       - name: Install foundry-zksync
-        run: |
-          curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
-          echo "$HOME/.foundry/bin" >> "$GITHUB_PATH"
+        uses: dutterbutter/foundry-zksync-toolchain@v2
 
       - name: Show toolchain
         run: forge --version
 
-      # Dependencies are not vendored in-repo (lib/ is gitignored, no submodules). Pin them here.
-      # OpenZeppelin is pinned to the installed tag; pin solady/forge-std once the repo commits its deps.
+      # Dependencies are not vendored in-repo (lib/ is gitignored, no submodules). Pin them here to the
+      # versions the repo was built against (package.json). NOTE: the vendored solady differs slightly from
+      # v0.1.26 (one LibString internal), so CI compiles but won't be byte-identical until deps are pinned properly.
       - name: Install dependencies
         run: |
           git clone --depth 1 --branch v5.5.0 https://github.com/OpenZeppelin/openzeppelin-contracts lib/openzeppelin-contracts
-          git clone --depth 1 https://github.com/Vectorized/solady lib/solady
-          git clone --depth 1 https://github.com/foundry-rs/forge-std lib/forge-std
+          git clone --depth 1 --branch v0.1.26 https://github.com/Vectorized/solady lib/solady
+          git clone --depth 1 --branch v1.14.0 https://github.com/foundry-rs/forge-std lib/forge-std
 
       - name: Check formatting
         run: forge fmt --check
