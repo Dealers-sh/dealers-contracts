@@ -86,11 +86,7 @@ contract CommitRevealEdgeCasesTest is BaseTest {
         pve.resolveGame(seq);
 
         IDealersCore.GameState memory afterState = core.getGameState(tokenA);
-        assertEq(
-            afterState.dailyAttemptsRemaining,
-            before.dailyAttemptsRemaining - 1,
-            "attempt forfeit on expiry"
-        );
+        assertEq(afterState.dailyAttemptsRemaining, before.dailyAttemptsRemaining - 1, "attempt forfeit on expiry");
     }
 
     function test_pveExpiry_appliesScaledRepLoss() public {
@@ -129,7 +125,7 @@ contract CommitRevealEdgeCasesTest is BaseTest {
         uint64 seq = pve.commitGame(tokenA, 0, IDealersPVE.HustleType.BUY, 4, 5);
 
         // Force a lossy outcome (no arrest, no win) by crafting rand
-        uint16 noArrest = 999;   // jailRng % 1000 high = no arrest
+        uint16 noArrest = 999; // jailRng % 1000 high = no arrest
         uint16 lossOutcome = 99; // outcomeRng % 100 = LOSS branch
         uint256 rand = _packRand(noArrest, lossOutcome, 0, 0, 0);
         _mockReveal(seq, rand);
@@ -181,9 +177,7 @@ contract CommitRevealEdgeCasesTest is BaseTest {
 
         // Lockout still in place after expired round
         assertEq(
-            core.getGameState(tokenA).lastBreakoutAttempt,
-            lastAttemptAfterCommit,
-            "lockout preserved after expiry"
+            core.getGameState(tokenA).lastBreakoutAttempt, lastAttemptAfterCommit, "lockout preserved after expiry"
         );
 
         // Same-day re-commit should still revert
@@ -291,21 +285,23 @@ contract CommitRevealEdgeCasesTest is BaseTest {
 
     function _permissivePvpConfig() internal {
         vm.prank(owner);
-        pvp.setPVPConfig(IDealersPVP.PVPConfig({
-            minReputation: 0,
-            baseWinChance: 50,
-            minWinChance: 25,
-            maxWinChance: 75,
-            maxAttacksPerDay: 3,
-            drugStealPercent: 2,
-            cashStealPercent: 1,
-            rarityWeightCommon: 50,
-            rarityWeightUncommon: 30,
-            rarityWeightRare: 20,
-            repRangePercent: 100,
-            defenderRepBonus: 2,
-            repRangeThreshold: 0
-        }));
+        pvp.setPVPConfig(
+            IDealersPVP.PVPConfig({
+                minReputation: 0,
+                baseWinChance: 50,
+                minWinChance: 25,
+                maxWinChance: 75,
+                maxAttacksPerDay: 3,
+                drugStealPercent: 2,
+                cashStealPercent: 1,
+                rarityWeightCommon: 50,
+                rarityWeightUncommon: 30,
+                rarityWeightRare: 20,
+                repRangePercent: 100,
+                defenderRepBonus: 2,
+                repRangeThreshold: 0
+            })
+        );
     }
 
     function test_pvpExpiry_appliesAttackerLossOutcome() public {
@@ -327,16 +323,8 @@ contract CommitRevealEdgeCasesTest is BaseTest {
         assertEq(core.getGameState(tokenA).heatLevel, atkHeatBefore + 1, "attacker heat incremented");
         assertLt(core.getGameState(tokenA).reputation, atkRepBefore, "attacker rep dropped");
         assertEq(core.getGameState(tokenB).reputation, defRepBefore + 2, "defender got rep bonus");
-        assertEq(
-            pvp.getDealerPvpStats(tokenA).attackLosses,
-            atkStatsBefore.attackLosses + 1,
-            "attacker loss counted"
-        );
-        assertEq(
-            pvp.getDealerPvpStats(tokenB).defendWins,
-            defStatsBefore.defendWins + 1,
-            "defender win counted"
-        );
+        assertEq(pvp.getDealerPvpStats(tokenA).attackLosses, atkStatsBefore.attackLosses + 1, "attacker loss counted");
+        assertEq(pvp.getDealerPvpStats(tokenB).defendWins, defStatsBefore.defendWins + 1, "defender win counted");
     }
 
     function test_pvpExpiry_refundsDefenderSlot() public {
@@ -387,21 +375,23 @@ contract CommitRevealEdgeCasesTest is BaseTest {
     function test_pvp_resolveAfterDefenderJailedExternally_succeeds() public {
         // Allow attacks with zero reputation and wide rep range so fresh dealers can fight.
         vm.prank(owner);
-        pvp.setPVPConfig(IDealersPVP.PVPConfig({
-            minReputation: 0,
-            baseWinChance: 50,
-            minWinChance: 25,
-            maxWinChance: 75,
-            maxAttacksPerDay: 3,
-            drugStealPercent: 2,
-            cashStealPercent: 1,
-            rarityWeightCommon: 50,
-            rarityWeightUncommon: 30,
-            rarityWeightRare: 20,
-            repRangePercent: 100,
-            defenderRepBonus: 2,
-            repRangeThreshold: 0
-        }));
+        pvp.setPVPConfig(
+            IDealersPVP.PVPConfig({
+                minReputation: 0,
+                baseWinChance: 50,
+                minWinChance: 25,
+                maxWinChance: 75,
+                maxAttacksPerDay: 3,
+                drugStealPercent: 2,
+                cashStealPercent: 1,
+                rarityWeightCommon: 50,
+                rarityWeightUncommon: 30,
+                rarityWeightRare: 20,
+                repRangePercent: 100,
+                defenderRepBonus: 2,
+                repRangeThreshold: 0
+            })
+        );
 
         // Both dealers in Manhattan from setUp. Commit attack while defender is healthy.
         vm.prank(player1);
@@ -449,11 +439,7 @@ contract CommitRevealEdgeCasesTest is BaseTest {
 
         actions.resolveBreakout(seq);
 
-        assertEq(
-            core.getGameState(tokenA).currentArea,
-            freeArea,
-            "L-01: no teleport after dealer left jail"
-        );
+        assertEq(core.getGameState(tokenA).currentArea, freeArea, "L-01: no teleport after dealer left jail");
     }
 
     // =========================================================================
@@ -470,5 +456,4 @@ contract CommitRevealEdgeCasesTest is BaseTest {
         vm.expectRevert(DealersActions.DealerInJail.selector);
         actions.commitWantedPoster(tokenA);
     }
-
 }

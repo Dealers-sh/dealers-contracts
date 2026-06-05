@@ -14,7 +14,7 @@ contract PVEGameFlowsTest is BaseTest {
     function test_buyFlow_winOutcome() public {
         uint256 cashBefore = core.getCashBalance(tokenId);
         uint256 weedBefore = core.getDrugBalance(tokenId, DRUG_WEED);
-        (, uint256 repBefore, , , , ) = core.getDealerData(tokenId);
+        (, uint256 repBefore,,,,) = core.getDealerData(tokenId);
 
         uint256 buyAmount = 10;
 
@@ -28,16 +28,10 @@ contract PVEGameFlowsTest is BaseTest {
 
             uint256 snapshotId = vm.snapshotState();
 
-            try pve.commitGame(
-                tokenId,
-                0,
-                IDealersPVE.HustleType.BUY,
-                DRUG_WEED,
-                buyAmount
-            ) {
+            try pve.commitGame(tokenId, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, buyAmount) {
                 uint256 cashAfter = core.getCashBalance(tokenId);
                 uint256 weedAfter = core.getDrugBalance(tokenId, DRUG_WEED);
-                (, uint256 repAfter, , , , ) = core.getDealerData(tokenId);
+                (, uint256 repAfter,,,,) = core.getDealerData(tokenId);
 
                 if (cashAfter == cashBefore && weedAfter > weedBefore && repAfter > repBefore) {
                     foundWin = true;
@@ -54,7 +48,7 @@ contract PVEGameFlowsTest is BaseTest {
         if (foundWin) {
             uint256 cashAfter = core.getCashBalance(tokenId);
             uint256 weedAfter = core.getDrugBalance(tokenId, DRUG_WEED);
-            (, uint256 repAfter, , , , ) = core.getDealerData(tokenId);
+            (, uint256 repAfter,,,,) = core.getDealerData(tokenId);
 
             assertEq(cashAfter, cashBefore, "WIN BUY: Cash should be kept");
             assertGt(weedAfter, weedBefore, "WIN BUY: Should have gained drugs");
@@ -80,13 +74,7 @@ contract PVEGameFlowsTest is BaseTest {
             uint256 cashBefore = core.getCashBalance(tokenId);
             uint256 weedBefore = core.getDrugBalance(tokenId, DRUG_WEED);
 
-            try pve.commitGame(
-                tokenId,
-                0,
-                IDealersPVE.HustleType.BUY,
-                DRUG_WEED,
-                buyAmount
-            ) {
+            try pve.commitGame(tokenId, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, buyAmount) {
                 uint256 cashAfter = core.getCashBalance(tokenId);
                 uint256 weedAfter = core.getDrugBalance(tokenId, DRUG_WEED);
 
@@ -127,18 +115,12 @@ contract PVEGameFlowsTest is BaseTest {
 
             uint256 cashBefore = core.getCashBalance(tokenId);
             uint256 weedBefore = core.getDrugBalance(tokenId, DRUG_WEED);
-            (, uint256 repBefore, , , , ) = core.getDealerData(tokenId);
+            (, uint256 repBefore,,,,) = core.getDealerData(tokenId);
 
-            try pve.commitGame(
-                tokenId,
-                0,
-                IDealersPVE.HustleType.BUY,
-                DRUG_WEED,
-                buyAmount
-            ) {
+            try pve.commitGame(tokenId, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, buyAmount) {
                 uint256 cashAfter = core.getCashBalance(tokenId);
                 uint256 weedAfter = core.getDrugBalance(tokenId, DRUG_WEED);
-                (, uint256 repAfter, , , , ) = core.getDealerData(tokenId);
+                (, uint256 repAfter,,,,) = core.getDealerData(tokenId);
 
                 if (cashAfter == cashBefore - cashCost && weedAfter == weedBefore && repAfter < repBefore) {
                     foundLoss = true;
@@ -179,18 +161,12 @@ contract PVEGameFlowsTest is BaseTest {
 
             uint256 cashBefore = core.getCashBalance(tokenId);
             uint256 weedBefore = core.getDrugBalance(tokenId, DRUG_WEED);
-            (, uint256 repBefore, , , , ) = core.getDealerData(tokenId);
+            (, uint256 repBefore,,,,) = core.getDealerData(tokenId);
 
-            try pve.commitGame(
-                tokenId,
-                0,
-                IDealersPVE.HustleType.SELL,
-                DRUG_WEED,
-                sellAmount
-            ) {
+            try pve.commitGame(tokenId, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, sellAmount) {
                 uint256 cashAfter = core.getCashBalance(tokenId);
                 uint256 weedAfter = core.getDrugBalance(tokenId, DRUG_WEED);
-                (, uint256 repAfter, , , , ) = core.getDealerData(tokenId);
+                (, uint256 repAfter,,,,) = core.getDealerData(tokenId);
 
                 if (weedAfter == weedBefore && cashAfter > cashBefore && repAfter > repBefore) {
                     foundWin = true;
@@ -234,13 +210,7 @@ contract PVEGameFlowsTest is BaseTest {
             uint256 cashBefore = core.getCashBalance(tokenId);
             uint256 weedBefore = core.getDrugBalance(tokenId, DRUG_WEED);
 
-            try pve.commitGame(
-                tokenId,
-                0,
-                IDealersPVE.HustleType.SELL,
-                DRUG_WEED,
-                sellAmount
-            ) {
+            try pve.commitGame(tokenId, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, sellAmount) {
                 uint256 cashAfter = core.getCashBalance(tokenId);
                 uint256 weedAfter = core.getDrugBalance(tokenId, DRUG_WEED);
 
@@ -282,18 +252,12 @@ contract PVEGameFlowsTest is BaseTest {
 
             uint256 cashBefore = core.getCashBalance(tokenId);
             uint256 weedBefore = core.getDrugBalance(tokenId, DRUG_WEED);
-            (, uint256 repBefore, , , , ) = core.getDealerData(tokenId);
+            (, uint256 repBefore,,,,) = core.getDealerData(tokenId);
 
-            try pve.commitGame(
-                tokenId,
-                0,
-                IDealersPVE.HustleType.SELL,
-                DRUG_WEED,
-                sellAmount
-            ) {
+            try pve.commitGame(tokenId, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, sellAmount) {
                 uint256 cashAfter = core.getCashBalance(tokenId);
                 uint256 weedAfter = core.getDrugBalance(tokenId, DRUG_WEED);
-                (, uint256 repAfter, , , , ) = core.getDealerData(tokenId);
+                (, uint256 repAfter,,,,) = core.getDealerData(tokenId);
 
                 if (weedAfter == weedBefore - sellAmount && cashAfter == cashBefore && repAfter < repBefore) {
                     foundLoss = true;
@@ -322,7 +286,7 @@ contract PVEGameFlowsTest is BaseTest {
             core.incrementHeatLevel(tokenId);
         }
 
-        (, , , uint8 heatLevel, , ) = core.getDealerData(tokenId);
+        (,,, uint8 heatLevel,,) = core.getDealerData(tokenId);
         assertEq(heatLevel, 5, "Heat should be 5");
 
         uint256 cashBefore = core.getCashBalance(tokenId);
@@ -339,18 +303,12 @@ contract PVEGameFlowsTest is BaseTest {
 
             uint256 snapshotId = vm.snapshotState();
 
-            (, , uint8 attempts, , , ) = core.getDealerData(tokenId);
+            (,, uint8 attempts,,,) = core.getDealerData(tokenId);
             if (attempts == 0) {
                 actions.purchaseAttemptReset{value: 0.001 ether}(tokenId);
             }
 
-            try pve.commitGame(
-                tokenId,
-                0,
-                IDealersPVE.HustleType.BUY,
-                DRUG_WEED,
-                buyAmount
-            ) {
+            try pve.commitGame(tokenId, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, buyAmount) {
                 if (core.getGameState(tokenId).isJailed) {
                     arrested = true;
 
@@ -358,7 +316,7 @@ contract PVEGameFlowsTest is BaseTest {
                     assertEq(cashAfter, cashBefore - cashCost, "Arrested: Should lose stake");
                     assertTrue(core.getGameState(tokenId).isJailed, "Should be in jail");
 
-                    (uint8 area, , , , , ) = core.getDealerData(tokenId);
+                    (uint8 area,,,,,) = core.getDealerData(tokenId);
                     assertEq(area, JAIL, "Area should be JAIL (255)");
                     break;
                 }
@@ -378,7 +336,7 @@ contract PVEGameFlowsTest is BaseTest {
     }
 
     function test_flow_multipleGamesInSession() public {
-        (, , uint8 startingAttempts, , , ) = core.getDealerData(tokenId);
+        (,, uint8 startingAttempts,,,) = core.getDealerData(tokenId);
         assertEq(startingAttempts, 5, "Should start with 5 attempts");
 
         // Add cash so 5 BUY rounds at 5 weed each are affordable.
@@ -392,22 +350,16 @@ contract PVEGameFlowsTest is BaseTest {
         uint256 winRand = _packRand(999, 60, 0, 0, 0);
         for (uint8 i = 0; i < 5; i++) {
             _commitAndResolvePve(player1, tokenId, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 5, winRand);
-            (, , uint8 attemptsAfter, , , ) = core.getDealerData(tokenId);
+            (,, uint8 attemptsAfter,,,) = core.getDealerData(tokenId);
             assertEq(attemptsAfter, 4 - i, "Attempts should decrement");
         }
 
-        (, , uint8 finalAttempts, , , ) = core.getDealerData(tokenId);
+        (,, uint8 finalAttempts,,,) = core.getDealerData(tokenId);
         assertEq(finalAttempts, 0, "Should have 0 attempts after 5 games");
 
         vm.prank(player1);
         vm.expectRevert();
-        pve.commitGame(
-            tokenId,
-            0,
-            IDealersPVE.HustleType.BUY,
-            DRUG_WEED,
-            5
-        );
+        pve.commitGame(tokenId, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 5);
     }
 
     function test_flow_insufficientCashReverts() public {
@@ -415,13 +367,7 @@ contract PVEGameFlowsTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.InsufficientCash.selector);
-        pve.commitGame(
-            tokenId,
-            0,
-            IDealersPVE.HustleType.BUY,
-            DRUG_WEED,
-            cashBalance + 100
-        );
+        pve.commitGame(tokenId, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, cashBalance + 100);
     }
 
     function test_flow_insufficientDrugsReverts() public {
@@ -429,13 +375,7 @@ contract PVEGameFlowsTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.InsufficientDrugs.selector);
-        pve.commitGame(
-            tokenId,
-            0,
-            IDealersPVE.HustleType.SELL,
-            DRUG_WEED,
-            weedBalance + 100
-        );
+        pve.commitGame(tokenId, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, weedBalance + 100);
     }
 
     function test_flow_cannotPlayInSafeHouse() public {
@@ -445,18 +385,12 @@ contract PVEGameFlowsTest is BaseTest {
         vm.prank(player1);
         actions.travel{value: 0}(safeHouseToken, SAFE_HOUSE);
 
-        (uint8 area, , , , , ) = core.getDealerData(safeHouseToken);
+        (uint8 area,,,,,) = core.getDealerData(safeHouseToken);
         assertEq(area, SAFE_HOUSE, "Should be in safe house");
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.DealerInSafeHouse.selector);
-        pve.commitGame(
-            safeHouseToken,
-            0,
-            IDealersPVE.HustleType.BUY,
-            DRUG_WEED,
-            10
-        );
+        pve.commitGame(safeHouseToken, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
     }
 
     function test_flow_cannotPlayInJail() public {
@@ -467,12 +401,6 @@ contract PVEGameFlowsTest is BaseTest {
 
         vm.prank(player1);
         vm.expectRevert(DealersPVE.DealerInJail.selector);
-        pve.commitGame(
-            tokenId,
-            0,
-            IDealersPVE.HustleType.BUY,
-            DRUG_WEED,
-            10
-        );
+        pve.commitGame(tokenId, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10);
     }
 }

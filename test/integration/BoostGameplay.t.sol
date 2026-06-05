@@ -44,13 +44,7 @@ contract BoostGameplayTest is BaseTest {
             uint256 cashBefore = core.getCashBalance(tokenId);
             uint256 weedBefore = core.getDrugBalance(tokenId, DRUG_WEED);
 
-            try pve.commitGame(
-                tokenId,
-                0,
-                IDealersPVE.HustleType.BUY,
-                DRUG_WEED,
-                buyAmount
-            ) {
+            try pve.commitGame(tokenId, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, buyAmount) {
                 uint256 cashAfter = core.getCashBalance(tokenId);
                 uint256 weedAfter = core.getDrugBalance(tokenId, DRUG_WEED);
 
@@ -58,9 +52,7 @@ contract BoostGameplayTest is BaseTest {
                     foundWin = true;
 
                     assertEq(
-                        weedAfter,
-                        weedBefore + expectedBoostedAmount,
-                        "WIN BUY with boost: Should receive 1.5x drugs"
+                        weedAfter, weedBefore + expectedBoostedAmount, "WIN BUY with boost: Should receive 1.5x drugs"
                     );
                     break;
                 }
@@ -98,16 +90,10 @@ contract BoostGameplayTest is BaseTest {
 
             uint256 snapshotId = vm.snapshotState();
 
-            (, uint256 repBefore, , , , ) = core.getDealerData(tokenId);
+            (, uint256 repBefore,,,,) = core.getDealerData(tokenId);
 
-            try pve.commitGame(
-                tokenId,
-                0,
-                IDealersPVE.HustleType.BUY,
-                DRUG_WEED,
-                50
-            ) {
-                (, uint256 repAfter, , , , ) = core.getDealerData(tokenId);
+            try pve.commitGame(tokenId, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 50) {
+                (, uint256 repAfter,,,,) = core.getDealerData(tokenId);
                 uint256 cashAfter = core.getCashBalance(tokenId);
                 uint256 cashBefore = 100;
 
@@ -171,13 +157,7 @@ contract BoostGameplayTest is BaseTest {
             uint256 cashBefore = core.getCashBalance(tokenId);
             uint256 weedBefore = core.getDrugBalance(tokenId, DRUG_WEED);
 
-            try pve.commitGame(
-                tokenId,
-                0,
-                IDealersPVE.HustleType.SELL,
-                DRUG_WEED,
-                sellAmount
-            ) {
+            try pve.commitGame(tokenId, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, sellAmount) {
                 uint256 cashAfter = core.getCashBalance(tokenId);
                 uint256 weedAfter = core.getDrugBalance(tokenId, DRUG_WEED);
 
@@ -185,9 +165,7 @@ contract BoostGameplayTest is BaseTest {
                     foundWin = true;
 
                     assertEq(
-                        cashAfter,
-                        cashBefore + expectedBoostedCash,
-                        "WIN SELL with boost: Should receive 1.75x cash"
+                        cashAfter, cashBefore + expectedBoostedCash, "WIN SELL with boost: Should receive 1.75x cash"
                     );
                     break;
                 }
@@ -250,18 +228,27 @@ contract BoostGameplayTest is BaseTest {
     }
 
     function test_boost_freeAreaMovement() public {
-        assertFalse(core.getGameState(tokenId).boostActive && core.getBoost(tokenId).freeAreaMovement, "Should not have free movement initially");
+        assertFalse(
+            core.getGameState(tokenId).boostActive && core.getBoost(tokenId).freeAreaMovement,
+            "Should not have free movement initially"
+        );
 
         vm.prank(player1);
         boosts.purchaseBoost{value: KINGPIN_PRICE}(tokenId, KINGPIN_ID);
 
-        assertTrue(core.getGameState(tokenId).boostActive && core.getBoost(tokenId).freeAreaMovement, "Kingpin should have free area movement");
+        assertTrue(
+            core.getGameState(tokenId).boostActive && core.getBoost(tokenId).freeAreaMovement,
+            "Kingpin should have free area movement"
+        );
 
         uint256 token2 = _mintAndMoveToManhattan(player1);
         vm.prank(player1);
         boosts.purchaseBoost{value: HUSTLER_PRICE}(token2, HUSTLER_ID);
 
-        assertFalse(core.getGameState(token2).boostActive && core.getBoost(token2).freeAreaMovement, "Hustler should not have free movement");
+        assertFalse(
+            core.getGameState(token2).boostActive && core.getBoost(token2).freeAreaMovement,
+            "Hustler should not have free movement"
+        );
     }
 
     function test_boost_cannotStackWhileActive() public {

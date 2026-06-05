@@ -24,23 +24,29 @@ contract DealersClaims is ReentrancyGuard, Ownable {
     //                            ENUMS
     // =============================================================
 
-    enum RewardType { REPUTATION, CASH, DRUG, ATTEMPTS }
+    enum RewardType {
+        REPUTATION,
+        CASH,
+        DRUG,
+        ATTEMPTS
+    }
 
     enum ConditionType {
-        NONE,               // 0 - unused (reserved)
-        PVE_WINS,           // 1
-        PVE_LOSSES,         // 2
-        PVE_TIES,           // 3
-        PVE_TOTAL,          // 4 - wins + losses + ties
-        PVP_ATTACK_WINS,    // 5
-        PVP_DEFEND_WINS,    // 6
-        PVP_TOTAL_WINS,     // 7 - attackWins + defendWins
-        REPUTATION,         // 8
-        CASH_BALANCE,       // 9
-        DRUG_BALANCE,       // 10 - uses conditionValue as drugId
-        PVE_DEAL_CHOICES,   // 11
+        NONE, // 0 - unused (reserved)
+        PVE_WINS, // 1
+        PVE_LOSSES, // 2
+        PVE_TIES, // 3
+        PVE_TOTAL, // 4 - wins + losses + ties
+        PVP_ATTACK_WINS, // 5
+        PVP_DEFEND_WINS, // 6
+        PVP_TOTAL_WINS, // 7 - attackWins + defendWins
+        REPUTATION, // 8
+        CASH_BALANCE, // 9
+        DRUG_BALANCE, // 10 - uses conditionValue as drugId
+        PVE_DEAL_CHOICES, // 11
         PVE_THREATEN_CHOICES, // 12
-        PVE_BAIL_CHOICES    // 13
+        PVE_BAIL_CHOICES // 13
+
     }
 
     // =============================================================
@@ -90,10 +96,14 @@ contract DealersClaims is ReentrancyGuard, Ownable {
     //                           EVENTS
     // =============================================================
 
-    event AchievementClaimed(uint256 indexed tokenId, uint256 indexed achievementId, uint8 rewardType, uint256 rewardAmount);
+    event AchievementClaimed(
+        uint256 indexed tokenId, uint256 indexed achievementId, uint8 rewardType, uint256 rewardAmount
+    );
     event RewardGranted(uint256 indexed tokenId, uint8 rewardType, uint256 rewardId, uint256 amount);
     event BatchRewardGranted(uint256 count, uint8 rewardType, uint256 rewardId, uint256 amount);
-    event AchievementSet(uint256 indexed achievementId, uint8 conditionType, uint256 threshold, uint8 rewardType, uint256 rewardAmount);
+    event AchievementSet(
+        uint256 indexed achievementId, uint8 conditionType, uint256 threshold, uint8 rewardType, uint256 rewardAmount
+    );
     event AchievementRemoved(uint256 indexed achievementId);
 
     // =============================================================
@@ -114,12 +124,7 @@ contract DealersClaims is ReentrancyGuard, Ownable {
     //                        CONSTRUCTOR
     // =============================================================
 
-    constructor(
-        address _dealersCore,
-        address _dealersNFT,
-        address _pve,
-        address _pvp
-    ) {
+    constructor(address _dealersCore, address _dealersNFT, address _pve, address _pvp) {
         if (_dealersCore == address(0) || _dealersNFT == address(0) || _pve == address(0) || _pvp == address(0)) {
             revert InvalidAddress();
         }
@@ -145,7 +150,9 @@ contract DealersClaims is ReentrancyGuard, Ownable {
         CachedStats memory cached = _buildCachedStats(tokenId);
         for (uint256 i; i < achievementIds.length;) {
             _claimAchievement(tokenId, achievementIds[i], cached);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -153,25 +160,20 @@ contract DealersClaims is ReentrancyGuard, Ownable {
     //                      ADMIN GRANT REWARDS
     // =============================================================
 
-    function grantReward(
-        uint256 tokenId,
-        uint8 rewardType,
-        uint256 rewardId,
-        uint256 amount
-    ) external onlyOwner {
+    function grantReward(uint256 tokenId, uint8 rewardType, uint256 rewardId, uint256 amount) external onlyOwner {
         _grantReward(tokenId, rewardType, rewardId, amount);
         emit RewardGranted(tokenId, rewardType, rewardId, amount);
     }
 
-    function batchGrantReward(
-        uint256[] calldata tokenIds,
-        uint8 rewardType,
-        uint256 rewardId,
-        uint256 amount
-    ) external onlyOwner {
+    function batchGrantReward(uint256[] calldata tokenIds, uint8 rewardType, uint256 rewardId, uint256 amount)
+        external
+        onlyOwner
+    {
         for (uint256 i; i < tokenIds.length;) {
             _grantReward(tokenIds[i], rewardType, rewardId, amount);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         emit BatchRewardGranted(tokenIds.length, rewardType, rewardId, amount);
     }
@@ -182,13 +184,18 @@ contract DealersClaims is ReentrancyGuard, Ownable {
         uint256[] calldata rewardIds,
         uint256[] calldata amounts
     ) external onlyOwner {
-        if (tokenIds.length != rewardTypes.length || tokenIds.length != rewardIds.length || tokenIds.length != amounts.length) {
+        if (
+            tokenIds.length != rewardTypes.length || tokenIds.length != rewardIds.length
+                || tokenIds.length != amounts.length
+        ) {
             revert LengthMismatch();
         }
         for (uint256 i; i < tokenIds.length;) {
             _grantReward(tokenIds[i], rewardTypes[i], rewardIds[i], amounts[i]);
             emit RewardGranted(tokenIds[i], rewardTypes[i], rewardIds[i], amounts[i]);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -234,8 +241,14 @@ contract DealersClaims is ReentrancyGuard, Ownable {
     }
 
     function _buildCachedStats(uint256 tokenId) internal view returns (CachedStats memory cached) {
-        (uint32 pveWins, uint32 pveLosses, uint32 pveTies, uint32 dealChoices, uint32 threatenChoices, uint32 bailChoices) =
-            pveContract.dealerPveStats(tokenId);
+        (
+            uint32 pveWins,
+            uint32 pveLosses,
+            uint32 pveTies,
+            uint32 dealChoices,
+            uint32 threatenChoices,
+            uint32 bailChoices
+        ) = pveContract.dealerPveStats(tokenId);
         (uint32 pvpAttackWins, uint32 pvpAttackLosses, uint32 pvpDefendWins, uint32 pvpDefendLosses) =
             pvpContract.dealerPvpStats(tokenId);
         IDealersCore.GameState memory gameState = dealersCore.getGameState(tokenId);
@@ -256,17 +269,27 @@ contract DealersClaims is ReentrancyGuard, Ownable {
         });
     }
 
-    function _getStatValue(uint256 tokenId, uint8 conditionType, uint256 conditionValue, CachedStats memory cached) internal view returns (uint256) {
+    function _getStatValue(uint256 tokenId, uint8 conditionType, uint256 conditionValue, CachedStats memory cached)
+        internal
+        view
+        returns (uint256)
+    {
         if (conditionType == uint8(ConditionType.PVE_WINS)) return cached.pveWins;
         if (conditionType == uint8(ConditionType.PVE_LOSSES)) return cached.pveLosses;
         if (conditionType == uint8(ConditionType.PVE_TIES)) return cached.pveTies;
-        if (conditionType == uint8(ConditionType.PVE_TOTAL)) return uint256(cached.pveWins) + uint256(cached.pveLosses) + uint256(cached.pveTies);
+        if (conditionType == uint8(ConditionType.PVE_TOTAL)) {
+            return uint256(cached.pveWins) + uint256(cached.pveLosses) + uint256(cached.pveTies);
+        }
         if (conditionType == uint8(ConditionType.PVP_ATTACK_WINS)) return cached.pvpAttackWins;
         if (conditionType == uint8(ConditionType.PVP_DEFEND_WINS)) return cached.pvpDefendWins;
-        if (conditionType == uint8(ConditionType.PVP_TOTAL_WINS)) return uint256(cached.pvpAttackWins) + uint256(cached.pvpDefendWins);
+        if (conditionType == uint8(ConditionType.PVP_TOTAL_WINS)) {
+            return uint256(cached.pvpAttackWins) + uint256(cached.pvpDefendWins);
+        }
         if (conditionType == uint8(ConditionType.REPUTATION)) return cached.totalReputation;
         if (conditionType == uint8(ConditionType.CASH_BALANCE)) return cached.cashBalance;
-        if (conditionType == uint8(ConditionType.DRUG_BALANCE)) return dealersCore.getDrugBalance(tokenId, conditionValue);
+        if (conditionType == uint8(ConditionType.DRUG_BALANCE)) {
+            return dealersCore.getDrugBalance(tokenId, conditionValue);
+        }
         if (conditionType == uint8(ConditionType.PVE_DEAL_CHOICES)) return cached.dealChoices;
         if (conditionType == uint8(ConditionType.PVE_THREATEN_CHOICES)) return cached.threatenChoices;
         if (conditionType == uint8(ConditionType.PVE_BAIL_CHOICES)) return cached.bailChoices;
@@ -292,27 +315,40 @@ contract DealersClaims is ReentrancyGuard, Ownable {
     // =============================================================
 
     function setAchievement(uint256 achievementId, Achievement calldata achievement) external onlyOwner {
-        if (achievement.conditionType == uint8(ConditionType.NONE) || achievement.conditionType > uint8(ConditionType.PVE_BAIL_CHOICES)) {
+        if (
+            achievement.conditionType == uint8(ConditionType.NONE)
+                || achievement.conditionType > uint8(ConditionType.PVE_BAIL_CHOICES)
+        ) {
             revert InvalidAchievementConfig();
         }
         if (achievement.rewardType > uint8(RewardType.ATTEMPTS)) revert InvalidAchievementConfig();
 
         achievements[achievementId] = achievement;
         if (achievementId >= nextAchievementId) nextAchievementId = achievementId + 1;
-        emit AchievementSet(achievementId, achievement.conditionType, achievement.threshold, achievement.rewardType, achievement.rewardAmount);
+        emit AchievementSet(
+            achievementId,
+            achievement.conditionType,
+            achievement.threshold,
+            achievement.rewardType,
+            achievement.rewardAmount
+        );
     }
 
     function batchMarkClaimed(uint256 achievementId, uint256[] calldata tokenIds) external onlyOwner {
         for (uint256 i; i < tokenIds.length;) {
             achievementClaimed[achievementId][tokenIds[i]] = true;
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
     function batchResetClaimed(uint256 achievementId, uint256[] calldata tokenIds) external onlyOwner {
         for (uint256 i; i < tokenIds.length;) {
             achievementClaimed[achievementId][tokenIds[i]] = false;
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 

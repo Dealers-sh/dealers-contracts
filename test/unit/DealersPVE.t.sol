@@ -19,6 +19,7 @@ contract DealersPVETest is Test, IERC721Receiver {
     function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;
     }
+
     DealersCore public core;
     DealersNFT public nft;
     DealersPVE public pve;
@@ -111,23 +112,18 @@ contract DealersPVETest is Test, IERC721Receiver {
     //              COMMIT-REVEAL HELPERS (local copy of BaseTest)
     // =========================================================================
 
-    uint16 internal constant ARREST_RNG_NO  = 999;
+    uint16 internal constant ARREST_RNG_NO = 999;
     uint16 internal constant ARREST_RNG_YES = 0;
-    uint16 internal constant OUTCOME_RNG_TIE  = 30;
-    uint16 internal constant OUTCOME_RNG_WIN  = 60;
+    uint16 internal constant OUTCOME_RNG_TIE = 30;
+    uint16 internal constant OUTCOME_RNG_WIN = 60;
     uint16 internal constant OUTCOME_RNG_LOSS = 99;
 
-    function _packRand(
-        uint16 arrestRng,
-        uint16 outcomeRng,
-        uint16 drugRng,
-        uint16 dropRng,
-        uint16 confiscRng
-    ) internal pure returns (uint256) {
-        return uint256(arrestRng)
-            | (uint256(outcomeRng) << 16)
-            | (uint256(drugRng) << 32)
-            | (uint256(dropRng) << 48)
+    function _packRand(uint16 arrestRng, uint16 outcomeRng, uint16 drugRng, uint16 dropRng, uint16 confiscRng)
+        internal
+        pure
+        returns (uint256)
+    {
+        return uint256(arrestRng) | (uint256(outcomeRng) << 16) | (uint256(drugRng) << 32) | (uint256(dropRng) << 48)
             | (uint256(confiscRng) << 64);
     }
 
@@ -139,15 +135,13 @@ contract DealersPVETest is Test, IERC721Receiver {
         return _packRand(ARREST_RNG_YES, 0, 0, 0, 0);
     }
 
-    function _advanceToRevealable(uint64 /*seq*/) internal {
+    function _advanceToRevealable(uint64 /*seq*/ ) internal {
         vm.roll(block.number + uint256(randomness.REVEAL_OFFSET()) + 1);
     }
 
     function _mockReveal(uint64 seq, uint256 mockedRand) internal {
         vm.mockCall(
-            address(randomness),
-            abi.encodeWithSelector(IDealersRandomness.reveal.selector, seq),
-            abi.encode(mockedRand)
+            address(randomness), abi.encodeWithSelector(IDealersRandomness.reveal.selector, seq), abi.encode(mockedRand)
         );
     }
 
@@ -245,55 +239,91 @@ contract DealersPVETest is Test, IERC721Receiver {
     }
 
     function _setupDrugsAndAreas() internal {
-        drugRegistry.createDrug("Goods",      IDrugRegistry.DrugRarity.COMMON,   75);
+        drugRegistry.createDrug("Goods", IDrugRegistry.DrugRarity.COMMON, 75);
         drugRegistry.createDrug("Contraband", IDrugRegistry.DrugRarity.UNCOMMON, 500);
-        drugRegistry.createDrug("Jewels",     IDrugRegistry.DrugRarity.RARE,     2500);
-        drugRegistry.createDrug("Weed",       IDrugRegistry.DrugRarity.COMMON,   1);
-        drugRegistry.createDrug("XTC",        IDrugRegistry.DrugRarity.UNCOMMON, 10);
-        drugRegistry.createDrug("Cocaine",    IDrugRegistry.DrugRarity.RARE,     100);
-        drugRegistry.createDrug("Shrooms",    IDrugRegistry.DrugRarity.UNCOMMON, 12);
-        drugRegistry.createDrug("Heroin",     IDrugRegistry.DrugRarity.RARE,     150);
-        drugRegistry.createDrug("Opioids",    IDrugRegistry.DrugRarity.COMMON,   18);
-        drugRegistry.createDrug("Meth",       IDrugRegistry.DrugRarity.UNCOMMON, 25);
-        drugRegistry.createDrug("Fentanyl",   IDrugRegistry.DrugRarity.RARE,     200);
+        drugRegistry.createDrug("Jewels", IDrugRegistry.DrugRarity.RARE, 2500);
+        drugRegistry.createDrug("Weed", IDrugRegistry.DrugRarity.COMMON, 1);
+        drugRegistry.createDrug("XTC", IDrugRegistry.DrugRarity.UNCOMMON, 10);
+        drugRegistry.createDrug("Cocaine", IDrugRegistry.DrugRarity.RARE, 100);
+        drugRegistry.createDrug("Shrooms", IDrugRegistry.DrugRarity.UNCOMMON, 12);
+        drugRegistry.createDrug("Heroin", IDrugRegistry.DrugRarity.RARE, 150);
+        drugRegistry.createDrug("Opioids", IDrugRegistry.DrugRarity.COMMON, 18);
+        drugRegistry.createDrug("Meth", IDrugRegistry.DrugRarity.UNCOMMON, 25);
+        drugRegistry.createDrug("Fentanyl", IDrugRegistry.DrugRarity.RARE, 200);
 
         areaRegistry.createArea("Manhattan", 0.001 ether, 0, false, false);
         uint256[] memory ids = new uint256[](3);
         uint256[] memory buys = new uint256[](3);
         uint256[] memory sells = new uint256[](3);
-        ids[0] = 4; ids[1] = 5; ids[2] = 6;
-        buys[0] = 1; buys[1] = 12; buys[2] = 120;
-        sells[0] = 1; sells[1] = 10; sells[2] = 100;
+        ids[0] = 4;
+        ids[1] = 5;
+        ids[2] = 6;
+        buys[0] = 1;
+        buys[1] = 12;
+        buys[2] = 120;
+        sells[0] = 1;
+        sells[1] = 10;
+        sells[2] = 100;
         areaRegistry.batchConfigureAreaDrugs(1, ids, buys, sells);
 
         areaRegistry.createArea("Amsterdam", 0.001 ether, 150, false, false);
-        ids[0] = 4; ids[1] = 7; ids[2] = 8;
-        buys[0] = 3; buys[1] = 15; buys[2] = 180;
-        sells[0] = 2; sells[1] = 12; sells[2] = 150;
+        ids[0] = 4;
+        ids[1] = 7;
+        ids[2] = 8;
+        buys[0] = 3;
+        buys[1] = 15;
+        buys[2] = 180;
+        sells[0] = 2;
+        sells[1] = 12;
+        sells[2] = 150;
         areaRegistry.batchConfigureAreaDrugs(2, ids, buys, sells);
 
         areaRegistry.createArea("Colombia", 0.001 ether, 250, false, false);
-        ids[0] = 4; ids[1] = 6; ids[2] = 8;
-        buys[0] = 1; buys[1] = 60; buys[2] = 90;
-        sells[0] = 1; sells[1] = 50; sells[2] = 75;
+        ids[0] = 4;
+        ids[1] = 6;
+        ids[2] = 8;
+        buys[0] = 1;
+        buys[1] = 60;
+        buys[2] = 90;
+        sells[0] = 1;
+        sells[1] = 50;
+        sells[2] = 75;
         areaRegistry.batchConfigureAreaDrugs(3, ids, buys, sells);
 
         areaRegistry.createArea("Hong Kong", 0.001 ether, 500, false, false);
-        ids[0] = 9; ids[1] = 10; ids[2] = 8;
-        buys[0] = 18; buys[1] = 28; buys[2] = 140;
-        sells[0] = 15; sells[1] = 22; sells[2] = 110;
+        ids[0] = 9;
+        ids[1] = 10;
+        ids[2] = 8;
+        buys[0] = 18;
+        buys[1] = 28;
+        buys[2] = 140;
+        sells[0] = 15;
+        sells[1] = 22;
+        sells[2] = 110;
         areaRegistry.batchConfigureAreaDrugs(4, ids, buys, sells);
 
         areaRegistry.createArea("Seoul", 0.001 ether, 1000, false, false);
-        ids[0] = 9; ids[1] = 10; ids[2] = 11;
-        buys[0] = 8; buys[1] = 14; buys[2] = 90;
-        sells[0] = 7; sells[1] = 12; sells[2] = 75;
+        ids[0] = 9;
+        ids[1] = 10;
+        ids[2] = 11;
+        buys[0] = 8;
+        buys[1] = 14;
+        buys[2] = 90;
+        sells[0] = 7;
+        sells[1] = 12;
+        sells[2] = 75;
         areaRegistry.batchConfigureAreaDrugs(5, ids, buys, sells);
 
         areaRegistry.createArea("Tokyo", 0.001 ether, 1500, false, false);
-        ids[0] = 9; ids[1] = 10; ids[2] = 11;
-        buys[0] = 24; buys[1] = 32; buys[2] = 200;
-        sells[0] = 20; sells[1] = 26; sells[2] = 160;
+        ids[0] = 9;
+        ids[1] = 10;
+        ids[2] = 11;
+        buys[0] = 24;
+        buys[1] = 32;
+        buys[2] = 200;
+        sells[0] = 20;
+        sells[1] = 26;
+        sells[2] = 160;
         areaRegistry.batchConfigureAreaDrugs(6, ids, buys, sells);
     }
 
@@ -332,7 +362,9 @@ contract DealersPVETest is Test, IERC721Receiver {
         uint8 cashMultiplier
     ) internal {
         core.authorizeContract(address(this), true);
-        core.applyBoost(tokenId, duration, drugMultiplier, repMultiplier, extraAttempts, freeAreaMovement, cashMultiplier);
+        core.applyBoost(
+            tokenId, duration, drugMultiplier, repMultiplier, extraAttempts, freeAreaMovement, cashMultiplier
+        );
         core.authorizeContract(address(this), false);
     }
 
@@ -358,20 +390,15 @@ contract DealersPVETest is Test, IERC721Receiver {
         _addDrugsToDealer(tokenId, DRUG_WEED, 500);
     }
 
-    function _getPrevrandaoForOutcome(
-        uint256 tokenId,
-        uint8 playerChoice,
-        uint8 desiredOutcome
-    ) internal view returns (uint256) {
+    function _getPrevrandaoForOutcome(uint256 tokenId, uint8 playerChoice, uint8 desiredOutcome)
+        internal
+        view
+        returns (uint256)
+    {
         for (uint256 i = 0; i < 10000; i++) {
             uint256 testPrevrandao = i;
-            uint256 rng = uint256(keccak256(abi.encodePacked(
-                testPrevrandao,
-                block.timestamp,
-                tokenId,
-                player1,
-                block.timestamp
-            )));
+            uint256 rng =
+                uint256(keccak256(abi.encodePacked(testPrevrandao, block.timestamp, tokenId, player1, block.timestamp)));
             uint256 gameRng = uint256(keccak256(abi.encodePacked(rng, "GAME")));
             uint8 roll = uint8(gameRng % 100);
             (, uint8 outcome) = _calculateBiasedHouseChoice(roll, playerChoice);
@@ -386,7 +413,11 @@ contract DealersPVETest is Test, IERC721Receiver {
         revert("Could not find suitable prevrandao");
     }
 
-    function _calculateBiasedHouseChoice(uint8 roll, uint8 playerChoice) internal view returns (uint8 houseChoice, uint8 outcome) {
+    function _calculateBiasedHouseChoice(uint8 roll, uint8 playerChoice)
+        internal
+        view
+        returns (uint8 houseChoice, uint8 outcome)
+    {
         uint8 _tieChance = pve.tieChance();
         uint8 _winChance = pve.winChance();
 
@@ -403,13 +434,8 @@ contract DealersPVETest is Test, IERC721Receiver {
     }
 
     function _getActualOutcome(uint256 tokenId, uint8 playerChoice, uint256 prevrandao) internal view returns (uint8) {
-        uint256 rng = uint256(keccak256(abi.encodePacked(
-            prevrandao,
-            block.timestamp,
-            tokenId,
-            player1,
-            block.timestamp
-        )));
+        uint256 rng =
+            uint256(keccak256(abi.encodePacked(prevrandao, block.timestamp, tokenId, player1, block.timestamp)));
         uint256 gameRng = uint256(keccak256(abi.encodePacked(rng, "GAME")));
         uint8 roll = uint8(gameRng % 100);
         (, uint8 outcome) = _calculateBiasedHouseChoice(roll, playerChoice);
@@ -420,13 +446,8 @@ contract DealersPVETest is Test, IERC721Receiver {
         uint8 heatAfterIncrement = currentHeatLevel < 5 ? currentHeatLevel + 1 : 5;
         for (uint256 i = 0; i < 100000; i++) {
             uint256 testPrevrandao = i;
-            uint256 rng = uint256(keccak256(abi.encodePacked(
-                testPrevrandao,
-                block.timestamp,
-                tokenId,
-                player1,
-                block.timestamp
-            )));
+            uint256 rng =
+                uint256(keccak256(abi.encodePacked(testPrevrandao, block.timestamp, tokenId, player1, block.timestamp)));
             uint8 jailRoll = uint8(rng % 100);
 
             if (jailRoll < heatAfterIncrement) {
@@ -439,13 +460,8 @@ contract DealersPVETest is Test, IERC721Receiver {
     function _getPrevrandaoNoArrest(uint256 tokenId, uint8 heatLevel) internal view returns (uint256) {
         for (uint256 i = 0; i < 1000; i++) {
             uint256 testPrevrandao = i;
-            uint256 rng = uint256(keccak256(abi.encodePacked(
-                testPrevrandao,
-                block.timestamp,
-                tokenId,
-                player1,
-                block.timestamp
-            )));
+            uint256 rng =
+                uint256(keccak256(abi.encodePacked(testPrevrandao, block.timestamp, tokenId, player1, block.timestamp)));
             uint8 jailRoll = uint8(rng % 100);
 
             if (jailRoll >= heatLevel) {
@@ -740,7 +756,9 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         assertTrue(_isInJail(DEALER_ID_1), "Dealer should be in jail");
         uint256 drugsAfter = core.getDrugBalance(DEALER_ID_1, DRUG_WEED);
-        assertLe(drugsAfter, drugsBefore - amount, "Arrested SELL loses at least staked drugs (+ possible confiscation)");
+        assertLe(
+            drugsAfter, drugsBefore - amount, "Arrested SELL loses at least staked drugs (+ possible confiscation)"
+        );
     }
 
     // =============================================================
@@ -935,13 +953,8 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         uint256 amount = 10;
 
-        (
-            int16 winRep,
-            int16 tieRep,
-            int16 lossRep,
-            uint256 cashValueOnSell,
-            uint256 cashCostOnBuy
-        ) = pve.previewHustle(DEALER_ID_1, DRUG_WEED, amount);
+        (int16 winRep, int16 tieRep, int16 lossRep, uint256 cashValueOnSell, uint256 cashCostOnBuy) =
+            pve.previewHustle(DEALER_ID_1, DRUG_WEED, amount);
 
         assertEq(winRep, 10, "Win rep for Street Dealer tier");
         assertEq(tieRep, 5, "Tie rep for Street Dealer tier");
@@ -1021,13 +1034,7 @@ contract DealersPVETest is Test, IERC721Receiver {
             uint8 choice = uint8(i % 3);
             uint16 outcomeRng = outcomes[i % 3];
             _commitAndResolvePve(
-                player1,
-                DEALER_ID_1,
-                choice,
-                IDealersPVE.HustleType.BUY,
-                DRUG_WEED,
-                1,
-                _randPveOutcome(outcomeRng)
+                player1, DEALER_ID_1, choice, IDealersPVE.HustleType.BUY, DRUG_WEED, 1, _randPveOutcome(outcomeRng)
             );
         }
 

@@ -12,11 +12,7 @@ contract DealersMulticallTest is BaseTest {
     function setUp() public override {
         super.setUp();
         multicall = new DealersMulticall(
-            address(core),
-            address(pve),
-            address(pvp),
-            address(areaRegistry),
-            address(drugRegistry)
+            address(core), address(pve), address(pvp), address(areaRegistry), address(drugRegistry)
         );
         tokenId1 = _mintAndInitialize(player1);
     }
@@ -163,8 +159,8 @@ contract DealersMulticallTest is BaseTest {
     function test_getFullDealerState_drugRarityTyped() public view {
         DealersMulticall.FullDealerState memory state = multicall.getFullDealerState(tokenId1);
 
-        assertEq(uint8(state.drugBalances[0].rarity), uint8(IDrugRegistry.DrugRarity.COMMON));    // General Goods
+        assertEq(uint8(state.drugBalances[0].rarity), uint8(IDrugRegistry.DrugRarity.COMMON)); // General Goods
         assertEq(uint8(state.drugBalances[1].rarity), uint8(IDrugRegistry.DrugRarity.UNCOMMON)); // Contraband
-        assertEq(uint8(state.drugBalances[2].rarity), uint8(IDrugRegistry.DrugRarity.RARE));     // Jewels
+        assertEq(uint8(state.drugBalances[2].rarity), uint8(IDrugRegistry.DrugRarity.RARE)); // Jewels
     }
 }

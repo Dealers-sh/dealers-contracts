@@ -33,9 +33,10 @@ contract DealersActions is ReentrancyGuard, Ownable {
     IAreaRegistry public areaRegistry;
     IDealersRandomness public randomness;
 
-    /** @dev Modules permitted to call arrest() — typically PVE and PVP */
+    /**
+     * @dev Modules permitted to call arrest() — typically PVE and PVP
+     */
     mapping(address => bool) public authorizedJailers;
-
 
     // =============================================================
     //                            EVENTS
@@ -50,11 +51,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     event DropsConverted(uint256 indexed tokenId, uint256 indexed drugId, uint256 amount, uint256 cashEarned);
     event JailerAuthorized(address indexed module, bool authorized);
     event DealerJailed(
-        uint256 indexed tokenId,
-        uint8 fromArea,
-        uint256 repLoss,
-        uint256 confiscatedDrugId,
-        uint256 confiscatedAmount
+        uint256 indexed tokenId, uint8 fromArea, uint256 repLoss, uint256 confiscatedDrugId, uint256 confiscatedAmount
     );
 
     // =============================================================
@@ -85,11 +82,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     //                          CONSTRUCTOR
     // =============================================================
 
-    constructor(
-        address _core,
-        address _nftContract,
-        address _areaRegistry
-    ) {
+    constructor(address _core, address _nftContract, address _areaRegistry) {
         if (_core == address(0)) revert InvalidAddress();
         if (_nftContract == address(0)) revert InvalidAddress();
         if (_areaRegistry == address(0)) revert InvalidAddress();
@@ -118,13 +111,8 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Pay bail to release a jailed dealer, resetting heat and returning to previous area
      * @param tokenId The dealer NFT token ID
- */
-    function payBail(uint256 tokenId)
-        external
-        payable
-        nonReentrant
-        onlyDealerOwner(tokenId)
-    {
+     */
+    function payBail(uint256 tokenId) external payable nonReentrant onlyDealerOwner(tokenId) {
         IDealersCore.GameState memory gs = core.getGameState(tokenId);
         if (!gs.isJailed) revert NotInJail();
 
@@ -164,13 +152,8 @@ contract DealersActions is ReentrancyGuard, Ownable {
 
     /**
      * @notice Commit to a free daily jailbreak attempt; the outcome is revealed in a later tx.
- */
-    function commitBreakout(uint256 tokenId)
-        external
-        nonReentrant
-        onlyDealerOwner(tokenId)
-        returns (uint64 seq)
-    {
+     */
+    function commitBreakout(uint256 tokenId) external nonReentrant onlyDealerOwner(tokenId) returns (uint64 seq) {
         if (address(randomness) == address(0)) revert ContractNotSet();
         if (activeBreakoutOf[tokenId] != 0) revert RoundPending();
 
@@ -198,7 +181,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
      * @notice Resolve a previously committed breakout. Anyone may call.
      * @dev If the reveal block has expired, the daily lockout still stands; this is a
      *      locked design decision (no attempt refund on expiry).
- */
+     */
     function resolveBreakout(uint64 seq) external nonReentrant {
         BreakoutRound memory r = pendingBreakouts[seq];
         if (r.tokenId == 0) revert UnknownRound();
@@ -230,13 +213,8 @@ contract DealersActions is ReentrancyGuard, Ownable {
      * @notice Move a dealer to a different area, paying the movement fee unless exempt
      * @param tokenId The dealer NFT token ID
      * @param destinationArea The target area ID (ignored when exiting black market)
- */
-    function travel(uint256 tokenId, uint8 destinationArea)
-        external
-        payable
-        nonReentrant
-        onlyDealerOwner(tokenId)
-    {
+     */
+    function travel(uint256 tokenId, uint8 destinationArea) external payable nonReentrant onlyDealerOwner(tokenId) {
         IDealersCore.GameState memory gs = core.getGameState(tokenId);
         if (gs.isJailed) revert DealerInJail();
 
@@ -246,9 +224,8 @@ contract DealersActions is ReentrancyGuard, Ownable {
         if (exitingBlackMarket) {
             destinationArea = gs.previousArea;
             if (
-                !areaRegistry.isValidArea(destinationArea) ||
-                areaRegistry.isJail(destinationArea) ||
-                areaRegistry.isBlackMarket(destinationArea)
+                !areaRegistry.isValidArea(destinationArea) || areaRegistry.isJail(destinationArea)
+                    || areaRegistry.isBlackMarket(destinationArea)
             ) {
                 destinationArea = core.STARTING_AREA();
             }
@@ -286,13 +263,8 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Pay a fee to reset heat level to zero
      * @param tokenId The dealer NFT token ID
- */
-    function bribeCop(uint256 tokenId)
-        external
-        payable
-        nonReentrant
-        onlyDealerOwner(tokenId)
-    {
+     */
+    function bribeCop(uint256 tokenId) external payable nonReentrant onlyDealerOwner(tokenId) {
         IDealersCore.GameState memory gs = core.getGameState(tokenId);
         if (gs.isJailed) revert DealerInJail();
         if (gs.heatLevel == 0) revert NoHeatToReduce();
@@ -323,13 +295,8 @@ contract DealersActions is ReentrancyGuard, Ownable {
 
     /**
      * @notice Commit to spending an attempt to randomly clear heat. Outcome revealed later.
- */
-    function commitWantedPoster(uint256 tokenId)
-        external
-        nonReentrant
-        onlyDealerOwner(tokenId)
-        returns (uint64 seq)
-    {
+     */
+    function commitWantedPoster(uint256 tokenId) external nonReentrant onlyDealerOwner(tokenId) returns (uint64 seq) {
         if (address(randomness) == address(0)) revert ContractNotSet();
         if (activeWantedPosterOf[tokenId] != 0) revert RoundPending();
 
@@ -350,7 +317,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Resolve a previously committed wanted-poster round. Anyone may call.
      * @dev On expiry the attempt is forfeit (locked decision).
- */
+     */
     function resolveWantedPoster(uint64 seq) external nonReentrant {
         WantedPosterRound memory r = pendingWantedPosters[seq];
         if (r.tokenId == 0) revert UnknownRound();
@@ -375,12 +342,8 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Purchase a daily attempt reset for a dealer (free for contract owner)
      * @param tokenId The dealer NFT token ID
- */
-    function purchaseAttemptReset(uint256 tokenId)
-        external
-        payable
-        nonReentrant
-    {
+     */
+    function purchaseAttemptReset(uint256 tokenId) external payable nonReentrant {
         uint256 fee = msg.sender == owner() ? 0 : core.config().attemptResetFee;
         if (msg.value < fee) revert InsufficientPayment();
 
@@ -392,12 +355,8 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Purchase $CASH for a dealer with ETH (free for contract owner, capped by threshold)
      * @param tokenId The dealer NFT token ID
- */
-    function purchaseCash(uint256 tokenId)
-        external
-        payable
-        nonReentrant
-    {
+     */
+    function purchaseCash(uint256 tokenId) external payable nonReentrant {
         DealersCore.CoreConfig memory cfg = core.config();
 
         if (core.getCashBalance(tokenId) >= cfg.cashPurchaseThreshold) revert CashBalanceTooHigh();
@@ -417,12 +376,8 @@ contract DealersActions is ReentrancyGuard, Ownable {
      * @param tokenId The dealer NFT token ID
      * @param drugId The drug to sell
      * @param amount Quantity to sell
- */
-    function sellDrop(uint256 tokenId, uint256 drugId, uint256 amount)
-        external
-        nonReentrant
-        onlyDealerOwner(tokenId)
-    {
+     */
+    function sellDrop(uint256 tokenId, uint256 drugId, uint256 amount) external nonReentrant onlyDealerOwner(tokenId) {
         if (amount == 0) revert InvalidAmount();
 
         IDealersCore.GameState memory gs = core.getGameState(tokenId);
@@ -451,7 +406,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
      * @param confiscRng Caller-supplied entropy used to pick a held drug for confiscation
      * @return confiscDrugId Drug confiscated (0 if none)
      * @return confiscAmt Amount confiscated
- */
+     */
     function arrest(uint256 tokenId, uint256 confiscRng)
         external
         nonReentrant
@@ -493,7 +448,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
 
     /**
      * @notice Authorize or revoke a module's permission to call arrest()
- */
+     */
     function authorizeJailer(address module, bool authorized) external onlyOwner {
         if (module == address(0)) revert InvalidAddress();
         authorizedJailers[module] = authorized;
@@ -503,7 +458,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Set the payment handler contract
      * @param _paymentHandler Address of the DealersPaymentHandler
- */
+     */
     function setPaymentHandler(address _paymentHandler) external onlyOwner {
         if (_paymentHandler == address(0)) revert InvalidAddress();
         paymentHandler = IDealersPaymentHandler(_paymentHandler);
@@ -512,7 +467,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Set the randomness provider contract
      * @param _randomness Address of the DealersRandomness contract
- */
+     */
     function setRandomness(address _randomness) external onlyOwner {
         if (_randomness == address(0)) revert InvalidAddress();
         randomness = IDealersRandomness(_randomness);
@@ -521,7 +476,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Set the NFT contract used for ownership checks
      * @param _nftContract Address of the DealersNFT contract
- */
+     */
     function setNFTContract(address _nftContract) external onlyOwner {
         if (_nftContract == address(0)) revert InvalidAddress();
         nftContract = IERC721Minimal(_nftContract);
@@ -530,7 +485,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @notice Set the area registry contract
      * @param _areaRegistry Address of the DealersAreaRegistry contract
- */
+     */
     function setAreaRegistry(address _areaRegistry) external onlyOwner {
         if (_areaRegistry == address(0)) revert InvalidAddress();
         areaRegistry = IAreaRegistry(_areaRegistry);
@@ -544,7 +499,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
         if (amount == 0) return;
         if (to == address(0)) revert InvalidAddress();
 
-        (bool success, ) = to.call{value: amount}("");
+        (bool success,) = to.call{value: amount}("");
         if (!success) revert ETHTransferFailed();
     }
 
@@ -552,7 +507,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
      * @dev Settle a movement fee: forward to the payment handler (when set and fee > 0)
      *      and refund any excess back to the caller. Caller must have already validated
      *      msg.value >= fee.
- */
+     */
     function _settleMovementFee(uint256 fee) private {
         if (fee > 0) {
             if (address(paymentHandler) == address(0)) revert ContractNotSet();
@@ -566,7 +521,7 @@ contract DealersActions is ReentrancyGuard, Ownable {
     /**
      * @dev Settle a marketplace fee: forward to the payment handler (when set) and refund
      *      any excess. Caller must have already validated msg.value >= fee.
- */
+     */
     function _settleMarketplaceFee(uint256 fee) private {
         if (fee > 0) {
             if (address(paymentHandler) == address(0)) revert ContractNotSet();

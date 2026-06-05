@@ -84,7 +84,7 @@ contract DealersChatFactoryTest is Test {
     }
 
     function test_createRoom_noGateStoresZero() public {
-        (,address gate,) = factory.getRoomInfo(worldKey);
+        (, address gate,) = factory.getRoomInfo(worldKey);
         assertEq(gate, address(0));
     }
 

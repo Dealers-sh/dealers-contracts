@@ -36,17 +36,17 @@ contract SetupDrugs is DeployBase {
 
         console.log("Registering 11 drugs...");
 
-        reg.createDrug("Goods",      COMMON,   75);
+        reg.createDrug("Goods", COMMON, 75);
         reg.createDrug("Contraband", UNCOMMON, 500);
-        reg.createDrug("Jewels",     RARE,     2500);
-        reg.createDrug("Weed",       COMMON,   1);
-        reg.createDrug("XTC",        UNCOMMON, 10);
-        reg.createDrug("Cocaine",    RARE,     100);
-        reg.createDrug("Shrooms",    UNCOMMON, 12);
-        reg.createDrug("Heroin",     RARE,     150);
-        reg.createDrug("Opioids",    COMMON,   18);
-        reg.createDrug("Meth",       UNCOMMON, 25);
-        reg.createDrug("Fentanyl",   RARE,     200);
+        reg.createDrug("Jewels", RARE, 2500);
+        reg.createDrug("Weed", COMMON, 1);
+        reg.createDrug("XTC", UNCOMMON, 10);
+        reg.createDrug("Cocaine", RARE, 100);
+        reg.createDrug("Shrooms", UNCOMMON, 12);
+        reg.createDrug("Heroin", RARE, 150);
+        reg.createDrug("Opioids", COMMON, 18);
+        reg.createDrug("Meth", UNCOMMON, 25);
+        reg.createDrug("Fentanyl", RARE, 200);
 
         console.log("  11 drugs registered");
     }

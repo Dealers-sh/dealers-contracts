@@ -50,8 +50,18 @@ contract UploadTraits is DeployBase {
     uint256 constant CHUNK_SIZE = 24000;
 
     string[12] categoryNames = [
-        "backdrop", "head", "expression", "eyes", "nose", "eartip",
-        "earaccessory", "facialhair", "mouth", "chin", "neck", "accessory"
+        "backdrop",
+        "head",
+        "expression",
+        "eyes",
+        "nose",
+        "eartip",
+        "earaccessory",
+        "facialhair",
+        "mouth",
+        "chin",
+        "neck",
+        "accessory"
     ];
 
     function uploadNormal() external {
@@ -218,7 +228,6 @@ contract UploadTraits is DeployBase {
         vm.stopBroadcast();
     }
 
-
     struct TraitsCtx {
         address renderer;
         uint8 charType;
@@ -245,15 +254,19 @@ contract UploadTraits is DeployBase {
         string memory traitsJson = vm.readFile(traitsPath);
 
         string memory typeKey = charType == 0 ? "normal" : "special";
-        TraitJson[] memory traits = abi.decode(
-            vm.parseJson(traitsJson, string.concat(".", typeKey)),
-            (TraitJson[])
-        );
+        TraitJson[] memory traits = abi.decode(vm.parseJson(traitsJson, string.concat(".", typeKey)), (TraitJson[]));
 
-        console.log(string.concat(
-            "Found ", vm.toString(traits.length), " ", typeKey,
-            " traits; capping to first ", vm.toString(perCat), " per category"
-        ));
+        console.log(
+            string.concat(
+                "Found ",
+                vm.toString(traits.length),
+                " ",
+                typeKey,
+                " traits; capping to first ",
+                vm.toString(perCat),
+                " per category"
+            )
+        );
 
         TraitsCtx memory ctx;
         ctx.renderer = renderer;
@@ -292,14 +305,28 @@ contract UploadTraits is DeployBase {
             console.log(string.concat("Registered ", vm.toString(finalAddCount), " new traits with renderer"));
         }
 
-        _commitPointerUpdates(typeKey, _traitNames(ctx.traits), ctx.pointers, ctx.writePointerIndices, ctx.writePointerValues, ctx.writePointerCount);
+        _commitPointerUpdates(
+            typeKey,
+            _traitNames(ctx.traits),
+            ctx.pointers,
+            ctx.writePointerIndices,
+            ctx.writePointerValues,
+            ctx.writePointerCount
+        );
 
         console.log("");
-        console.log(string.concat(
-            "Summary: uploaded ", vm.toString(ctx.uploadCount),
-            " (", vm.toString(ctx.updateCount), " re-uploads), added ",
-            vm.toString(ctx.addCount), ", skipped ", vm.toString(ctx.skipCount)
-        ));
+        console.log(
+            string.concat(
+                "Summary: uploaded ",
+                vm.toString(ctx.uploadCount),
+                " (",
+                vm.toString(ctx.updateCount),
+                " re-uploads), added ",
+                vm.toString(ctx.addCount),
+                ", skipped ",
+                vm.toString(ctx.skipCount)
+            )
+        );
     }
 
     function _uploadTraitsFromJsonRange(address renderer, uint8 charType, uint256 start, uint256 count) internal {
@@ -307,20 +334,26 @@ contract UploadTraits is DeployBase {
         string memory traitsJson = vm.readFile(traitsPath);
 
         string memory typeKey = charType == 0 ? "normal" : "special";
-        TraitJson[] memory traits = abi.decode(
-            vm.parseJson(traitsJson, string.concat(".", typeKey)),
-            (TraitJson[])
-        );
+        TraitJson[] memory traits = abi.decode(vm.parseJson(traitsJson, string.concat(".", typeKey)), (TraitJson[]));
 
         if (start > traits.length) start = traits.length;
         uint256 end = start + count;
         if (end < start || end > traits.length) end = traits.length;
         uint256 sliceLen = end - start;
 
-        console.log(string.concat(
-            "Found ", vm.toString(traits.length), " ", typeKey,
-            " traits; processing [", vm.toString(start), ", ", vm.toString(end), ")"
-        ));
+        console.log(
+            string.concat(
+                "Found ",
+                vm.toString(traits.length),
+                " ",
+                typeKey,
+                " traits; processing [",
+                vm.toString(start),
+                ", ",
+                vm.toString(end),
+                ")"
+            )
+        );
 
         TraitsCtx memory ctx;
         ctx.renderer = renderer;
@@ -363,29 +396,36 @@ contract UploadTraits is DeployBase {
             console.log(string.concat("Registered ", vm.toString(finalAddCount), " new traits with renderer"));
         }
 
-        _commitPointerUpdates(typeKey, _traitNames(ctx.traits), ctx.pointers, ctx.writePointerIndices, ctx.writePointerValues, ctx.writePointerCount);
+        _commitPointerUpdates(
+            typeKey,
+            _traitNames(ctx.traits),
+            ctx.pointers,
+            ctx.writePointerIndices,
+            ctx.writePointerValues,
+            ctx.writePointerCount
+        );
 
         console.log("");
-        console.log(string.concat(
-            "Summary: uploaded ", vm.toString(ctx.uploadCount),
-            " (",  vm.toString(ctx.updateCount), " re-uploads via updateTraitPointer), added ",
-            vm.toString(ctx.addCount), ", skipped ", vm.toString(ctx.skipCount)
-        ));
+        console.log(
+            string.concat(
+                "Summary: uploaded ",
+                vm.toString(ctx.uploadCount),
+                " (",
+                vm.toString(ctx.updateCount),
+                " re-uploads via updateTraitPointer), added ",
+                vm.toString(ctx.addCount),
+                ", skipped ",
+                vm.toString(ctx.skipCount)
+            )
+        );
     }
 
-    function _uploadTraitsFromJsonIndices(
-        address renderer,
-        uint8 charType,
-        uint256[] calldata indices
-    ) internal {
+    function _uploadTraitsFromJsonIndices(address renderer, uint8 charType, uint256[] calldata indices) internal {
         string memory traitsPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
         string memory traitsJson = vm.readFile(traitsPath);
 
         string memory typeKey = charType == 0 ? "normal" : "special";
-        TraitJson[] memory traits = abi.decode(
-            vm.parseJson(traitsJson, string.concat(".", typeKey)),
-            (TraitJson[])
-        );
+        TraitJson[] memory traits = abi.decode(vm.parseJson(traitsJson, string.concat(".", typeKey)), (TraitJson[]));
 
         bool[] memory selected = new bool[](traits.length);
         uint256 maxIdx = 0;
@@ -402,10 +442,17 @@ contract UploadTraits is DeployBase {
             }
         }
 
-        console.log(string.concat(
-            "Found ", vm.toString(traits.length), " ", typeKey,
-            " traits; processing ", vm.toString(indices.length), " indices"
-        ));
+        console.log(
+            string.concat(
+                "Found ",
+                vm.toString(traits.length),
+                " ",
+                typeKey,
+                " traits; processing ",
+                vm.toString(indices.length),
+                " indices"
+            )
+        );
 
         if (!hasAny) {
             console.log("No indices to process; nothing to do.");
@@ -453,14 +500,28 @@ contract UploadTraits is DeployBase {
             console.log(string.concat("Registered ", vm.toString(finalAddCount), " new traits with renderer"));
         }
 
-        _commitPointerUpdates(typeKey, _traitNames(ctx.traits), ctx.pointers, ctx.writePointerIndices, ctx.writePointerValues, ctx.writePointerCount);
+        _commitPointerUpdates(
+            typeKey,
+            _traitNames(ctx.traits),
+            ctx.pointers,
+            ctx.writePointerIndices,
+            ctx.writePointerValues,
+            ctx.writePointerCount
+        );
 
         console.log("");
-        console.log(string.concat(
-            "Summary: uploaded ", vm.toString(ctx.uploadCount),
-            " (",  vm.toString(ctx.updateCount), " re-uploads via updateTraitPointer), added ",
-            vm.toString(ctx.addCount), ", skipped ", vm.toString(ctx.skipCount)
-        ));
+        console.log(
+            string.concat(
+                "Summary: uploaded ",
+                vm.toString(ctx.uploadCount),
+                " (",
+                vm.toString(ctx.updateCount),
+                " re-uploads via updateTraitPointer), added ",
+                vm.toString(ctx.addCount),
+                ", skipped ",
+                vm.toString(ctx.skipCount)
+            )
+        );
     }
 
     function _processTraitEntry(TraitsCtx memory ctx, uint256 i) internal {
@@ -545,14 +606,10 @@ contract UploadTraits is DeployBase {
         return pointers;
     }
 
-
     function _uploadOneOfOnesContentRange(uint256 start, uint256 count) internal {
         string memory traitsPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
         string memory traitsJson = vm.readFile(traitsPath);
-        OneOfOneJson[] memory traits = abi.decode(
-            vm.parseJson(traitsJson, ".oneofone"),
-            (OneOfOneJson[])
-        );
+        OneOfOneJson[] memory traits = abi.decode(vm.parseJson(traitsJson, ".oneofone"), (OneOfOneJson[]));
         address[] memory pointers = _loadPointerArray(_readPointersJson(), "oneofone", traits.length);
 
         if (start > traits.length) start = traits.length;
@@ -583,10 +640,8 @@ contract UploadTraits is DeployBase {
                 continue;
             }
 
-            string memory uniqueName = string.concat(
-                "dealers-oneofone-", t.name, "-",
-                vm.toString(block.timestamp), "-", vm.toString(i)
-            );
+            string memory uniqueName =
+                string.concat("dealers-oneofone-", t.name, "-", vm.toString(block.timestamp), "-", vm.toString(i));
             address[] memory chunkPointers = _writeChunkPointers(t.content);
             (address pointer,) = FILE_STORE.createFileFromPointers(uniqueName, chunkPointers);
 
@@ -594,15 +649,23 @@ contract UploadTraits is DeployBase {
             uploadedPointers[uploadCount] = pointer;
             uploadCount++;
 
-            console.log(string.concat(
-                "  Uploaded: ", t.name, " (", vm.toString(chunkPointers.length),
-                " chunks) -> ", vm.toString(pointer)
-            ));
+            console.log(
+                string.concat(
+                    "  Uploaded: ",
+                    t.name,
+                    " (",
+                    vm.toString(chunkPointers.length),
+                    " chunks) -> ",
+                    vm.toString(pointer)
+                )
+            );
         }
 
         vm.stopBroadcast();
 
-        _commitPointerUpdates("oneofone", _oneOfOneNames(traits), pointers, uploadedIndices, uploadedPointers, uploadCount);
+        _commitPointerUpdates(
+            "oneofone", _oneOfOneNames(traits), pointers, uploadedIndices, uploadedPointers, uploadCount
+        );
 
         console.log("");
         console.log(string.concat("Summary: uploaded ", vm.toString(uploadCount), ", skipped ", vm.toString(skipCount)));
@@ -611,10 +674,7 @@ contract UploadTraits is DeployBase {
     function _uploadOneOfOnesContentIndices(uint256[] calldata indices) internal {
         string memory traitsPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
         string memory traitsJson = vm.readFile(traitsPath);
-        OneOfOneJson[] memory traits = abi.decode(
-            vm.parseJson(traitsJson, ".oneofone"),
-            (OneOfOneJson[])
-        );
+        OneOfOneJson[] memory traits = abi.decode(vm.parseJson(traitsJson, ".oneofone"), (OneOfOneJson[]));
         address[] memory pointers = _loadPointerArray(_readPointersJson(), "oneofone", traits.length);
 
         vm.startBroadcast();
@@ -642,10 +702,8 @@ contract UploadTraits is DeployBase {
                 continue;
             }
 
-            string memory uniqueName = string.concat(
-                "dealers-oneofone-", t.name, "-",
-                vm.toString(block.timestamp), "-", vm.toString(i)
-            );
+            string memory uniqueName =
+                string.concat("dealers-oneofone-", t.name, "-", vm.toString(block.timestamp), "-", vm.toString(i));
             address[] memory chunkPointers = _writeChunkPointers(t.content);
             (address pointer,) = FILE_STORE.createFileFromPointers(uniqueName, chunkPointers);
 
@@ -653,15 +711,23 @@ contract UploadTraits is DeployBase {
             uploadedPointers[uploadCount] = pointer;
             uploadCount++;
 
-            console.log(string.concat(
-                "  Uploaded: ", t.name, " (", vm.toString(chunkPointers.length),
-                " chunks) -> ", vm.toString(pointer)
-            ));
+            console.log(
+                string.concat(
+                    "  Uploaded: ",
+                    t.name,
+                    " (",
+                    vm.toString(chunkPointers.length),
+                    " chunks) -> ",
+                    vm.toString(pointer)
+                )
+            );
         }
 
         vm.stopBroadcast();
 
-        _commitPointerUpdates("oneofone", _oneOfOneNames(traits), pointers, uploadedIndices, uploadedPointers, uploadCount);
+        _commitPointerUpdates(
+            "oneofone", _oneOfOneNames(traits), pointers, uploadedIndices, uploadedPointers, uploadCount
+        );
 
         console.log("");
         console.log(string.concat("Summary: uploaded ", vm.toString(uploadCount), ", skipped ", vm.toString(skipCount)));
@@ -712,14 +778,10 @@ contract UploadTraits is DeployBase {
         _persistPointerArray(typeKey, names, pointers);
     }
 
-    function _persistPointerArray(
-        string memory typeKey,
-        string[] memory names,
-        address[] memory pointers
-    ) internal {
+    function _persistPointerArray(string memory typeKey, string[] memory names, address[] memory pointers) internal {
         string memory pointersJson = _readPointersJson();
-        PointerEntry[] memory normal   = _loadPointerEntries(pointersJson, "normal");
-        PointerEntry[] memory special  = _loadPointerEntries(pointersJson, "special");
+        PointerEntry[] memory normal = _loadPointerEntries(pointersJson, "normal");
+        PointerEntry[] memory special = _loadPointerEntries(pointersJson, "special");
         PointerEntry[] memory oneofone = _loadPointerEntries(pointersJson, "oneofone");
         address placeholder = _loadPlaceholderPointer(pointersJson);
 
@@ -733,8 +795,8 @@ contract UploadTraits is DeployBase {
 
     function _writePointersFilePlaceholder(address placeholder) internal {
         string memory pointersJson = _readPointersJson();
-        PointerEntry[] memory normal   = _loadPointerEntries(pointersJson, "normal");
-        PointerEntry[] memory special  = _loadPointerEntries(pointersJson, "special");
+        PointerEntry[] memory normal = _loadPointerEntries(pointersJson, "normal");
+        PointerEntry[] memory special = _loadPointerEntries(pointersJson, "special");
         PointerEntry[] memory oneofone = _loadPointerEntries(pointersJson, "oneofone");
         _writePointersFile(normal, special, oneofone, placeholder);
     }
@@ -746,63 +808,76 @@ contract UploadTraits is DeployBase {
         address placeholder
     ) internal {
         string memory body = string.concat(
-            '{\n  "normal": ',   _serializePointerEntries(_entryNames(normal),   _entryPointers(normal)),
-            ',\n  "special": ',  _serializePointerEntries(_entryNames(special),  _entryPointers(special)),
-            ',\n  "oneofone": ', _serializePointerEntries(_entryNames(oneofone), _entryPointers(oneofone)),
-            ',\n  "placeholder": ', _serializeAddrOrNull(placeholder),
-            '\n}\n'
+            '{\n  "normal": ',
+            _serializePointerEntries(_entryNames(normal), _entryPointers(normal)),
+            ',\n  "special": ',
+            _serializePointerEntries(_entryNames(special), _entryPointers(special)),
+            ',\n  "oneofone": ',
+            _serializePointerEntries(_entryNames(oneofone), _entryPointers(oneofone)),
+            ',\n  "placeholder": ',
+            _serializeAddrOrNull(placeholder),
+            "\n}\n"
         );
         string memory path = string.concat(vm.projectRoot(), "/", _getPointersPath());
         vm.writeFile(path, body);
     }
 
-    function _zipEntries(string[] memory names, address[] memory pointers) internal pure returns (PointerEntry[] memory) {
+    function _zipEntries(string[] memory names, address[] memory pointers)
+        internal
+        pure
+        returns (PointerEntry[] memory)
+    {
         require(names.length == pointers.length, "Length mismatch");
         PointerEntry[] memory entries = new PointerEntry[](names.length);
         for (uint256 i = 0; i < names.length; i++) {
-            entries[i] = PointerEntry({ name: names[i], pointer: pointers[i] });
+            entries[i] = PointerEntry({name: names[i], pointer: pointers[i]});
         }
         return entries;
     }
 
     function _entryNames(PointerEntry[] memory entries) internal pure returns (string[] memory out) {
         out = new string[](entries.length);
-        for (uint256 i = 0; i < entries.length; i++) out[i] = entries[i].name;
+        for (uint256 i = 0; i < entries.length; i++) {
+            out[i] = entries[i].name;
+        }
     }
 
     function _entryPointers(PointerEntry[] memory entries) internal pure returns (address[] memory out) {
         out = new address[](entries.length);
-        for (uint256 i = 0; i < entries.length; i++) out[i] = entries[i].pointer;
+        for (uint256 i = 0; i < entries.length; i++) {
+            out[i] = entries[i].pointer;
+        }
     }
 
     function _traitNames(TraitJson[] memory traits) internal pure returns (string[] memory out) {
         out = new string[](traits.length);
-        for (uint256 i = 0; i < traits.length; i++) out[i] = traits[i].name;
+        for (uint256 i = 0; i < traits.length; i++) {
+            out[i] = traits[i].name;
+        }
     }
 
     function _oneOfOneNames(OneOfOneJson[] memory traits) internal pure returns (string[] memory out) {
         out = new string[](traits.length);
-        for (uint256 i = 0; i < traits.length; i++) out[i] = traits[i].name;
+        for (uint256 i = 0; i < traits.length; i++) {
+            out[i] = traits[i].name;
+        }
     }
 
     function _eq(string memory a, string memory b) internal pure returns (bool) {
         return keccak256(bytes(a)) == keccak256(bytes(b));
     }
 
-    function _generateUniqueName(
-        uint8 charType,
-        uint8 category,
-        string memory traitName,
-        uint256 index
-    ) internal view returns (string memory) {
+    function _generateUniqueName(uint8 charType, uint8 category, string memory traitName, uint256 index)
+        internal
+        view
+        returns (string memory)
+    {
         string memory prefix = charType == 0 ? "dealers-normal" : "dealers-special";
         string memory categoryName = categoryNames[category];
         return string.concat(
-            prefix, "-", categoryName, "-", traitName, "-",
-            vm.toString(block.timestamp), "-", vm.toString(index)
+            prefix, "-", categoryName, "-", traitName, "-", vm.toString(block.timestamp), "-", vm.toString(index)
         );
     }
-
 }
 
 struct TraitJson {
@@ -820,4 +895,3 @@ struct OneOfOneJson {
 struct PlaceholderJson {
     string content;
 }
-

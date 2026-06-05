@@ -25,20 +25,22 @@ import "../base/DeployBase.s.sol";
  */
 interface IHeistsAdmin {
     struct DifficultyConfig {
-        uint256 repGate;   // totalReputation required to enter
-        uint96 cashEntry;  // $CASH stake (sizes the drug/$CASH pot)
+        uint256 repGate; // totalReputation required to enter
+        uint96 cashEntry; // $CASH stake (sizes the drug/$CASH pot)
         bool active;
     }
 
     struct JackpotStage {
-        uint16 triggerPct;  // 0-100, chance the jackpot triggers on a winning stage
-        uint32 minMultBps;  // value floor as bps of the ETH add-on (> 10000)
-        uint32 maxMultBps;  // value ceiling as bps of the ETH add-on
+        uint16 triggerPct; // 0-100, chance the jackpot triggers on a winning stage
+        uint32 minMultBps; // value floor as bps of the ETH add-on (> 10000)
+        uint32 maxMultBps; // value ceiling as bps of the ETH add-on
     }
 
     function setDifficultyConfig(uint8 difficulty, DifficultyConfig calldata cfg) external;
-    function setStageOdds(uint8[5] calldata cleanOdds, uint8[5] calldata setbackOdds, uint16[5] calldata setbackKeepBps) external;
-    function setStageRewards(uint32[5] calldata potMinBps, uint32[5] calldata potMaxBps, uint16[5] calldata repReward) external;
+    function setStageOdds(uint8[5] calldata cleanOdds, uint8[5] calldata setbackOdds, uint16[5] calldata setbackKeepBps)
+        external;
+    function setStageRewards(uint32[5] calldata potMinBps, uint32[5] calldata potMaxBps, uint16[5] calldata repReward)
+        external;
     function setSupplyMix(uint8[3][5] calldata mix) external;
     function setJackpotConfig(JackpotStage[5] calldata cfg) external;
     function setEthAddOn(uint96 amount) external;
@@ -66,8 +68,8 @@ contract SetupHeists is DeployBase {
         //      D1 Warehouse Job: gate Capo     (Seoul)
         //      D2 Cartel Heist : gate Underboss (Dubai); serves Underboss -> Godfather
         // -------------------------------------------------------------------
-        h.setDifficultyConfig(0, IHeistsAdmin.DifficultyConfig({repGate: 600,  cashEntry: 600,   active: true}));
-        h.setDifficultyConfig(1, IHeistsAdmin.DifficultyConfig({repGate: 1500, cashEntry: 2500,  active: true}));
+        h.setDifficultyConfig(0, IHeistsAdmin.DifficultyConfig({repGate: 600, cashEntry: 600, active: true}));
+        h.setDifficultyConfig(1, IHeistsAdmin.DifficultyConfig({repGate: 1500, cashEntry: 2500, active: true}));
         h.setDifficultyConfig(2, IHeistsAdmin.DifficultyConfig({repGate: 5500, cashEntry: 12000, active: true}));
 
         // -------------------------------------------------------------------
@@ -75,8 +77,8 @@ contract SetupHeists is DeployBase {
         //    clean = advance/cash; setback = end with partial pot; bust = lose all (remainder).
         // -------------------------------------------------------------------
         h.setStageOdds(
-            [uint8(72), 62, 52, 42, 32],          // clean odds per stage
-            [uint8(20), 28, 33, 38, 40],          // setback band (bust = 100 - clean - setback)
+            [uint8(72), 62, 52, 42, 32], // clean odds per stage
+            [uint8(20), 28, 33, 38, 40], // setback band (bust = 100 - clean - setback)
             [uint16(5000), 4500, 4000, 3500, 3000] // setback keeps this fraction of the pot (bps)
         );
 
@@ -88,7 +90,7 @@ contract SetupHeists is DeployBase {
         h.setStageRewards(
             [uint32(10000), 18000, 30000, 52000, 100000], // pot min bps
             [uint32(14000), 28000, 46000, 78000, 160000], // pot max bps
-            [uint16(0), 2, 4, 7, 12]                       // rep granted on payout per stage
+            [uint16(0), 2, 4, 7, 12] // rep granted on payout per stage
         );
 
         // -------------------------------------------------------------------
@@ -109,9 +111,9 @@ contract SetupHeists is DeployBase {
         //    Multipliers unchanged; minMultBps > 10000 guarantees a win pays above the add-on.
         // -------------------------------------------------------------------
         IHeistsAdmin.JackpotStage[5] memory jc;
-        jc[0] = IHeistsAdmin.JackpotStage({triggerPct: 3,  minMultBps: 12000, maxMultBps: 30000});
-        jc[1] = IHeistsAdmin.JackpotStage({triggerPct: 5,  minMultBps: 15000, maxMultBps: 45000});
-        jc[2] = IHeistsAdmin.JackpotStage({triggerPct: 8,  minMultBps: 20000, maxMultBps: 70000});
+        jc[0] = IHeistsAdmin.JackpotStage({triggerPct: 3, minMultBps: 12000, maxMultBps: 30000});
+        jc[1] = IHeistsAdmin.JackpotStage({triggerPct: 5, minMultBps: 15000, maxMultBps: 45000});
+        jc[2] = IHeistsAdmin.JackpotStage({triggerPct: 8, minMultBps: 20000, maxMultBps: 70000});
         jc[3] = IHeistsAdmin.JackpotStage({triggerPct: 10, minMultBps: 30000, maxMultBps: 120000});
         jc[4] = IHeistsAdmin.JackpotStage({triggerPct: 13, minMultBps: 50000, maxMultBps: 200000});
         h.setJackpotConfig(jc);

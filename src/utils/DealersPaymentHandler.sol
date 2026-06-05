@@ -14,7 +14,6 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
  * @author Berny0x
  */
 contract DealersPaymentHandler is ReentrancyGuard, Ownable {
-
     // =============================================================
     //                            CONSTANTS
     // =============================================================
@@ -100,7 +99,7 @@ contract DealersPaymentHandler is ReentrancyGuard, Ownable {
         if (amount == 0) return;
         if (to == address(0)) revert InvalidAddress();
 
-        (bool success, ) = to.call{value: amount}("");
+        (bool success,) = to.call{value: amount}("");
         if (!success) revert TransferFailed();
     }
 
@@ -127,7 +126,7 @@ contract DealersPaymentHandler is ReentrancyGuard, Ownable {
      * @notice Process area movement fee
      * @param player The player address (for event tracking)
      * @param amount Fee amount
- */
+     */
     function processMovementFee(address player, uint256 amount) external payable onlyAuthorized nonReentrant {
         if (msg.value != amount || amount == 0) revert InvalidAmount();
         if (amount < MIN_AMOUNT) revert AmountTooSmall();
@@ -138,7 +137,7 @@ contract DealersPaymentHandler is ReentrancyGuard, Ownable {
      * @notice Process marketplace/boost fee
      * @param player The player address (for event tracking)
      * @param amount Fee amount
- */
+     */
     function processMarketplaceFee(address player, uint256 amount) external payable onlyAuthorized nonReentrant {
         if (msg.value != amount || amount == 0) revert InvalidAmount();
         if (amount < MIN_AMOUNT) revert AmountTooSmall();
@@ -181,13 +180,11 @@ contract DealersPaymentHandler is ReentrancyGuard, Ownable {
         return address(this).balance;
     }
 
-    function getFinancialStats() external view returns (
-        uint256 processed,
-        uint256 devFees,
-        uint256 bankFees,
-        uint256 contractBalance,
-        uint256 bankBalance
-    ) {
+    function getFinancialStats()
+        external
+        view
+        returns (uint256 processed, uint256 devFees, uint256 bankFees, uint256 contractBalance, uint256 bankBalance)
+    {
         processed = totalProcessed;
         devFees = totalDevFees;
         bankFees = totalBankFees;
@@ -195,10 +192,7 @@ contract DealersPaymentHandler is ReentrancyGuard, Ownable {
         bankBalance = bankVault.balance;
     }
 
-    function calculateFees(uint256 amount) external view returns (
-        uint256 bankFee,
-        uint256 devFee
-    ) {
+    function calculateFees(uint256 amount) external view returns (uint256 bankFee, uint256 devFee) {
         bankFee = (amount * bankFeePercent) / 10000;
         devFee = amount - bankFee;
     }

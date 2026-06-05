@@ -23,9 +23,9 @@ interface ICoreInitView {
  *        3. Revoke the EOA authorization (only if it was added in step 1).
  *
  * Usage:
- source .env && forge script script/setup/ReinitializeDealers.s.sol:ReinitializeDealers \
-      --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
-      --skip "RendererSVG"
+ *  source .env && forge script script/setup/ReinitializeDealers.s.sol:ReinitializeDealers \
+ *       --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
+ *       --skip "RendererSVG"
  */
 contract ReinitializeDealers is DeployBase {
     function run() external {

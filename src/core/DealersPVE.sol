@@ -41,7 +41,9 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
 
     mapping(uint256 => PveStats) public dealerPveStats;
 
-    /** @dev Heat and boost multipliers read live at resolve. bribeCop / purchaseBoost between commit and resolve is revenue — pay to grow faster, by design. */
+    /**
+     * @dev Heat and boost multipliers read live at resolve. bribeCop / purchaseBoost between commit and resolve is revenue — pay to grow faster, by design.
+     */
     struct PveRound {
         uint256 tokenId;
         address player;
@@ -78,11 +80,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         uint256 stakedDrug
     );
 
-    event DealerArrested(
-        uint256 indexed tokenId,
-        address indexed player,
-        uint16 jailChance
-    );
+    event DealerArrested(uint256 indexed tokenId, address indexed player, uint16 jailChance);
 
     event GameCommitted(
         uint64 indexed seq,
@@ -150,11 +148,9 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
 
     modifier contractsSet() {
         if (
-            address(dealersCore) == address(0) ||
-            address(dealersNFT) == address(0) ||
-            address(areaRegistry) == address(0) ||
-            address(randomness) == address(0) ||
-            address(actions) == address(0)
+            address(dealersCore) == address(0) || address(dealersNFT) == address(0)
+                || address(areaRegistry) == address(0) || address(randomness) == address(0)
+                || address(actions) == address(0)
         ) {
             revert ContractNotSet();
         }
@@ -188,14 +184,8 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
      * @param drugId The drug being traded
      * @param amount Quantity of drugs to stake
      * @return seq Sequence number to pass to resolveGame
- */
-    function commitGame(
-        uint256 tokenId,
-        uint8 choice,
-        HustleType hustleType,
-        uint256 drugId,
-        uint256 amount
-    )
+     */
+    function commitGame(uint256 tokenId, uint8 choice, HustleType hustleType, uint256 drugId, uint256 amount)
         external
         nonReentrant
         whenNotPaused
@@ -264,7 +254,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     /**
      * @notice Resolve a previously committed round. Anyone may call.
      * @dev Expiry = loss (stake forfeit + heat + rep). Arrest skip via expiry is accepted; jailing honest users on frontend failure is worse than the dodge.
- */
+     */
     function resolveGame(uint64 seq) external nonReentrant {
         PveRound memory r = pendingRounds[seq];
         if (r.tokenId == 0) revert UnknownRound();
@@ -364,9 +354,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     function _applyExpiryAsLoss(PveRound memory r) private {
         IDealersCore.GameState memory live = dealersCore.getGameState(r.tokenId);
 
-        uint256 stakeValue = r.hustleType == HustleType.BUY
-            ? r.amount * r.buyPrice
-            : r.amount * r.sellPrice;
+        uint256 stakeValue = r.hustleType == HustleType.BUY ? r.amount * r.buyPrice : r.amount * r.sellPrice;
 
         int256 repChange = _calculateScaledRep(live, 2, stakeValue);
 
@@ -386,7 +374,11 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         dealersCore.applyGameOutcome(r.tokenId, outcome);
     }
 
-    function _calculateBiasedHouseChoice(uint8 roll, uint8 playerChoice) internal view returns (uint8 houseChoice, uint8 outcome) {
+    function _calculateBiasedHouseChoice(uint8 roll, uint8 playerChoice)
+        internal
+        view
+        returns (uint8 houseChoice, uint8 outcome)
+    {
         if (roll < tieChance) {
             houseChoice = playerChoice;
             outcome = 1; // TIE
@@ -399,12 +391,11 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         }
     }
 
-    function _computeBuyOutcome(
-        IDealersCore.GameState memory state,
-        uint8 outcome,
-        uint256 amount,
-        uint256 buyPrice
-    ) private view returns (int256 repChange, int256 cashChange, int256 drugChange) {
+    function _computeBuyOutcome(IDealersCore.GameState memory state, uint8 outcome, uint256 amount, uint256 buyPrice)
+        private
+        view
+        returns (int256 repChange, int256 cashChange, int256 drugChange)
+    {
         uint256 cashCost = amount * buyPrice;
 
         repChange = _calculateScaledRep(state, outcome, cashCost);
@@ -426,12 +417,11 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         }
     }
 
-    function _computeSellOutcome(
-        IDealersCore.GameState memory state,
-        uint8 outcome,
-        uint256 amount,
-        uint256 sellPrice
-    ) private view returns (int256 repChange, int256 cashChange, int256 drugChange) {
+    function _computeSellOutcome(IDealersCore.GameState memory state, uint8 outcome, uint256 amount, uint256 sellPrice)
+        private
+        view
+        returns (int256 repChange, int256 cashChange, int256 drugChange)
+    {
         uint256 cashReward = amount * sellPrice;
 
         repChange = _calculateScaledRep(state, outcome, cashReward);
@@ -453,11 +443,11 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         }
     }
 
-    function _calculateScaledRep(
-        IDealersCore.GameState memory state,
-        uint8 outcome,
-        uint256 stakeValue
-    ) private view returns (int256) {
+    function _calculateScaledRep(IDealersCore.GameState memory state, uint8 outcome, uint256 stakeValue)
+        private
+        view
+        returns (int256)
+    {
         int16 baseRep;
         if (outcome == 0) baseRep = state.repWinBonus;
         else if (outcome == 1) baseRep = state.repTieBonus;
@@ -496,7 +486,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
      * @notice Get a dealer's PVE win/loss/tie record and choice history
      * @param tokenId The dealer NFT token ID
      * @return PVE statistics for the dealer
- */
+     */
     function getDealerPveStats(uint256 tokenId) external view returns (PveStats memory) {
         return dealerPveStats[tokenId];
     }
@@ -506,7 +496,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
      * @param tokenId The dealer NFT token ID
      * @return isPlayable True if the dealer can play
      * @return reason 0 = playable, 1 = not initialized, 2 = jailed, 3 = safe house, 4 = no attempts
- */
+     */
     function canPlay(uint256 tokenId) external view returns (bool isPlayable, uint8 reason) {
         IDealersCore.GameState memory state = dealersCore.getGameState(tokenId);
         if (!state.isInitialized) return (false, 1);
@@ -526,14 +516,12 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
      * @return lossRep Reputation lost on loss (negative)
      * @return cashValueOnSell Cash earned if selling this amount
      * @return cashCostOnBuy Cash spent if buying this amount
- */
-    function previewHustle(uint256 tokenId, uint256 drugId, uint256 amount) external view returns (
-        int16 winRep,
-        int16 tieRep,
-        int16 lossRep,
-        uint256 cashValueOnSell,
-        uint256 cashCostOnBuy
-    ) {
+     */
+    function previewHustle(uint256 tokenId, uint256 drugId, uint256 amount)
+        external
+        view
+        returns (int16 winRep, int16 tieRep, int16 lossRep, uint256 cashValueOnSell, uint256 cashCostOnBuy)
+    {
         IDealersCore.GameState memory state = dealersCore.getGameState(tokenId);
 
         winRep = state.repWinBonus;
@@ -555,7 +543,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     /**
      * @notice Set the core state contract
      * @param _dealersCore Address of the DealersCore contract
- */
+     */
     function setDealersCore(address _dealersCore) external onlyOwner {
         if (_dealersCore == address(0)) revert InvalidAddress();
         address old = address(dealersCore);
@@ -566,7 +554,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     /**
      * @notice Set the NFT contract used for ownership checks
      * @param _dealersNFT Address of the DealersNFT contract
- */
+     */
     function setDealersNFT(address _dealersNFT) external onlyOwner {
         if (_dealersNFT == address(0)) revert InvalidAddress();
         address old = address(dealersNFT);
@@ -577,7 +565,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     /**
      * @notice Set the area registry contract
      * @param _areaRegistry Address of the DealersAreaRegistry contract
- */
+     */
     function setAreaRegistry(address _areaRegistry) external onlyOwner {
         if (_areaRegistry == address(0)) revert InvalidAddress();
         address old = address(areaRegistry);
@@ -588,7 +576,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     /**
      * @notice Set the randomness provider contract
      * @param _randomness Address of the DealersRandomness contract
- */
+     */
     function setRandomness(address _randomness) external onlyOwner {
         if (_randomness == address(0)) revert InvalidAddress();
         address old = address(randomness);
@@ -599,7 +587,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     /**
      * @notice Set the DealersActions contract used to delegate arrest policy
      * @param _actions Address of the DealersActions contract
- */
+     */
     function setActions(address _actions) external onlyOwner {
         if (_actions == address(0)) revert InvalidAddress();
         address old = address(actions);
@@ -611,7 +599,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
      * @notice Update the tie/win/loss probability distribution
      * @param _tieChance Percentage chance of a tie (loss chance = 100 - tie - win)
      * @param _winChance Percentage chance of a player win
- */
+     */
     function setOutcomeOdds(uint8 _tieChance, uint8 _winChance) external onlyOwner {
         if (_tieChance + _winChance > 100) revert InvalidOdds();
         tieChance = _tieChance;
@@ -622,7 +610,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     /**
      * @notice Set the divisor that scales reputation gains relative to stake value
      * @param _divisor New divisor (higher = less rep per unit staked)
- */
+     */
     function setRepStakeDivisor(uint256 _divisor) external onlyOwner {
         if (_divisor == 0) revert InvalidDivisor();
         uint256 old = repStakeDivisor;
@@ -630,13 +618,17 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         emit RepStakeDivisorUpdated(old, _divisor);
     }
 
-    /** @notice Pause all PVE gameplay */
+    /**
+     * @notice Pause all PVE gameplay
+     */
     function pause() external onlyOwner {
         paused = true;
         emit Paused(msg.sender);
     }
 
-    /** @notice Unpause PVE gameplay */
+    /**
+     * @notice Unpause PVE gameplay
+     */
     function unpause() external onlyOwner {
         paused = false;
         emit Unpaused(msg.sender);

@@ -20,34 +20,40 @@ struct CoreConfig {
 
 interface ICoreConfig {
     function setCoreConfig(CoreConfig calldata _config) external;
-    function config() external view returns (
-        uint256 attemptResetFee,
-        uint256 bribeCopFee,
-        uint256 cashTopupPrice,
-        uint256 cashTopupAmount,
-        uint256 cashPurchaseThreshold,
-        uint8 jailRepPenaltyPercent,
-        uint256 jailRepPenaltyCap,
-        uint8 wantedPosterSuccessChance,
-        uint8 breakoutSuccessChance,
-        uint8 jailDrugConfiscationPercent,
-        uint256 starterCash,
-        uint16 jailChancePerHeat
-    );
+    function config()
+        external
+        view
+        returns (
+            uint256 attemptResetFee,
+            uint256 bribeCopFee,
+            uint256 cashTopupPrice,
+            uint256 cashTopupAmount,
+            uint256 cashPurchaseThreshold,
+            uint8 jailRepPenaltyPercent,
+            uint256 jailRepPenaltyCap,
+            uint8 wantedPosterSuccessChance,
+            uint8 breakoutSuccessChance,
+            uint8 jailDrugConfiscationPercent,
+            uint256 starterCash,
+            uint16 jailChancePerHeat
+        );
 }
 
 interface IBoostsPricing {
     function setTierPrice(uint256 tierId, uint256 newPrice) external;
-    function boostTiers(uint256 tierId) external view returns (
-        uint256 price,
-        uint64 duration,
-        uint8 drugMultiplier,
-        uint8 repMultiplier,
-        uint8 extraAttempts,
-        bool freeAreaMovement,
-        uint8 cashMultiplier,
-        bool isActive
-    );
+    function boostTiers(uint256 tierId)
+        external
+        view
+        returns (
+            uint256 price,
+            uint64 duration,
+            uint8 drugMultiplier,
+            uint8 repMultiplier,
+            uint8 extraAttempts,
+            bool freeAreaMovement,
+            uint8 cashMultiplier,
+            bool isActive
+        );
 }
 
 interface IAreaPricing {
@@ -62,7 +68,7 @@ interface IAreaPricing {
  *      NFT mint price is a constant and cannot be changed post-deploy.
  *
  * Usage:
- *   source .env && forge script script/setup/SetupTestnetPricing.s.sol:SetupTestnetPricing \
+ *   source .env && forge script script/testnet/SetupTestnetPricing.s.sol:SetupTestnetPricing \
  *     --rpc-url $ABSTRACT_TESTNET_RPC --account dealersKeystore --broadcast --zksync \
  *     --skip "RendererSVG"
  */
@@ -122,20 +128,22 @@ contract SetupTestnetPricing is DeployBase {
         uint256 newBribeCopFee = _applyFactor(bribeCopFee, multiply);
         uint256 newCashTopupPrice = _applyFactor(cashTopupPrice, multiply);
 
-        c.setCoreConfig(CoreConfig({
-            attemptResetFee: newAttemptResetFee,
-            bribeCopFee: newBribeCopFee,
-            cashTopupPrice: newCashTopupPrice,
-            cashTopupAmount: cashTopupAmount,
-            cashPurchaseThreshold: cashPurchaseThreshold,
-            jailRepPenaltyPercent: jailRepPenaltyPercent,
-            jailRepPenaltyCap: jailRepPenaltyCap,
-            wantedPosterSuccessChance: wantedPosterSuccessChance,
-            breakoutSuccessChance: breakoutSuccessChance,
-            jailDrugConfiscationPercent: jailDrugConfiscationPercent,
-            starterCash: starterCash,
-            jailChancePerHeat: jailChancePerHeat
-        }));
+        c.setCoreConfig(
+            CoreConfig({
+                attemptResetFee: newAttemptResetFee,
+                bribeCopFee: newBribeCopFee,
+                cashTopupPrice: newCashTopupPrice,
+                cashTopupAmount: cashTopupAmount,
+                cashPurchaseThreshold: cashPurchaseThreshold,
+                jailRepPenaltyPercent: jailRepPenaltyPercent,
+                jailRepPenaltyCap: jailRepPenaltyCap,
+                wantedPosterSuccessChance: wantedPosterSuccessChance,
+                breakoutSuccessChance: breakoutSuccessChance,
+                jailDrugConfiscationPercent: jailDrugConfiscationPercent,
+                starterCash: starterCash,
+                jailChancePerHeat: jailChancePerHeat
+            })
+        );
 
         console.log("  attemptResetFee: %s wei", vm.toString(newAttemptResetFee));
         console.log("  bribeCopFee:     %s wei", vm.toString(newBribeCopFee));
@@ -148,7 +156,7 @@ contract SetupTestnetPricing is DeployBase {
         IBoostsPricing b = IBoostsPricing(boosts);
 
         for (uint256 tierId = 1; tierId <= 4; tierId++) {
-            (uint256 price, , , , , , , bool isActive) = b.boostTiers(tierId);
+            (uint256 price,,,,,,, bool isActive) = b.boostTiers(tierId);
             if (!isActive) continue;
 
             uint256 newPrice = _applyFactor(price, multiply);

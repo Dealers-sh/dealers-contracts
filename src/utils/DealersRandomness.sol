@@ -45,7 +45,9 @@ contract DealersRandomness is Ownable {
 
     function commit() external returns (uint64 seq) {
         if (!authorizedResolvers[msg.sender]) revert NotAuthorized();
-        unchecked { seq = nextSeq++; }
+        unchecked {
+            seq = nextSeq++;
+        }
         uint64 rb = uint64(block.number) + REVEAL_OFFSET;
         revealBlockOf[seq] = rb;
         emit Committed(seq, msg.sender, rb);

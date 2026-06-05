@@ -16,10 +16,10 @@ interface INFTSetRenderer {
  *
  * Usage:
  *   forge script script/deploy/DeployHtmlRenderer.s.sol:DeployHtmlRenderer \
-      --zksync --skip "RendererSVG" \
-      --rpc-url https://api.testnet.abs.xyz \
-      --account dealersKeystore \
-      --broadcast
+ *       --zksync --skip "RendererSVG" \
+ *       --rpc-url https://api.testnet.abs.xyz \
+ *       --account dealersKeystore \
+ *       --broadcast
  *
  * @author Berny0x
  */
@@ -84,5 +84,4 @@ contract DeployHtmlRenderer is DeployBase {
         if (chainId == 11124) return "https://api.testnet.abs.xyz";
         revert("Unsupported chain");
     }
-
 }

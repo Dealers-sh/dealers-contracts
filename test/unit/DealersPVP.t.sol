@@ -85,7 +85,9 @@ contract DealersPVPTest is BaseTest {
     ) internal {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
-        core.applyBoost(tokenId, duration, drugMultiplier, repMultiplier, extraAttempts, freeAreaMovement, cashMultiplier);
+        core.applyBoost(
+            tokenId, duration, drugMultiplier, repMultiplier, extraAttempts, freeAreaMovement, cashMultiplier
+        );
         vm.prank(owner);
         core.authorizeContract(address(this), false);
     }
@@ -656,21 +658,23 @@ contract DealersPVPTest is BaseTest {
         _mockJailChance(attackerToken, 0);
 
         vm.prank(owner);
-        pvp.setPVPConfig(IDealersPVP.PVPConfig({
-            minReputation: 0,
-            baseWinChance: 50,
-            minWinChance: 25,
-            maxWinChance: 75,
-            maxAttacksPerDay: 3,
-            drugStealPercent: 2,
-            cashStealPercent: 1,
-            rarityWeightCommon: 50,
-            rarityWeightUncommon: 30,
-            rarityWeightRare: 20,
-            repRangePercent: 100,
-            defenderRepBonus: 2,
-            repRangeThreshold: 0
-        }));
+        pvp.setPVPConfig(
+            IDealersPVP.PVPConfig({
+                minReputation: 0,
+                baseWinChance: 50,
+                minWinChance: 25,
+                maxWinChance: 75,
+                maxAttacksPerDay: 3,
+                drugStealPercent: 2,
+                cashStealPercent: 1,
+                rarityWeightCommon: 50,
+                rarityWeightUncommon: 30,
+                rarityWeightRare: 20,
+                repRangePercent: 100,
+                defenderRepBonus: 2,
+                repRangeThreshold: 0
+            })
+        );
 
         vm.prank(player1);
         pvp.commitAttack(attackerToken, defenderToken);
@@ -747,7 +751,7 @@ contract DealersPVPTest is BaseTest {
         _setReputation(attackerToken, 1000);
         _setReputation(defenderToken, 1200);
 
-        (bool canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        (bool canFight,) = pvp.canAttack(attackerToken, defenderToken);
         assertTrue(canFight, "Should be able to attack within rep range");
     }
 
@@ -758,22 +762,22 @@ contract DealersPVPTest is BaseTest {
 
         // Exactly at upper boundary: 1000 + 25% = 1250
         _setReputation(defenderToken, 1250);
-        (bool canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        (bool canFight,) = pvp.canAttack(attackerToken, defenderToken);
         assertTrue(canFight, "Exactly at upper boundary should succeed");
 
         // One above upper boundary
         _setReputation(defenderToken, 1251);
-        (canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        (canFight,) = pvp.canAttack(attackerToken, defenderToken);
         assertFalse(canFight, "One above upper boundary should fail");
 
         // Exactly at lower boundary: 1000 - 25% = 750
         _setReputation(defenderToken, 750);
-        (canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        (canFight,) = pvp.canAttack(attackerToken, defenderToken);
         assertTrue(canFight, "Exactly at lower boundary should succeed");
 
         // One below lower boundary
         _setReputation(defenderToken, 749);
-        (canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        (canFight,) = pvp.canAttack(attackerToken, defenderToken);
         assertFalse(canFight, "One below lower boundary should fail");
     }
 
@@ -792,7 +796,7 @@ contract DealersPVPTest is BaseTest {
 
         _setReputation(defenderToken, 900);
 
-        (IDealersPVP.PVPTarget[] memory targets, ) = pvp.getPotentialTargets(attackerToken, 0, 100);
+        (IDealersPVP.PVPTarget[] memory targets,) = pvp.getPotentialTargets(attackerToken, 0, 100);
 
         bool foundInRange = false;
         bool foundDefender = false;
@@ -827,27 +831,29 @@ contract DealersPVPTest is BaseTest {
         _setReputation(attackerToken, 1000);
         _setReputation(defenderToken, 2000);
 
-        (bool canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        (bool canFight,) = pvp.canAttack(attackerToken, defenderToken);
         assertFalse(canFight, "Should fail with default 25% range");
 
         vm.prank(owner);
-        pvp.setPVPConfig(IDealersPVP.PVPConfig({
-            minReputation: 100,
-            baseWinChance: 50,
-            minWinChance: 25,
-            maxWinChance: 75,
-            maxAttacksPerDay: 3,
-            drugStealPercent: 2,
-            cashStealPercent: 1,
-            rarityWeightCommon: 50,
-            rarityWeightUncommon: 30,
-            rarityWeightRare: 20,
-            repRangePercent: 100,
-            defenderRepBonus: 2,
-            repRangeThreshold: 0
-        }));
+        pvp.setPVPConfig(
+            IDealersPVP.PVPConfig({
+                minReputation: 100,
+                baseWinChance: 50,
+                minWinChance: 25,
+                maxWinChance: 75,
+                maxAttacksPerDay: 3,
+                drugStealPercent: 2,
+                cashStealPercent: 1,
+                rarityWeightCommon: 50,
+                rarityWeightUncommon: 30,
+                rarityWeightRare: 20,
+                repRangePercent: 100,
+                defenderRepBonus: 2,
+                repRangeThreshold: 0
+            })
+        );
 
-        (canFight, ) = pvp.canAttack(attackerToken, defenderToken);
+        (canFight,) = pvp.canAttack(attackerToken, defenderToken);
         assertTrue(canFight, "Should succeed with 100% range");
     }
 

@@ -23,10 +23,12 @@ contract DeployMulticall is DeployBase {
         _requireAddress(drugRegistry, "DRUG_REGISTRY");
 
         vm.startBroadcast();
-        multicall = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersMulticall.sol:DealersMulticall"),
-            abi.encode(core, pve, pvp, areaRegistry, drugRegistry)
-        ));
+        multicall = _zkCreate(
+            abi.encodePacked(
+                vm.getCode("DealersMulticall.sol:DealersMulticall"),
+                abi.encode(core, pve, pvp, areaRegistry, drugRegistry)
+            )
+        );
         vm.stopBroadcast();
 
         _saveAddresses();

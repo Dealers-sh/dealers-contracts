@@ -145,7 +145,7 @@ contract DealersHeistsTest is HeistsBaseTest {
         uint256 cashBefore = core.getCashBalance(tokenId);
         uint8 heatBefore = core.getGameState(tokenId).heatLevel;
         uint256 repBefore = core.getGameState(tokenId).reputation;
-        _playStage(player1, id, RAND_LOSS);      // stage 2 → bust
+        _playStage(player1, id, RAND_LOSS); // stage 2 → bust
 
         assertEq(uint8(heists.getHeist(id).status), uint8(IDealersHeists.HeistStatus.BUSTED));
         assertEq(heists.getHeist(id).currentPot, 0, "pot zeroed");
@@ -159,10 +159,10 @@ contract DealersHeistsTest is HeistsBaseTest {
     function test_bust_rollsArrestWhenHot() public {
         uint256 id = _start(IDealersHeists.HeistFamily.CASH, DIFF_SMALL, false);
         _playStage(player1, id, RAND_WIN_NO_JP); // clean stage 1
-        _setHeat(tokenId, 3);                     // hot enough that the heat-scaled jail check can hit
+        _setHeat(tokenId, 3); // hot enough that the heat-scaled jail check can hit
         assertFalse(core.getGameState(tokenId).isJailed);
 
-        _playStage(player1, id, RAND_LOSS);       // bust; arrestRng (rand>>64) = 0 → jail check passes
+        _playStage(player1, id, RAND_LOSS); // bust; arrestRng (rand>>64) = 0 → jail check passes
 
         assertEq(uint8(heists.getHeist(id).status), uint8(IDealersHeists.HeistStatus.BUSTED));
         assertTrue(core.getGameState(tokenId).isJailed, "busted while hot -> arrested");
@@ -177,7 +177,7 @@ contract DealersHeistsTest is HeistsBaseTest {
         uint256 cashBefore = core.getCashBalance(tokenId);
         uint8 heatBefore = core.getGameState(tokenId).heatLevel;
         uint256 repBefore = core.getGameState(tokenId).reputation;
-        _playStage(player1, id, RAND_SETBACK);   // stage 4 → setback (deep enough that old code would have paid rep)
+        _playStage(player1, id, RAND_SETBACK); // stage 4 → setback (deep enough that old code would have paid rep)
 
         // partial = stage-4 pot (min roll: 500 * 52000/10000 = 2600) * keep 3500/10000 = 910
         uint256 expectedPartial = (uint256(SMALL_CASH) * 52000 / 10000) * 3500 / 10000;
@@ -206,7 +206,8 @@ contract DealersHeistsTest is HeistsBaseTest {
         heists.cashOut(id);
 
         // Stage-2 pot allocated mostly to common drugs (+ residual cash).
-        uint256 common = core.getDrugBalance(tokenId, 4) + core.getDrugBalance(tokenId, 1) + core.getDrugBalance(tokenId, 9);
+        uint256 common =
+            core.getDrugBalance(tokenId, 4) + core.getDrugBalance(tokenId, 1) + core.getDrugBalance(tokenId, 9);
         assertGt(common, 0, "received common drugs");
     }
 

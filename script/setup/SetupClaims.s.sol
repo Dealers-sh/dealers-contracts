@@ -97,15 +97,15 @@ contract SetupClaims is DeployBase {
         //         Aligned with the convex 2.2x ladder in SetupTiers
         // =================================================================
 
-        c.setAchievement(12, _achievement(REPUTATION, 0, 100,   REWARD_CASH, 0, 500));      // Associate
-        c.setAchievement(13, _achievement(REPUTATION, 0, 250,   REWARD_CASH, 0, 2000));     // Dealer
-        c.setAchievement(14, _achievement(REPUTATION, 0, 600,   REWARD_CASH, 0, 10000));    // Soldier
-        c.setAchievement(15, _achievement(REPUTATION, 0, 1500,  REWARD_CASH, 0, 25000));    // Capo
-        c.setAchievement(16, _achievement(REPUTATION, 0, 3000,  REWARD_CASH, 0, 75000));    // Consigliere
-        c.setAchievement(17, _achievement(REPUTATION, 0, 5500,  REWARD_CASH, 0, 200000));   // Underboss
-        c.setAchievement(18, _achievement(REPUTATION, 0, 10000, REWARD_CASH, 0, 500000));   // Don
-        c.setAchievement(19, _achievement(REPUTATION, 0, 22000, REWARD_CASH, 0, 1000000));  // Godfather
-        c.setAchievement(20, _achievement(REPUTATION, 0, 50000, REWARD_CASH, 0, 2000000));  // Legend
+        c.setAchievement(12, _achievement(REPUTATION, 0, 100, REWARD_CASH, 0, 500)); // Associate
+        c.setAchievement(13, _achievement(REPUTATION, 0, 250, REWARD_CASH, 0, 2000)); // Dealer
+        c.setAchievement(14, _achievement(REPUTATION, 0, 600, REWARD_CASH, 0, 10000)); // Soldier
+        c.setAchievement(15, _achievement(REPUTATION, 0, 1500, REWARD_CASH, 0, 25000)); // Capo
+        c.setAchievement(16, _achievement(REPUTATION, 0, 3000, REWARD_CASH, 0, 75000)); // Consigliere
+        c.setAchievement(17, _achievement(REPUTATION, 0, 5500, REWARD_CASH, 0, 200000)); // Underboss
+        c.setAchievement(18, _achievement(REPUTATION, 0, 10000, REWARD_CASH, 0, 500000)); // Don
+        c.setAchievement(19, _achievement(REPUTATION, 0, 22000, REWARD_CASH, 0, 1000000)); // Godfather
+        c.setAchievement(20, _achievement(REPUTATION, 0, 50000, REWARD_CASH, 0, 2000000)); // Legend
 
         // =================================================================
         //                     EARLY DRUG MILESTONE (ID 21)
@@ -117,32 +117,32 @@ contract SetupClaims is DeployBase {
         //                     PVP DRUG REWARDS (IDs 22-23)
         // =================================================================
 
-        c.setAchievement(22, _achievement(PVP_TOTAL_WINS, 0, 1,  REWARD_DRUG, GENERAL_GOODS, 3));
+        c.setAchievement(22, _achievement(PVP_TOTAL_WINS, 0, 1, REWARD_DRUG, GENERAL_GOODS, 3));
         c.setAchievement(23, _achievement(PVP_TOTAL_WINS, 0, 10, REWARD_DRUG, CONTRABAND, 3));
 
         // =================================================================
         //                NEW: CASH THRESHOLDS (IDs 24-27)
         // =================================================================
 
-        c.setAchievement(24, _achievement(CASH_BALANCE, 0, 10000,   REWARD_DRUG, XTC, 1));      // Pocket Lined
-        c.setAchievement(25, _achievement(CASH_BALANCE, 0, 100000,  REWARD_DRUG, COCAINE, 1));  // High Roller
-        c.setAchievement(26, _achievement(CASH_BALANCE, 0, 500000,  REWARD_DRUG, JEWELS, 1));   // Boss Money
-        c.setAchievement(27, _achievement(CASH_BALANCE, 0, 2000000, REWARD_DRUG, JEWELS, 3));   // Cartel Cash
+        c.setAchievement(24, _achievement(CASH_BALANCE, 0, 10000, REWARD_DRUG, XTC, 1)); // Pocket Lined
+        c.setAchievement(25, _achievement(CASH_BALANCE, 0, 100000, REWARD_DRUG, COCAINE, 1)); // High Roller
+        c.setAchievement(26, _achievement(CASH_BALANCE, 0, 500000, REWARD_DRUG, JEWELS, 1)); // Boss Money
+        c.setAchievement(27, _achievement(CASH_BALANCE, 0, 2000000, REWARD_DRUG, JEWELS, 3)); // Cartel Cash
 
         // =================================================================
         //               NEW: DRUG STOCKPILES (IDs 28-29)
         // =================================================================
 
-        c.setAchievement(28, _achievement(DRUG_BALANCE, FENTANYL, 1000, REWARD_CASH, 0, 25000));   // Drug Lord
-        c.setAchievement(29, _achievement(DRUG_BALANCE, COCAINE,  5000, REWARD_CASH, 0, 100000));  // Cocaine King
+        c.setAchievement(28, _achievement(DRUG_BALANCE, FENTANYL, 1000, REWARD_CASH, 0, 25000)); // Drug Lord
+        c.setAchievement(29, _achievement(DRUG_BALANCE, COCAINE, 5000, REWARD_CASH, 0, 100000)); // Cocaine King
 
         // =================================================================
         //               NEW: PVE / PVP LONG GRIND (IDs 30-32)
         // =================================================================
 
-        c.setAchievement(30, _achievement(PVE_TOTAL,       0, 100,  REWARD_CASH, 0, 5000));    // Hundred Hustles
-        c.setAchievement(31, _achievement(PVE_TOTAL,       0, 1000, REWARD_CASH, 0, 50000));   // Thousand-Yard Dealer
-        c.setAchievement(32, _achievement(PVP_TOTAL_WINS,  0, 100,  REWARD_CASH, 0, 100000));  // Street Veteran II
+        c.setAchievement(30, _achievement(PVE_TOTAL, 0, 100, REWARD_CASH, 0, 5000)); // Hundred Hustles
+        c.setAchievement(31, _achievement(PVE_TOTAL, 0, 1000, REWARD_CASH, 0, 50000)); // Thousand-Yard Dealer
+        c.setAchievement(32, _achievement(PVP_TOTAL_WINS, 0, 100, REWARD_CASH, 0, 100000)); // Street Veteran II
 
         // =================================================================
         //         MID-TIER ACHIEVEMENTS (IDs 33-44)
@@ -150,26 +150,26 @@ contract SetupClaims is DeployBase {
         // =================================================================
 
         // Block A: PvE grind ladder (fills 100 -> 1000 gap)
-        c.setAchievement(33, _achievement(PVE_TOTAL,            0, 250, REWARD_CASH, 0, 10000));  // Hustle Streak
-        c.setAchievement(34, _achievement(PVE_TOTAL,            0, 500, REWARD_CASH, 0, 25000));  // Career Hustler
+        c.setAchievement(33, _achievement(PVE_TOTAL, 0, 250, REWARD_CASH, 0, 10000)); // Hustle Streak
+        c.setAchievement(34, _achievement(PVE_TOTAL, 0, 500, REWARD_CASH, 0, 25000)); // Career Hustler
 
         // Block B: PvE outcome mastery (100 specific outcomes ~ 200-500 plays)
-        c.setAchievement(35, _achievement(PVE_WINS,             0, 100, REWARD_CASH, 0, 50000));  // Sharp Eye
-        c.setAchievement(36, _achievement(PVE_TIES,             0, 100, REWARD_CASH, 0, 30000));  // Stalemate Champion
-        c.setAchievement(37, _achievement(PVE_LOSSES,           0, 100, REWARD_CASH, 0, 30000));  // Hard Knocks II
+        c.setAchievement(35, _achievement(PVE_WINS, 0, 100, REWARD_CASH, 0, 50000)); // Sharp Eye
+        c.setAchievement(36, _achievement(PVE_TIES, 0, 100, REWARD_CASH, 0, 30000)); // Stalemate Champion
+        c.setAchievement(37, _achievement(PVE_LOSSES, 0, 100, REWARD_CASH, 0, 30000)); // Hard Knocks II
 
         // Block C: Choice mastery (100 of one choice = 100+ committed plays)
-        c.setAchievement(38, _achievement(PVE_DEAL_CHOICES,     0, 100, REWARD_CASH, 0, 15000));  // Dealer's Sense
-        c.setAchievement(39, _achievement(PVE_THREATEN_CHOICES, 0, 100, REWARD_CASH, 0, 15000));  // Iron Fist
-        c.setAchievement(40, _achievement(PVE_BAIL_CHOICES,     0, 100, REWARD_CASH, 0, 15000));  // Survivor
+        c.setAchievement(38, _achievement(PVE_DEAL_CHOICES, 0, 100, REWARD_CASH, 0, 15000)); // Dealer's Sense
+        c.setAchievement(39, _achievement(PVE_THREATEN_CHOICES, 0, 100, REWARD_CASH, 0, 15000)); // Iron Fist
+        c.setAchievement(40, _achievement(PVE_BAIL_CHOICES, 0, 100, REWARD_CASH, 0, 15000)); // Survivor
 
         // Block D: PvP mid-tier (fills 10 -> 100 gap)
-        c.setAchievement(41, _achievement(PVP_TOTAL_WINS,       0, 25,  REWARD_DRUG, CONTRABAND, 5));  // Brawler
-        c.setAchievement(42, _achievement(PVP_TOTAL_WINS,       0, 50,  REWARD_DRUG, JEWELS, 1));      // Enforcer
+        c.setAchievement(41, _achievement(PVP_TOTAL_WINS, 0, 25, REWARD_DRUG, CONTRABAND, 5)); // Brawler
+        c.setAchievement(42, _achievement(PVP_TOTAL_WINS, 0, 50, REWARD_DRUG, JEWELS, 1)); // Enforcer
 
         // Block E: Drug stockpile coverage (mid-tier farmable drugs)
-        c.setAchievement(43, _achievement(DRUG_BALANCE,         HEROIN,  1000, REWARD_CASH, 0, 25000));  // Mule Master
-        c.setAchievement(44, _achievement(DRUG_BALANCE,         COCAINE, 1000, REWARD_CASH, 0, 25000));  // White Powder Pro
+        c.setAchievement(43, _achievement(DRUG_BALANCE, HEROIN, 1000, REWARD_CASH, 0, 25000)); // Mule Master
+        c.setAchievement(44, _achievement(DRUG_BALANCE, COCAINE, 1000, REWARD_CASH, 0, 25000)); // White Powder Pro
 
         vm.stopBroadcast();
 

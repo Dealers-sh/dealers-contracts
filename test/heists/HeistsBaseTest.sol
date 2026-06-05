@@ -27,10 +27,10 @@ abstract contract HeistsBaseTest is BaseTest {
     uint96 internal constant HUGE_CASH = 10000;
 
     // mocked reveal values controlling stage outcome (low byte = roll) + jackpot trigger (bits 16+)
-    uint256 internal constant RAND_WIN_NO_JP = uint256(50) << 16;   // roll 0 = CLEAN; (>>16)%100 = 50 ≥ trigger → no jackpot
-    uint256 internal constant RAND_WIN_JP = 0;                       // roll 0 = CLEAN; (>>16)%100 = 0 < trigger → jackpot
-    uint256 internal constant RAND_SETBACK = 70;                     // roll 70 = SETBACK for stages 2-5 (CLEAN at stage 1)
-    uint256 internal constant RAND_LOSS = 99;                        // roll 99 ≥ clean+setback for every stage → BUST
+    uint256 internal constant RAND_WIN_NO_JP = uint256(50) << 16; // roll 0 = CLEAN; (>>16)%100 = 50 ≥ trigger → no jackpot
+    uint256 internal constant RAND_WIN_JP = 0; // roll 0 = CLEAN; (>>16)%100 = 0 < trigger → jackpot
+    uint256 internal constant RAND_SETBACK = 70; // roll 70 = SETBACK for stages 2-5 (CLEAN at stage 1)
+    uint256 internal constant RAND_LOSS = 99; // roll 99 ≥ clean+setback for every stage → BUST
 
     function setUp() public virtual override {
         super.setUp();
@@ -50,13 +50,7 @@ abstract contract HeistsBaseTest is BaseTest {
         );
 
         bankHeist = new DealersBankHeist(
-            address(core),
-            address(nft),
-            address(pve),
-            address(pvp),
-            address(heists),
-            address(mockEntropy),
-            7 days
+            address(core), address(nft), address(pve), address(pvp), address(heists), address(mockEntropy), 7 days
         );
 
         // Registrations — additive, existing-pattern only.
@@ -68,9 +62,15 @@ abstract contract HeistsBaseTest is BaseTest {
         actions.authorizeJailer(address(heists), true);
 
         // Difficulty config (repGate 0 for the small run so tests aren't rep-gated by default).
-        heists.setDifficultyConfig(DIFF_SMALL, IDealersHeists.DifficultyConfig({repGate: 0, cashEntry: SMALL_CASH, active: true}));
-        heists.setDifficultyConfig(DIFF_BIG, IDealersHeists.DifficultyConfig({repGate: 300, cashEntry: BIG_CASH, active: true}));
-        heists.setDifficultyConfig(DIFF_HUGE, IDealersHeists.DifficultyConfig({repGate: 1250, cashEntry: HUGE_CASH, active: true}));
+        heists.setDifficultyConfig(
+            DIFF_SMALL, IDealersHeists.DifficultyConfig({repGate: 0, cashEntry: SMALL_CASH, active: true})
+        );
+        heists.setDifficultyConfig(
+            DIFF_BIG, IDealersHeists.DifficultyConfig({repGate: 300, cashEntry: BIG_CASH, active: true})
+        );
+        heists.setDifficultyConfig(
+            DIFF_HUGE, IDealersHeists.DifficultyConfig({repGate: 1250, cashEntry: HUGE_CASH, active: true})
+        );
 
         // Bank heist: small thresholds for tests.
         uint16[] memory split = new uint16[](3);

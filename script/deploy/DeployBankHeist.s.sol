@@ -56,10 +56,12 @@ contract DeployBankHeist is DeployBase {
 
         vm.startBroadcast();
 
-        bankHeist = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersBankHeist.sol:DealersBankHeist"),
-            abi.encode(core, nft, pve, pvp, heists, entropy, prepDuration)
-        ));
+        bankHeist = _zkCreate(
+            abi.encodePacked(
+                vm.getCode("DealersBankHeist.sol:DealersBankHeist"),
+                abi.encode(core, nft, pve, pvp, heists, entropy, prepDuration)
+            )
+        );
         console.log("DealersBankHeist deployed:", bankHeist);
 
         IDealersCore c = IDealersCore(core);

@@ -50,8 +50,7 @@ contract AssignTraits is DeployBase {
 
         AssignmentEntry[] memory manifest = _readManifest();
 
-        (uint256[] memory tokenIds, bytes32[] memory packedTraits) =
-            _sliceNormalAndSpecial(manifest, start, count);
+        (uint256[] memory tokenIds, bytes32[] memory packedTraits) = _sliceNormalAndSpecial(manifest, start, count);
 
         vm.startBroadcast();
         console.log("==============================================");
@@ -90,10 +89,7 @@ contract AssignTraits is DeployBase {
         for (uint256 i = 0; i < manifest.length; i++) {
             if (!_isOneOfOne(manifest[i].kind)) continue;
             address ptr = _findPointerByName(oneOfOnePointers, manifest[i].name);
-            require(
-                ptr != address(0),
-                string.concat("Pointer not found for one-of-one '", manifest[i].name, "'")
-            );
+            require(ptr != address(0), string.concat("Pointer not found for one-of-one '", manifest[i].name, "'"));
             tokenIds[w] = manifest[i].tokenId;
             names[w] = manifest[i].name;
             pointers[w] = ptr;
@@ -111,9 +107,7 @@ contract AssignTraits is DeployBase {
         if (ooCount > 0) {
             IDealerRendererSVG(rendererSvg).batchSetOneOfOnes(tokenIds, names, pointers);
             for (uint256 i = 0; i < ooCount; i++) {
-                console.log(string.concat(
-                    "  ", names[i], " -> token ", vm.toString(tokenIds[i])
-                ));
+                console.log(string.concat("  ", names[i], " -> token ", vm.toString(tokenIds[i])));
             }
         }
 
@@ -135,10 +129,7 @@ contract AssignTraits is DeployBase {
     // Low-level entry points
     // -------------------------------------------------------------------
 
-    function assignTokenTraits(
-        uint256[] calldata tokenIds,
-        bytes32[] calldata packedTraits
-    ) external {
+    function assignTokenTraits(uint256[] calldata tokenIds, bytes32[] calldata packedTraits) external {
         _loadAddresses();
         _requireAddress(rendererSvg, "RENDERER_SVG");
         require(tokenIds.length == packedTraits.length, "Length mismatch");
@@ -163,24 +154,15 @@ contract AssignTraits is DeployBase {
 
         string memory traitsPath = string.concat(vm.projectRoot(), "/", TRAITS_JSON_PATH);
         string memory traitsJson = vm.readFile(traitsPath);
-        OneOfOneJson[] memory traits = abi.decode(
-            vm.parseJson(traitsJson, ".oneofone"),
-            (OneOfOneJson[])
-        );
+        OneOfOneJson[] memory traits = abi.decode(vm.parseJson(traitsJson, ".oneofone"), (OneOfOneJson[]));
 
         address[] memory pointers = _loadPointerArray(_readPointersJson(), "oneofone", traits.length);
 
-        require(
-            tokenIds.length == traits.length,
-            "Token IDs count must match one-of-ones count"
-        );
+        require(tokenIds.length == traits.length, "Token IDs count must match one-of-ones count");
 
         string[] memory names = new string[](traits.length);
         for (uint256 i = 0; i < traits.length; i++) {
-            require(
-                pointers[i] != address(0),
-                string.concat("Pointer not uploaded for ", traits[i].name)
-            );
+            require(pointers[i] != address(0), string.concat("Pointer not uploaded for ", traits[i].name));
             names[i] = traits[i].name;
         }
 
@@ -195,9 +177,7 @@ contract AssignTraits is DeployBase {
         IDealerRendererSVG(rendererSvg).batchSetOneOfOnes(tokenIds, names, pointers);
 
         for (uint256 i = 0; i < traits.length; i++) {
-            console.log(string.concat(
-                "  ", traits[i].name, " -> token ", vm.toString(tokenIds[i])
-            ));
+            console.log(string.concat("  ", traits[i].name, " -> token ", vm.toString(tokenIds[i])));
         }
 
         vm.stopBroadcast();
@@ -215,11 +195,11 @@ contract AssignTraits is DeployBase {
         return abi.decode(raw, (AssignmentEntry[]));
     }
 
-    function _sliceNormalAndSpecial(
-        AssignmentEntry[] memory manifest,
-        uint256 start,
-        uint256 count
-    ) internal pure returns (uint256[] memory tokenIds, bytes32[] memory packed) {
+    function _sliceNormalAndSpecial(AssignmentEntry[] memory manifest, uint256 start, uint256 count)
+        internal
+        pure
+        returns (uint256[] memory tokenIds, bytes32[] memory packed)
+    {
         uint256 totalNs = 0;
         for (uint256 i = 0; i < manifest.length; i++) {
             if (!_isOneOfOne(manifest[i].kind)) totalNs++;

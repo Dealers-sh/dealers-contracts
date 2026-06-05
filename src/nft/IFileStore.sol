@@ -17,11 +17,7 @@ interface IFileStore {
      * @param metadata Additional metadata of the file, only emitted for use in offchain indexers
      */
     event FileCreated(
-        string indexed indexedFilename,
-        address indexed pointer,
-        string filename,
-        uint256 size,
-        bytes metadata
+        string indexed indexedFilename, address indexed pointer, string filename, uint256 size, bytes metadata
     );
 
     /**
@@ -66,9 +62,7 @@ interface IFileStore {
      * @param filename The name of the file
      * @return pointer The pointer address of the file
      */
-    function files(
-        string memory filename
-    ) external view returns (address pointer);
+    function files(string memory filename) external view returns (address pointer);
 
     /**
      * @notice Checks if a file exists for a given filename
@@ -82,18 +76,14 @@ interface IFileStore {
      * @param filename The name of the file
      * @return pointer The pointer address of the file
      */
-    function getPointer(
-        string memory filename
-    ) external view returns (address pointer);
+    function getPointer(string memory filename) external view returns (address pointer);
 
     /**
      * @notice Retrieves a file by its filename
      * @param filename The name of the file
      * @return file The file associated with the filename
      */
-    function getFile(
-        string memory filename
-    ) external view returns (File memory file);
+    function getFile(string memory filename) external view returns (File memory file);
 
     /**
      * @notice Creates a new file with the provided file contents
@@ -103,10 +93,9 @@ interface IFileStore {
      * @return pointer The pointer address of the new file
      * @return file The newly created file
      */
-    function createFile(
-        string memory filename,
-        string memory contents
-    ) external returns (address pointer, File memory file);
+    function createFile(string memory filename, string memory contents)
+        external
+        returns (address pointer, File memory file);
 
     /**
      * @notice Creates a new file with the provided file contents and file metadata
@@ -117,11 +106,9 @@ interface IFileStore {
      * @return pointer The pointer address of the new file
      * @return file The newly created file
      */
-    function createFile(
-        string memory filename,
-        string memory contents,
-        bytes memory metadata
-    ) external returns (address pointer, File memory file);
+    function createFile(string memory filename, string memory contents, bytes memory metadata)
+        external
+        returns (address pointer, File memory file);
 
     /**
      * @notice Creates a new file where its content is composed of the provided string chunks
@@ -131,10 +118,9 @@ interface IFileStore {
      * @return pointer The pointer address of the new file
      * @return file The newly created file
      */
-    function createFileFromChunks(
-        string memory filename,
-        string[] memory chunks
-    ) external returns (address pointer, File memory file);
+    function createFileFromChunks(string memory filename, string[] memory chunks)
+        external
+        returns (address pointer, File memory file);
 
     /**
      * @notice Creates a new file with the provided string chunks and file metadata
@@ -145,11 +131,9 @@ interface IFileStore {
      * @return pointer The pointer address of the new file
      * @return file The newly created file
      */
-    function createFileFromChunks(
-        string memory filename,
-        string[] memory chunks,
-        bytes memory metadata
-    ) external returns (address pointer, File memory file);
+    function createFileFromChunks(string memory filename, string[] memory chunks, bytes memory metadata)
+        external
+        returns (address pointer, File memory file);
 
     /**
      * @notice Creates a new file where its content is composed of the provided SSTORE2 pointers
@@ -158,10 +142,9 @@ interface IFileStore {
      * @return pointer The pointer address of the new file
      * @return file The newly created file
      */
-    function createFileFromPointers(
-        string memory filename,
-        address[] memory pointers
-    ) external returns (address pointer, File memory file);
+    function createFileFromPointers(string memory filename, address[] memory pointers)
+        external
+        returns (address pointer, File memory file);
 
     /**
      * @notice Creates a new file with the provided SSTORE2 pointers and file metadata
@@ -171,11 +154,9 @@ interface IFileStore {
      * @return pointer The pointer address of the new file
      * @return file The newly created file
      */
-    function createFileFromPointers(
-        string memory filename,
-        address[] memory pointers,
-        bytes memory metadata
-    ) external returns (address pointer, File memory file);
+    function createFileFromPointers(string memory filename, address[] memory pointers, bytes memory metadata)
+        external
+        returns (address pointer, File memory file);
 
     /**
      * @notice Creates a new file where its content is composed of the provided bytecode slices
@@ -184,10 +165,9 @@ interface IFileStore {
      * @return pointer The pointer address of the new file
      * @return file The newly created file
      */
-    function createFileFromSlices(
-        string memory filename,
-        BytecodeSlice[] memory slices
-    ) external returns (address pointer, File memory file);
+    function createFileFromSlices(string memory filename, BytecodeSlice[] memory slices)
+        external
+        returns (address pointer, File memory file);
 
     /**
      * @notice Creates a new file with the provided bytecode slices and file metadata
@@ -197,9 +177,7 @@ interface IFileStore {
      * @return pointer The pointer address of the new file
      * @return file The newly created file
      */
-    function createFileFromSlices(
-        string memory filename,
-        BytecodeSlice[] memory slices,
-        bytes memory metadata
-    ) external returns (address pointer, File memory file);
+    function createFileFromSlices(string memory filename, BytecodeSlice[] memory slices, bytes memory metadata)
+        external
+        returns (address pointer, File memory file);
 }

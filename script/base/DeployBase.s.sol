@@ -36,9 +36,17 @@ interface IDealersCore {
     function initializeDealer(uint256 tokenId) external;
     function updateReputation(uint256 tokenId, int256 change) external;
     function updateInfamy(uint256 tokenId, int256 delta) external;
-    function reputationTiers(uint256 index) external view returns (
-        uint256 minReputation, int16 winBonus, int16 tieBonus, int16 lossPenalty, int16 repCap, string memory tierName
-    );
+    function reputationTiers(uint256 index)
+        external
+        view
+        returns (
+            uint256 minReputation,
+            int16 winBonus,
+            int16 tieBonus,
+            int16 lossPenalty,
+            int16 repCap,
+            string memory tierName
+        );
 }
 
 interface IDealersNFT {
@@ -59,8 +67,19 @@ interface IPaymentHandler {
 interface IAreaRegistry {
     function setCoreContract(address _coreContract) external;
     function coreContract() external view returns (address);
-    function createArea(string calldata name, uint256 movementFee, uint256 minReputation, bool isSafeHouseArea, bool isJailArea) external returns (uint8);
-    function batchConfigureAreaDrugs(uint8 areaId, uint256[] calldata drugIds, uint256[] calldata buyPrices, uint256[] calldata sellPrices) external;
+    function createArea(
+        string calldata name,
+        uint256 movementFee,
+        uint256 minReputation,
+        bool isSafeHouseArea,
+        bool isJailArea
+    ) external returns (uint8);
+    function batchConfigureAreaDrugs(
+        uint8 areaId,
+        uint256[] calldata drugIds,
+        uint256[] calldata buyPrices,
+        uint256[] calldata sellPrices
+    ) external;
     function getTotalAreas() external view returns (uint8);
 }
 
@@ -119,16 +138,19 @@ interface IBoostsAdmin {
     }
 
     function setBoostTier(uint256 tierId, BoostTier calldata tier) external;
-    function boostTiers(uint256 tierId) external view returns (
-        uint256 price,
-        uint64 duration,
-        uint8 drugMultiplier,
-        uint8 repMultiplier,
-        uint8 extraAttempts,
-        bool freeAreaMovement,
-        uint8 cashMultiplier,
-        bool isActive
-    );
+    function boostTiers(uint256 tierId)
+        external
+        view
+        returns (
+            uint256 price,
+            uint64 duration,
+            uint8 drugMultiplier,
+            uint8 repMultiplier,
+            uint8 extraAttempts,
+            bool freeAreaMovement,
+            uint8 cashMultiplier,
+            bool isActive
+        );
 }
 
 interface IClaimsContract {
@@ -141,6 +163,7 @@ interface IClaimsContract {
         uint256 rewardAmount;
         bool active;
     }
+
     function setAchievement(uint256 achievementId, Achievement calldata achievement) external;
     function setDealersCore(address _core) external;
     function setDealersNFT(address _nft) external;
@@ -180,7 +203,13 @@ interface IMulticallContract {
 }
 
 interface IChatFactory {
-    enum RoomType { WORLD, AREA, GANG, DM }
+    enum RoomType {
+        WORLD,
+        AREA,
+        GANG,
+        DM
+    }
+
     function createRoom(RoomType roomType, uint8 id, address gate) external returns (address room);
     function getRoomInfo(bytes32 roomKey) external view returns (address room, address gate, uint8 roomId);
     function roomKey(RoomType roomType, uint8 id) external pure returns (bytes32);
@@ -253,11 +282,11 @@ abstract contract DeployBase is Script {
         }
     }
 
-    function _loadPointerArray(
-        string memory pointersJson,
-        string memory typeKey,
-        uint256 targetLen
-    ) internal pure returns (address[] memory) {
+    function _loadPointerArray(string memory pointersJson, string memory typeKey, uint256 targetLen)
+        internal
+        pure
+        returns (address[] memory)
+    {
         PointerEntry[] memory entries = _loadPointerEntries(pointersJson, typeKey);
         address[] memory padded = new address[](targetLen);
         uint256 n = entries.length < targetLen ? entries.length : targetLen;
@@ -267,10 +296,11 @@ abstract contract DeployBase is Script {
         return padded;
     }
 
-    function _loadPointerEntries(
-        string memory pointersJson,
-        string memory typeKey
-    ) internal pure returns (PointerEntry[] memory) {
+    function _loadPointerEntries(string memory pointersJson, string memory typeKey)
+        internal
+        pure
+        returns (PointerEntry[] memory)
+    {
         bytes memory raw = vm.parseJson(pointersJson, string.concat(".", typeKey));
         if (raw.length == 0) return new PointerEntry[](0);
         return abi.decode(raw, (PointerEntry[]));
@@ -460,16 +490,22 @@ abstract contract DeployBase is Script {
         return string.concat('"', vm.toString(addr), '"');
     }
 
-    function _serializePointerEntries(string[] memory names, address[] memory pointers) internal pure returns (string memory) {
+    function _serializePointerEntries(string[] memory names, address[] memory pointers)
+        internal
+        pure
+        returns (string memory)
+    {
         require(names.length == pointers.length, "Length mismatch");
         if (names.length == 0) return "[]";
         string memory result = "[\n";
         for (uint256 i = 0; i < names.length; i++) {
             result = string.concat(
                 result,
-                '    { "name": ', _jsonString(names[i]),
-                ', "pointer": ', _serializeAddrOrNull(pointers[i]),
-                ' }'
+                '    { "name": ',
+                _jsonString(names[i]),
+                ', "pointer": ',
+                _serializeAddrOrNull(pointers[i]),
+                " }"
             );
             if (i + 1 < names.length) result = string.concat(result, ",");
             result = string.concat(result, "\n");
@@ -484,14 +520,16 @@ abstract contract DeployBase is Script {
         out[j++] = '"';
         for (uint256 i = 0; i < b.length; i++) {
             bytes1 c = b[i];
-            if (c == '"' || c == '\\') {
-                out[j++] = '\\';
+            if (c == '"' || c == "\\") {
+                out[j++] = "\\";
             }
             out[j++] = c;
         }
         out[j++] = '"';
         bytes memory trimmed = new bytes(j);
-        for (uint256 k = 0; k < j; k++) trimmed[k] = out[k];
+        for (uint256 k = 0; k < j; k++) {
+            trimmed[k] = out[k];
+        }
         return string(trimmed);
     }
 }

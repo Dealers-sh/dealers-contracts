@@ -7,14 +7,8 @@ contract PlayerJourneyTest is BaseTest {
     function test_fullJourney_mintToJailToBail() public {
         uint256 tokenId = _mintNFT(player1);
 
-        (
-            uint8 area,
-            uint256 reputation,
-            uint8 attempts,
-            uint8 heatLevel,
-            ,
-            bool isInitialized
-        ) = core.getDealerData(tokenId);
+        (uint8 area, uint256 reputation, uint8 attempts, uint8 heatLevel,, bool isInitialized) =
+            core.getDealerData(tokenId);
 
         assertEq(isInitialized, true, "Dealer should be initialized");
         assertEq(reputation, 25, "Starting reputation should be 25");
@@ -30,7 +24,7 @@ contract PlayerJourneyTest is BaseTest {
             core.incrementHeatLevel(tokenId);
         }
 
-        (, , , heatLevel, , ) = core.getDealerData(tokenId);
+        (,,, heatLevel,,) = core.getDealerData(tokenId);
         assertEq(heatLevel, 5, "Heat should be at max (5)");
 
         bool jailed = false;
@@ -39,7 +33,7 @@ contract PlayerJourneyTest is BaseTest {
 
         vm.startPrank(player1);
         while (!jailed && attemptCount < maxAttempts) {
-            (, , attempts, , , ) = core.getDealerData(tokenId);
+            (,, attempts,,,) = core.getDealerData(tokenId);
 
             if (attempts == 0) {
                 actions.purchaseAttemptReset{value: 0.001 ether}(tokenId);
@@ -48,15 +42,7 @@ contract PlayerJourneyTest is BaseTest {
             uint256 prevrandao = attemptCount * 12345;
             vm.prevrandao(bytes32(prevrandao));
 
-            try pve.commitGame(
-                tokenId,
-                0,
-                IDealersPVE.HustleType.BUY,
-                DRUG_WEED,
-                10
-            ) {
-            } catch {
-            }
+            try pve.commitGame(tokenId, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 10) {} catch {}
 
             jailed = core.getGameState(tokenId).isJailed;
             attemptCount++;
@@ -68,7 +54,7 @@ contract PlayerJourneyTest is BaseTest {
             return;
         }
 
-        (area, reputation, , , , ) = core.getDealerData(tokenId);
+        (area, reputation,,,,) = core.getDealerData(tokenId);
         assertEq(area, JAIL, "Should be in jail (area 255)");
         // Reputation may be higher or lower than starting 25 depending on game outcomes before jail
         // The key assertion is that jail penalty will reduce it by 10% when bailed
@@ -77,7 +63,7 @@ contract PlayerJourneyTest is BaseTest {
         vm.prank(player1);
         actions.payBail{value: BAIL_PRICE}(tokenId);
 
-        (area, reputation, , , , ) = core.getDealerData(tokenId);
+        (area, reputation,,,,) = core.getDealerData(tokenId);
         assertEq(area, MANHATTAN, "Should be back in Manhattan after bail (returns to previous area)");
         assertFalse(core.getGameState(tokenId).isJailed, "Should not be in jail");
         // Bail applies a 10% reputation penalty (min 50 preserved)
@@ -96,13 +82,7 @@ contract PlayerJourneyTest is BaseTest {
 
         for (uint8 i = 0; i < 3; i++) {
             vm.prevrandao(bytes32(uint256(i * 999 + 50)));
-            try pve.commitGame(
-                tokenId,
-                0,
-                IDealersPVE.HustleType.BUY,
-                DRUG_WEED,
-                5
-            ) {} catch {}
+            try pve.commitGame(tokenId, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 5) {} catch {}
         }
 
         uint256 grinderId = 1;
@@ -117,19 +97,13 @@ contract PlayerJourneyTest is BaseTest {
         assertEq(boost.repMultiplier, 110, "Rep multiplier should be 110 (1.1x)");
         assertEq(boost.extraAttempts, 2, "Extra attempts should be 2");
 
-        (, , uint8 attempts, , , ) = core.getDealerData(tokenId);
+        (,, uint8 attempts,,,) = core.getDealerData(tokenId);
         if (attempts == 0) {
             actions.purchaseAttemptReset{value: 0.001 ether}(tokenId);
         }
 
         vm.prevrandao(bytes32(uint256(12345)));
-        try pve.commitGame(
-            tokenId,
-            0,
-            IDealersPVE.HustleType.BUY,
-            DRUG_WEED,
-            5
-        ) {} catch {}
+        try pve.commitGame(tokenId, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, 5) {} catch {}
 
         vm.stopPrank();
 
@@ -175,7 +149,7 @@ contract PlayerJourneyTest is BaseTest {
         uint256 defender_weed_after = core.getDrugBalance(token2, DRUG_WEED);
         uint256 attacker_weed_after = core.getDrugBalance(token1, DRUG_WEED);
 
-        (, , uint8 attempts, , , ) = core.getDealerData(token1);
+        (,, uint8 attempts,,,) = core.getDealerData(token1);
         if (attempts == 0) {
             vm.prank(player1);
             actions.purchaseAttemptReset{value: 0.001 ether}(token1);
@@ -197,7 +171,7 @@ contract PlayerJourneyTest is BaseTest {
         assertEq(tokens.length, 3, "Player should own 3 NFTs");
 
         for (uint256 i = 0; i < tokens.length; i++) {
-            (, , , , , bool isInitialized) = core.getDealerData(tokens[i]);
+            (,,,,, bool isInitialized) = core.getDealerData(tokens[i]);
             assertTrue(isInitialized, "Each NFT should be initialized");
             assertEq(core.getCashBalance(tokens[i]), 250, "Each should have 250 cash");
         }
@@ -211,7 +185,7 @@ contract PlayerJourneyTest is BaseTest {
 
         core.moveToArea(tokenId, MANHATTAN);
 
-        (uint8 area, , , , , ) = core.getDealerData(tokenId);
+        (uint8 area,,,,,) = core.getDealerData(tokenId);
         assertEq(area, MANHATTAN, "Should be in Manhattan");
 
         vm.expectRevert(DealersCore.CannotEnterSafeHouse.selector);

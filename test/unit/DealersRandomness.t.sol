@@ -6,10 +6,22 @@ import "../../src/utils/DealersRandomness.sol";
 
 contract MockResolver {
     DealersRandomness public r;
-    constructor(DealersRandomness _r) { r = _r; }
-    function commit() external returns (uint64) { return r.commit(); }
-    function reveal(uint64 seq) external view returns (uint256) { return r.reveal(seq); }
-    function isExpired(uint64 seq) external view returns (bool) { return r.isExpired(seq); }
+
+    constructor(DealersRandomness _r) {
+        r = _r;
+    }
+
+    function commit() external returns (uint64) {
+        return r.commit();
+    }
+
+    function reveal(uint64 seq) external view returns (uint256) {
+        return r.reveal(seq);
+    }
+
+    function isExpired(uint64 seq) external view returns (bool) {
+        return r.isExpired(seq);
+    }
 }
 
 contract DealersRandomnessTest is Test {

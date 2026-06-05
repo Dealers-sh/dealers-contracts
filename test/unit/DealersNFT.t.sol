@@ -281,11 +281,7 @@ contract DealersNFTTest is BaseTest {
         uint256 mintStatusPublic = uint256(DealersNFT.MintStatus.PUBLIC);
         uint256 packedValue = mintStatusPublic | (maxSupply << 16);
 
-        vm.store(
-            address(nft),
-            bytes32(uint256(10)),
-            bytes32(packedValue)
-        );
+        vm.store(address(nft), bytes32(uint256(10)), bytes32(packedValue));
 
         assertEq(nft.totalMinted(), maxSupply);
 
@@ -360,14 +356,8 @@ contract DealersNFTTest is BaseTest {
         vm.prank(player1);
         nft.mintPublic{value: MINT_PRICE}(player1, 1);
 
-        (
-            uint8 currentArea,
-            uint256 reputation,
-            uint8 dailyAttemptsRemaining,
-            uint8 heatLevel,
-            ,
-            bool isInitialized
-        ) = core.getDealerData(nextTokenId);
+        (uint8 currentArea, uint256 reputation, uint8 dailyAttemptsRemaining, uint8 heatLevel,, bool isInitialized) =
+            core.getDealerData(nextTokenId);
 
         assertTrue(isInitialized);
         assertEq(currentArea, core.STARTING_AREA());
@@ -518,7 +508,7 @@ contract DealersNFTTest is BaseTest {
         vm.prank(owner);
         nft.setRoyaltyReceiver(newReceiver);
 
-        (address receiver, ) = nft.royaltyInfo(1, 1 ether);
+        (address receiver,) = nft.royaltyInfo(1, 1 ether);
         assertEq(receiver, newReceiver);
     }
 

@@ -23,10 +23,9 @@ contract DeployBoosts is DeployBase {
         _requireAddress(paymentHandler, "PAYMENT_HANDLER");
 
         vm.startBroadcast();
-        boosts = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersBoosts.sol:DealersBoosts"),
-            abi.encode(core, nft, paymentHandler)
-        ));
+        boosts = _zkCreate(
+            abi.encodePacked(vm.getCode("DealersBoosts.sol:DealersBoosts"), abi.encode(core, nft, paymentHandler))
+        );
         vm.stopBroadcast();
 
         _saveAddresses();

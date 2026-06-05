@@ -11,16 +11,16 @@ import "../base/DeployBase.s.sol";
  *
  * Step 1: Upload to FileStore (EVM mode — no --zksync):
  *   forge script script/upload/UploadGzipJs.s.sol:UploadGzipJs \
-      --sig "upload()" \
-      --rpc-url https://api.testnet.abs.xyz \
-      --account dealersKeystore --broadcast
+ *       --sig "upload()" \
+ *       --rpc-url https://api.testnet.abs.xyz \
+ *       --account dealersKeystore --broadcast
  *
  * Step 2: Set filename on renderer (zkSync mode):
  *   forge script script/upload/UploadGzipJs.s.sol:UploadGzipJs \
-      --sig "setFilename(string)" "dealers-testnet-1779291187.js.gz" \
-      --zksync --skip "RendererSVG" \
-      --rpc-url https://api.testnet.abs.xyz \
-      --account dealersKeystore --broadcast
+ *       --sig "setFilename(string)" "dealers-testnet-1779291187.js.gz" \
+ *       --zksync --skip "RendererSVG" \
+ *       --rpc-url https://api.testnet.abs.xyz \
+ *       --account dealersKeystore --broadcast
  *
  * Prerequisites:
  *   cd ../dealers-app && ./build-single-file.sh

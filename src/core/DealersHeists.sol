@@ -48,7 +48,9 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
 
     uint64 public constant IDLE_TIMEOUT = 24 hours;
 
-    /** @dev Grace period after a Pyth jackpot request before its escrow can be reclaimed if no callback arrives. */
+    /**
+     * @dev Grace period after a Pyth jackpot request before its escrow can be reclaimed if no callback arrives.
+     */
     uint64 public constant JACKPOT_TIMEOUT = 24 hours;
     uint16 internal constant BPS = 10000;
     uint8 internal constant STAGES = 5;
@@ -56,18 +58,18 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
 
     // --- config ---
     mapping(uint8 difficulty => DifficultyConfig) public difficultyConfigs;
-    uint8[STAGES] public stageWinOdds;          // CLEAN (advance) chance per stage (0-100)
-    uint8[STAGES] public stageSetbackOdds;      // SETBACK band width per stage; BUST = 100 - clean - setback
-    uint16[STAGES] public stageSetbackKeepBps;  // fraction of the stage pot kept on a setback
-    uint32[STAGES] public stagePotMinBps;       // pot multiplier range (bps of stake) — rolled per reveal
+    uint8[STAGES] public stageWinOdds; // CLEAN (advance) chance per stage (0-100)
+    uint8[STAGES] public stageSetbackOdds; // SETBACK band width per stage; BUST = 100 - clean - setback
+    uint16[STAGES] public stageSetbackKeepBps; // fraction of the stage pot kept on a setback
+    uint32[STAGES] public stagePotMinBps; // pot multiplier range (bps of stake) — rolled per reveal
     uint32[STAGES] public stagePotMaxBps;
-    uint16[STAGES] public stageRepReward;       // small Rep granted on payout at this stage (0 on bust)
-    uint8[3][STAGES] public supplyMix;          // [common%, uncommon%, rare%] per stage
+    uint16[STAGES] public stageRepReward; // small Rep granted on payout at this stage (0 on bust)
+    uint8[3][STAGES] public supplyMix; // [common%, uncommon%, rare%] per stage
     JackpotStage[STAGES] public jackpotConfig;
     uint96 public ethAddOn = 0.001 ether;
-    uint16 public jackpotReserveBps = 4000;     // share of ETH add-on kept as jackpot reserve
-    uint8 public minCashStage = 2;              // earliest stage a player may voluntarily cash out (stage 1 = prep)
-    uint16 public bustRepPenalty = 3;           // small Rep loss when a run busts (floors at 0 in Core)
+    uint16 public jackpotReserveBps = 4000; // share of ETH add-on kept as jackpot reserve
+    uint8 public minCashStage = 2; // earliest stage a player may voluntarily cash out (stage 1 = prep)
+    uint16 public bustRepPenalty = 3; // small Rep loss when a run busts (floors at 0 in Core)
 
     // --- heists ---
     mapping(uint256 heistId => DailyHeist) public dailyHeists;
@@ -77,17 +79,18 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
     uint256 public nextHeistId = 1;
 
     // --- jackpot ETH accounting (all wei held by this contract) ---
-    uint256 public jackpotReserve;     // free reserve available to back future jackpots
-    uint256 public escrowedJackpot;    // max payouts reserved for in-flight Pyth requests
+    uint256 public jackpotReserve; // free reserve available to back future jackpots
+    uint256 public escrowedJackpot; // max payouts reserved for in-flight Pyth requests
     mapping(uint256 tokenId => uint256) public jackpotOwed; // claimable winnings
-    uint256 public totalJackpotOwed;   // running sum of jackpotOwed, for the backedEth() solvency view
+    uint256 public totalJackpotOwed; // running sum of jackpotOwed, for the backedEth() solvency view
 
     struct PendingJackpot {
         uint256 tokenId;
-        uint96 maxValue;     // escrowed ceiling for this request
+        uint96 maxValue; // escrowed ceiling for this request
         uint8 stage;
-        uint64 requestedAt;  // timestamp of the Pyth request, for the stuck-callback reclaim
+        uint64 requestedAt; // timestamp of the Pyth request, for the stuck-callback reclaim
     }
+
     mapping(uint64 pythSeq => PendingJackpot) public pendingJackpots;
 
     // =============================================================
@@ -148,19 +151,14 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
         entropy = IEntropyV2(_entropy);
 
         stageWinOdds = [uint8(72), 62, 52, 42, 32];
-        stageSetbackOdds = [uint8(20), 28, 33, 38, 40];          // bust = 8 / 10 / 15 / 20 / 28
+        stageSetbackOdds = [uint8(20), 28, 33, 38, 40]; // bust = 8 / 10 / 15 / 20 / 28
         stageSetbackKeepBps = [uint16(5000), 4500, 4000, 3500, 3000];
         // Pot multiplier rolled within [min,max] each reveal. Stage 1 ~1.0-1.4x (prep, not cashable).
         stagePotMinBps = [uint32(10000), 18000, 30000, 52000, 100000];
         stagePotMaxBps = [uint32(14000), 28000, 46000, 78000, 160000];
-        stageRepReward = [uint16(0), 2, 4, 7, 12];               // prep gives none; deeper = more (PVP-ish, << PVE)
-        supplyMix = [
-            [uint8(100), 0, 0],
-            [uint8(70), 30, 0],
-            [uint8(40), 60, 0],
-            [uint8(10), 50, 40],
-            [uint8(0), 0, 100]
-        ];
+        stageRepReward = [uint16(0), 2, 4, 7, 12]; // prep gives none; deeper = more (PVP-ish, << PVE)
+        supplyMix =
+            [[uint8(100), 0, 0], [uint8(70), 30, 0], [uint8(40), 60, 0], [uint8(10), 50, 40], [uint8(0), 0, 100]];
         jackpotConfig[0] = JackpotStage({triggerPct: 1, minMultBps: 12000, maxMultBps: 30000});
         jackpotConfig[1] = JackpotStage({triggerPct: 2, minMultBps: 15000, maxMultBps: 45000});
         jackpotConfig[2] = JackpotStage({triggerPct: 3, minMultBps: 20000, maxMultBps: 70000});
@@ -174,12 +172,9 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
 
     modifier contractsSet() {
         if (
-            address(core) == address(0) ||
-            address(nftContract) == address(0) ||
-            address(randomness) == address(0) ||
-            address(paymentHandler) == address(0) ||
-            address(drugRegistry) == address(0) ||
-            address(entropy) == address(0)
+            address(core) == address(0) || address(nftContract) == address(0) || address(randomness) == address(0)
+                || address(paymentHandler) == address(0) || address(drugRegistry) == address(0)
+                || address(entropy) == address(0)
         ) revert ContractNotSet();
         _;
     }
@@ -260,7 +255,9 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
             tokenId: tokenId
         });
         activeHeist[tokenId] = heistId;
-        unchecked { heistRuns[tokenId]++; }
+        unchecked {
+            heistRuns[tokenId]++;
+        }
 
         emit HeistStarted(heistId, tokenId, msg.sender, family, difficulty, ethJackpot, cfg.cashEntry);
     }
@@ -297,7 +294,9 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
         IDealersCore.GameState memory s = core.getGameState(h.tokenId);
         if (s.isJailed) revert DealerInJail(); // jail pauses the run; resume after release
 
-        unchecked { h.currentStage++; }
+        unchecked {
+            h.currentStage++;
+        }
         uint64 seq = randomness.commit();
         h.commitSeq = seq;
         h.commitTimestamp = uint64(block.timestamp);
@@ -366,7 +365,9 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
         }
     }
 
-    /** @dev Pot multiplier for a stage, rolled uniformly in [min,max] bps from an unused slice of the reveal. */
+    /**
+     * @dev Pot multiplier for a stage, rolled uniformly in [min,max] bps from an unused slice of the reveal.
+     */
     function _rollMult(uint8 stage, uint256 rand) private view returns (uint256) {
         uint256 lo = stagePotMinBps[stage - 1];
         uint256 hi = stagePotMaxBps[stage - 1];
@@ -402,8 +403,13 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
     //                        JACKPOT (ETH, Pyth)
     // =============================================================
 
-    /** @dev Returns true only when a Pyth request is actually made; a reserve-skip returns false so the run stays jackpot-eligible for a later stage. */
-    function _fireJackpot(uint256 heistId, uint256 tokenId, uint8 stage, JackpotStage memory jc) private returns (bool) {
+    /**
+     * @dev Returns true only when a Pyth request is actually made; a reserve-skip returns false so the run stays jackpot-eligible for a later stage.
+     */
+    function _fireJackpot(uint256 heistId, uint256 tokenId, uint8 stage, JackpotStage memory jc)
+        private
+        returns (bool)
+    {
         uint256 maxVal = (uint256(ethAddOn) * jc.maxMultBps) / BPS;
         uint256 fee = entropy.getFeeV2();
         if (jackpotReserve < maxVal + fee) {
@@ -431,7 +437,9 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
         return address(entropy);
     }
 
-    /** @dev Pyth callback. Kept minimal & pull-based: credits owed winnings, no transfer. */
+    /**
+     * @dev Pyth callback. Kept minimal & pull-based: credits owed winnings, no transfer.
+     */
     function entropyCallback(uint64 sequence, address, bytes32 randomNumber) internal override {
         PendingJackpot memory p = pendingJackpots[sequence];
         if (p.tokenId == 0) return;
@@ -451,7 +459,9 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
         emit JackpotWon(sequence, p.tokenId, value);
     }
 
-    /** @notice Claim a dealer's owed jackpot winnings to the current NFT owner (pull-based). */
+    /**
+     * @notice Claim a dealer's owed jackpot winnings to the current NFT owner (pull-based).
+     */
     function claimJackpot(uint256 tokenId) external nonReentrant {
         uint256 owed = jackpotOwed[tokenId];
         if (owed == 0) revert NothingToClaim();
@@ -497,11 +507,7 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
         h.lastActionTime = uint64(block.timestamp);
         delete activeHeist[tokenId];
 
-        if (
-            allowArrest &&
-            address(actions) != address(0) &&
-            core.rollJailCheck(tokenId, (rand >> 64) & 0xFFFF)
-        ) {
+        if (allowArrest && address(actions) != address(0) && core.rollJailCheck(tokenId, (rand >> 64) & 0xFFFF)) {
             actions.arrest(tokenId, (rand >> 96) & 0xFFFF);
             emit HeistArrest(heistId, tokenId);
         } else {
@@ -580,7 +586,7 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
         uint256 seed = uint256(keccak256(abi.encodePacked(blockhash(block.number - 1), tokenId, stage)));
         uint256 residualCash;
 
-        for (uint256 r = 0; r < 3; ) {
+        for (uint256 r = 0; r < 3;) {
             uint8 pct = mix[r];
             if (pct != 0) {
                 uint256 bucketValue = (potCashEquiv * pct) / 100;
@@ -596,13 +602,17 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
                     }
                 }
             }
-            unchecked { ++r; }
+            unchecked {
+                ++r;
+            }
         }
 
         if (residualCash != 0) core.addCash(tokenId, residualCash);
     }
 
-    /** @dev Pick one drug of `rarity` that the dealer's current area deals; 0 if the area has none. */
+    /**
+     * @dev Pick one drug of `rarity` that the dealer's current area deals; 0 if the area has none.
+     */
     function _pickAreaDrugByRarity(
         uint256[] memory areaDrugIds,
         IDrugRegistry.DrugRarity rarity,
@@ -611,13 +621,17 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
     ) private view returns (uint256) {
         uint256 count;
         uint256[] memory matched = new uint256[](areaDrugIds.length);
-        for (uint256 i = 0; i < areaDrugIds.length; ) {
+        for (uint256 i = 0; i < areaDrugIds.length;) {
             uint256 id = areaDrugIds[i];
             if (id != 0 && drugRegistry.getDrugRarity(id) == rarity) {
                 matched[count] = id;
-                unchecked { ++count; }
+                unchecked {
+                    ++count;
+                }
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         if (count == 0) return 0;
         return matched[uint256(keccak256(abi.encodePacked(seed, salt))) % count];
@@ -626,7 +640,7 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
     function _safeTransferETH(address to, uint256 amount) private {
         if (amount == 0) return;
         if (to == address(0)) revert InvalidAddress();
-        (bool ok, ) = to.call{value: amount}("");
+        (bool ok,) = to.call{value: amount}("");
         if (!ok) revert TransferFailed();
     }
 
@@ -675,10 +689,12 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
         uint8[STAGES] calldata setbackOdds,
         uint16[STAGES] calldata setbackKeepBps
     ) external onlyOwner {
-        for (uint256 i = 0; i < STAGES; ) {
+        for (uint256 i = 0; i < STAGES;) {
             if (uint256(cleanOdds[i]) + setbackOdds[i] > 100) revert InvalidConfig(); // bust = remainder
             if (setbackKeepBps[i] > BPS) revert InvalidConfig();
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         stageWinOdds = cleanOdds;
         stageSetbackOdds = setbackOdds;
@@ -691,9 +707,11 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
         uint32[STAGES] calldata potMaxBps,
         uint16[STAGES] calldata repReward
     ) external onlyOwner {
-        for (uint256 i = 0; i < STAGES; ) {
+        for (uint256 i = 0; i < STAGES;) {
             if (potMaxBps[i] < potMinBps[i]) revert InvalidConfig();
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         stagePotMinBps = potMinBps;
         stagePotMaxBps = potMaxBps;
@@ -702,9 +720,11 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
     }
 
     function setSupplyMix(uint8[3][STAGES] calldata mix) external onlyOwner {
-        for (uint256 i = 0; i < STAGES; ) {
+        for (uint256 i = 0; i < STAGES;) {
             if (uint256(mix[i][0]) + mix[i][1] + mix[i][2] != 100) revert InvalidConfig();
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         supplyMix = mix;
         emit StageTablesUpdated();
@@ -728,12 +748,14 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
     }
 
     function setJackpotConfig(JackpotStage[STAGES] calldata cfg) external onlyOwner {
-        for (uint256 i = 0; i < STAGES; ) {
+        for (uint256 i = 0; i < STAGES;) {
             if (cfg[i].triggerPct > 100 || cfg[i].minMultBps <= BPS || cfg[i].maxMultBps < cfg[i].minMultBps) {
                 revert InvalidConfig();
             }
             jackpotConfig[i] = cfg[i];
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         emit JackpotConfigUpdated();
     }

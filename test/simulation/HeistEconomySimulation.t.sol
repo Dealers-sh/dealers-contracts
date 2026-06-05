@@ -34,13 +34,8 @@ contract HeistEconomySimulation is Test {
     uint32[5] stagePotMinBps = [10000, 18000, 30000, 52000, 100000];
     uint32[5] stagePotMaxBps = [14000, 28000, 46000, 78000, 160000];
     uint16[5] stageRepReward = [0, 2, 4, 7, 12];
-    uint8[3][5] supplyMix = [
-        [uint8(100), 0, 0],
-        [uint8(70), 30, 0],
-        [uint8(40), 60, 0],
-        [uint8(10), 50, 40],
-        [uint8(0), 0, 100]
-    ];
+    uint8[3][5] supplyMix =
+        [[uint8(100), 0, 0], [uint8(70), 30, 0], [uint8(40), 60, 0], [uint8(10), 50, 40], [uint8(0), 0, 100]];
 
     uint16[5] jackpotTriggerPct = [1, 2, 3, 4, 5];
     uint32[5] jackpotMinMultBps = [12000, 15000, 20000, 30000, 50000];
@@ -70,10 +65,27 @@ contract HeistEconomySimulation is Test {
     //                    ECONOMY CONFIG (setup scripts)
     // =============================================================
 
-    struct Tier { uint256 minRep; int256 win; int256 tie; int256 loss; int256 cap; string name; }
+    struct Tier {
+        uint256 minRep;
+        int256 win;
+        int256 tie;
+        int256 loss;
+        int256 cap;
+        string name;
+    }
+
     Tier[10] tiers;
 
-    struct Boost { uint16 drugMult; uint16 cashMult; uint16 repMult; uint8 extraAttempts; uint256 priceWei; uint8 durationDays; string name; }
+    struct Boost {
+        uint16 drugMult;
+        uint16 cashMult;
+        uint16 repMult;
+        uint8 extraAttempts;
+        uint256 priceWei;
+        uint8 durationDays;
+        string name;
+    }
+
     Boost[5] boostCfg; // 0=none,1=grinder,2=hustler,3=kingpin,4=godfather
 
     uint256[12] drugBaseValue;
@@ -99,52 +111,63 @@ contract HeistEconomySimulation is Test {
         difficulties[1] = Difficulty({repGate: 1500, cashEntry: 2500, name: "Warehouse Job  (D1)"});
         difficulties[2] = Difficulty({repGate: 5500, cashEntry: 12000, name: "Cartel Heist   (D2)"});
 
-        tiers[0] = Tier(0,     60, 25, -2, 35, "Outsider");
-        tiers[1] = Tier(100,   35, 18, -3, 25, "Associate");
-        tiers[2] = Tier(250,   20, 10, -3, 22, "Dealer");
-        tiers[3] = Tier(600,   12, 5,  -4, 22, "Soldier");
-        tiers[4] = Tier(1500,  9,  4,  -5, 24, "Capo");
-        tiers[5] = Tier(3000,  7,  3,  -5, 26, "Consigliere");
-        tiers[6] = Tier(5500,  6,  2,  -6, 28, "Underboss");
-        tiers[7] = Tier(10000, 5,  2,  -6, 30, "Don");
-        tiers[8] = Tier(22000, 4,  1,  -7, 32, "Godfather");
-        tiers[9] = Tier(50000, 2,  1,  -8, 4,  "Legend");
+        tiers[0] = Tier(0, 60, 25, -2, 35, "Outsider");
+        tiers[1] = Tier(100, 35, 18, -3, 25, "Associate");
+        tiers[2] = Tier(250, 20, 10, -3, 22, "Dealer");
+        tiers[3] = Tier(600, 12, 5, -4, 22, "Soldier");
+        tiers[4] = Tier(1500, 9, 4, -5, 24, "Capo");
+        tiers[5] = Tier(3000, 7, 3, -5, 26, "Consigliere");
+        tiers[6] = Tier(5500, 6, 2, -6, 28, "Underboss");
+        tiers[7] = Tier(10000, 5, 2, -6, 30, "Don");
+        tiers[8] = Tier(22000, 4, 1, -7, 32, "Godfather");
+        tiers[9] = Tier(50000, 2, 1, -8, 4, "Legend");
 
-        boostCfg[0] = Boost(100, 100, 100, 0, 0,            0,  "No Boost ");
-        boostCfg[1] = Boost(125, 125, 110, 2, 0.0025 ether, 3,  "Grinder  ");
-        boostCfg[2] = Boost(150, 150, 115, 3, 0.005 ether,  7,  "Hustler  ");
-        boostCfg[3] = Boost(175, 175, 125, 6, 0.01 ether,   14, "Kingpin  ");
-        boostCfg[4] = Boost(225, 225, 135, 7, 0.023 ether,  30, "Godfather");
+        boostCfg[0] = Boost(100, 100, 100, 0, 0, 0, "No Boost ");
+        boostCfg[1] = Boost(125, 125, 110, 2, 0.0025 ether, 3, "Grinder  ");
+        boostCfg[2] = Boost(150, 150, 115, 3, 0.005 ether, 7, "Hustler  ");
+        boostCfg[3] = Boost(175, 175, 125, 6, 0.01 ether, 14, "Kingpin  ");
+        boostCfg[4] = Boost(225, 225, 135, 7, 0.023 ether, 30, "Godfather");
 
         // Base cash values (SetupDrugs)
-        drugBaseValue[1] = 75;   drugRarity[1] = 0; // Goods
-        drugBaseValue[2] = 500;  drugRarity[2] = 1; // Contraband
-        drugBaseValue[3] = 2500; drugRarity[3] = 2; // Jewels
-        drugBaseValue[4] = 1;    drugRarity[4] = 0; // Weed
-        drugBaseValue[5] = 10;   drugRarity[5] = 1; // XTC
-        drugBaseValue[6] = 100;  drugRarity[6] = 2; // Cocaine
-        drugBaseValue[7] = 12;   drugRarity[7] = 1; // Shrooms
-        drugBaseValue[8] = 150;  drugRarity[8] = 2; // Heroin
-        drugBaseValue[9] = 18;   drugRarity[9] = 0; // Opioids
-        drugBaseValue[10] = 25;  drugRarity[10] = 1; // Meth
-        drugBaseValue[11] = 200; drugRarity[11] = 2; // Fentanyl
+        drugBaseValue[1] = 75;
+        drugRarity[1] = 0; // Goods
+        drugBaseValue[2] = 500;
+        drugRarity[2] = 1; // Contraband
+        drugBaseValue[3] = 2500;
+        drugRarity[3] = 2; // Jewels
+        drugBaseValue[4] = 1;
+        drugRarity[4] = 0; // Weed
+        drugBaseValue[5] = 10;
+        drugRarity[5] = 1; // XTC
+        drugBaseValue[6] = 100;
+        drugRarity[6] = 2; // Cocaine
+        drugBaseValue[7] = 12;
+        drugRarity[7] = 1; // Shrooms
+        drugBaseValue[8] = 150;
+        drugRarity[8] = 2; // Heroin
+        drugBaseValue[9] = 18;
+        drugRarity[9] = 0; // Opioids
+        drugBaseValue[10] = 25;
+        drugRarity[10] = 1; // Meth
+        drugBaseValue[11] = 200;
+        drugRarity[11] = 2; // Fentanyl
 
         // Area drug ids (SetupAreas)
-        areaDrugIds[1] = [uint256(4), 5, 6];   // Manhattan: Weed, XTC, Cocaine
-        areaDrugIds[2] = [uint256(4), 7, 8];   // Amsterdam: Weed, Shrooms, Heroin
-        areaDrugIds[3] = [uint256(4), 6, 8];   // Colombia: Weed, Cocaine, Heroin
-        areaDrugIds[4] = [uint256(9), 10, 8];  // Hong Kong: Opioids, Meth, Heroin
+        areaDrugIds[1] = [uint256(4), 5, 6]; // Manhattan: Weed, XTC, Cocaine
+        areaDrugIds[2] = [uint256(4), 7, 8]; // Amsterdam: Weed, Shrooms, Heroin
+        areaDrugIds[3] = [uint256(4), 6, 8]; // Colombia: Weed, Cocaine, Heroin
+        areaDrugIds[4] = [uint256(9), 10, 8]; // Hong Kong: Opioids, Meth, Heroin
         areaDrugIds[5] = [uint256(9), 10, 11]; // Seoul: Opioids, Meth, Fentanyl
         areaDrugIds[6] = [uint256(9), 10, 11]; // Tokyo: Opioids, Meth, Fentanyl
-        areaDrugIds[7] = [uint256(5), 6, 8];   // Dubai: XTC, Cocaine, Heroin
+        areaDrugIds[7] = [uint256(5), 6, 8]; // Dubai: XTC, Cocaine, Heroin
 
         // Area sell prices (SetupAreas), aligned with areaDrugIds
-        areaDrugSell[1] = [uint256(1), 10, 100];   // Manhattan
-        areaDrugSell[2] = [uint256(2), 12, 150];   // Amsterdam
-        areaDrugSell[3] = [uint256(1), 50, 75];    // Colombia
-        areaDrugSell[4] = [uint256(18), 25, 160];  // Hong Kong: Opioids18, Meth25, Heroin160
-        areaDrugSell[5] = [uint256(7), 12, 75];    // Seoul: Opioids7, Meth12, Fentanyl75
-        areaDrugSell[6] = [uint256(20), 26, 160];  // Tokyo: Opioids20, Meth26, Fentanyl160
+        areaDrugSell[1] = [uint256(1), 10, 100]; // Manhattan
+        areaDrugSell[2] = [uint256(2), 12, 150]; // Amsterdam
+        areaDrugSell[3] = [uint256(1), 50, 75]; // Colombia
+        areaDrugSell[4] = [uint256(18), 25, 160]; // Hong Kong: Opioids18, Meth25, Heroin160
+        areaDrugSell[5] = [uint256(7), 12, 75]; // Seoul: Opioids7, Meth12, Fentanyl75
+        areaDrugSell[6] = [uint256(20), 26, 160]; // Tokyo: Opioids20, Meth26, Fentanyl160
         areaDrugSell[7] = [uint256(20), 200, 240]; // Dubai: XTC20, Cocaine200, Heroin240
 
         rng = 0xDEADBEEF;
@@ -181,8 +204,10 @@ contract HeistEconomySimulation is Test {
             uint256 stagePot = (uint256(stake) * _rollMult(stage, rand)) / BPS;
 
             if (roll < cleanOdds) {
-                if (ethJackpot &&
-                    (rand >> 16) % 10000 < (uint256(jackpotTriggerPct[stage - 1]) * jackpotTriggerScaleBps) / 100) {
+                if (
+                    ethJackpot
+                        && (rand >> 16) % 10000 < (uint256(jackpotTriggerPct[stage - 1]) * jackpotTriggerScaleBps) / 100
+                ) {
                     ethWon += _rollJackpotValue(stage);
                 }
                 if (stage >= STAGES || stage >= targetStage) {
@@ -206,8 +231,12 @@ contract HeistEconomySimulation is Test {
         uint256 grossPot;
         (grossPot, endStage, outcome, ethWon) = _playRunCore(stake, targetStage, ethJackpot);
         payout = (grossPot * cashMult) / 100;
-        if (outcome == 0) repDelta = int256(uint256(stageRepReward[endStage - 1]));
-        else if (outcome == 2) { repDelta = -int256(uint256(BUST_REP_PENALTY)); busted = true; }
+        if (outcome == 0) {
+            repDelta = int256(uint256(stageRepReward[endStage - 1]));
+        } else if (outcome == 2) {
+            repDelta = -int256(uint256(BUST_REP_PENALTY));
+            busted = true;
+        }
     }
 
     /// @dev SUPPLY-family run: pot converted to area drugs by the per-stage rarity mix (boost drugMult).
@@ -220,7 +249,11 @@ contract HeistEconomySimulation is Test {
         uint8 outcome;
         uint256 grossPot;
         (grossPot, endStage, outcome, ethWon) = _playRunCore(stake, targetStage, ethJackpot);
-        if (outcome == 2) { repDelta = -int256(uint256(BUST_REP_PENALTY)); busted = true; return (0, 0, repDelta, true, ethWon); }
+        if (outcome == 2) {
+            repDelta = -int256(uint256(BUST_REP_PENALTY));
+            busted = true;
+            return (0, 0, repDelta, true, ethWon);
+        }
         (stashAdded, cashResidual) = _allocateSupply((grossPot * drugMult) / 100, endStage, area);
         if (outcome == 0) repDelta = int256(uint256(stageRepReward[endStage - 1]));
     }
@@ -240,9 +273,15 @@ contract HeistEconomySimulation is Test {
             uint256 bucket = (amt * pct) / 100;
             if (bucket == 0) continue;
             uint256 baseVal = _areaDrugBaseOfRarity(area, uint8(r));
-            if (baseVal == 0) { residualCash += bucket; continue; }
+            if (baseVal == 0) {
+                residualCash += bucket;
+                continue;
+            }
             uint256 units = bucket / baseVal;
-            if (units == 0) { residualCash += bucket; continue; }
+            if (units == 0) {
+                residualCash += bucket;
+                continue;
+            }
             stashAdded += units * baseVal;
             residualCash += bucket - units * baseVal;
         }
@@ -338,7 +377,11 @@ contract HeistEconomySimulation is Test {
         uint8[2] memory targets = [3, 5];
         for (uint256 ti = 0; ti < 2; ti++) {
             uint8 target = targets[ti];
-            reserve = 0; totalWon = 0; totalReserveIn = 0; skips = 0; fires = 0;
+            reserve = 0;
+            totalWon = 0;
+            totalReserveIn = 0;
+            skips = 0;
+            fires = 0;
 
             for (uint256 i = 0; i < TRIALS; i++) {
                 uint256 toReserve = (ETH_ADD_ON * JACKPOT_RESERVE_BPS) / BPS;
@@ -460,7 +503,10 @@ contract HeistEconomySimulation is Test {
             for (uint256 a = 0; a < attempts; a++) {
                 uint256 di = _pickDifficulty(d.rep);
                 uint96 stake = difficulties[di].cashEntry;
-                if (d.cash < stake) { di = 0; stake = difficulties[0].cashEntry; }
+                if (d.cash < stake) {
+                    di = 0;
+                    stake = difficulties[0].cashEntry;
+                }
                 if (d.cash < stake) break; // broke
 
                 d.cash -= stake;
@@ -511,7 +557,7 @@ contract HeistEconomySimulation is Test {
     }
 
     function _tierIdx(uint256 rep) private view returns (uint8) {
-        for (uint8 i = 9; ; i--) {
+        for (uint8 i = 9;; i--) {
             if (rep >= tiers[i].minRep) return i;
             if (i == 0) break;
         }
@@ -538,8 +584,10 @@ contract HeistEconomySimulation is Test {
         uint256[3] memory scales = [uint256(10000), 8000, 6000];
         for (uint256 i = 0; i < 3; i++) {
             potScaleBps = scales[i];
-            rng = 0x2222; (uint256 allIn, uint256 runsA) = _proj30dCash(2_000_000, stakeD2, gMult, 12);
-            rng = 0x3333; (uint256 split,) = _proj30dCash(2_000_000, stakeD2, gMult, 5);
+            rng = 0x2222;
+            (uint256 allIn, uint256 runsA) = _proj30dCash(2_000_000, stakeD2, gMult, 12);
+            rng = 0x3333;
+            (uint256 split,) = _proj30dCash(2_000_000, stakeD2, gMult, 5);
             console.log("    potScale %d%%:", scales[i] / 100);
             console.log("      net/run=%d  30d all-in(12/d)=%d", runsA == 0 ? 0 : (allIn - 2_000_000) / runsA, allIn);
             console.log("      30d split(5/d)=%d", split);
@@ -550,8 +598,10 @@ contract HeistEconomySimulation is Test {
         console.log("  -- Lever 2: lower stake (pot 100%) --");
         uint96[3] memory stakes = [uint96(40000), 20000, 10000];
         for (uint256 i = 0; i < 3; i++) {
-            rng = 0x4444; (uint256 allIn, uint256 runsA) = _proj30dCash(2_000_000, stakes[i], gMult, 12);
-            rng = 0x5555; (uint256 split,) = _proj30dCash(2_000_000, stakes[i], gMult, 5);
+            rng = 0x4444;
+            (uint256 allIn, uint256 runsA) = _proj30dCash(2_000_000, stakes[i], gMult, 12);
+            rng = 0x5555;
+            (uint256 split,) = _proj30dCash(2_000_000, stakes[i], gMult, 5);
             console.log("    stake %d:", stakes[i]);
             console.log("      net/run=%d  30d all-in(12/d)=%d", runsA == 0 ? 0 : (allIn - 2_000_000) / runsA, allIn);
             console.log("      30d split(5/d)=%d", split);
@@ -598,14 +648,18 @@ contract HeistEconomySimulation is Test {
         uint256 TRIALS = 80000;
 
         rng = 0x55AA;
-        (uint256 won5, uint256 in5, uint256 fin5, uint256 fires5, uint256 skips5) = _runJackpotSim(5, reserveBps, TRIALS);
+        (uint256 won5, uint256 in5, uint256 fin5, uint256 fires5, uint256 skips5) =
+            _runJackpotSim(5, reserveBps, TRIALS);
         rng = 0x55AA;
         (uint256 won3,,,,) = _runJackpotSim(3, reserveBps, TRIALS);
 
         console.log("");
         console.log("  %s", label);
-        console.log("    return ride@5: %d%%   cash@3: %d%%",
-            (won5 * 100) / (TRIALS * ETH_ADD_ON), (won3 * 100) / (TRIALS * ETH_ADD_ON));
+        console.log(
+            "    return ride@5: %d%%   cash@3: %d%%",
+            (won5 * 100) / (TRIALS * ETH_ADD_ON),
+            (won3 * 100) / (TRIALS * ETH_ADD_ON)
+        );
         if (in5 >= won5) {
             console.log("    reserve SOLVENT: +%d wei/bet  (final %d after seed 1e18)", (in5 - won5) / TRIALS, fin5);
         } else {
@@ -666,7 +720,10 @@ contract HeistEconomySimulation is Test {
                     stakeSpent += stake;
                     runs++;
                     (uint256 gross, uint8 es, uint8 oc,) = _playRunCore(stake, 3, false);
-                    if (oc == 2) { busts++; continue; }
+                    if (oc == 2) {
+                        busts++;
+                        continue;
+                    }
                     residual += _allocateSupplyUnits(units, (gross * dMult) / 100, es, area);
                 }
             }
@@ -698,9 +755,15 @@ contract HeistEconomySimulation is Test {
             uint256 bucket = (amt * pct) / 100;
             if (bucket == 0) continue;
             uint256 id = _areaDrugIdOfRarity(area, uint8(r));
-            if (id == 0) { residualCash += bucket; continue; }
+            if (id == 0) {
+                residualCash += bucket;
+                continue;
+            }
             uint256 u = bucket / drugBaseValue[id];
-            if (u == 0) { residualCash += bucket; continue; }
+            if (u == 0) {
+                residualCash += bucket;
+                continue;
+            }
             units[id] += u;
             residualCash += bucket - u * drugBaseValue[id];
         }
@@ -715,7 +778,9 @@ contract HeistEconomySimulation is Test {
     }
 
     function _stashBaseValue(uint256[12] memory units) private view returns (uint256 v) {
-        for (uint256 id = 1; id <= 11; id++) v += units[id] * drugBaseValue[id];
+        for (uint256 id = 1; id <= 11; id++) {
+            v += units[id] * drugBaseValue[id];
+        }
     }
 
     function _stashSellValue(uint256[12] memory units, uint8 area) private view returns (uint256 v) {
@@ -745,6 +810,9 @@ contract HeistEconomySimulation is Test {
         if (x == 0) return 0;
         uint256 z = (x + 1) / 2;
         y = x;
-        while (z < y) { y = z; z = (x / z + z) / 2; }
+        while (z < y) {
+            y = z;
+            z = (x / z + z) / 2;
+        }
     }
 }

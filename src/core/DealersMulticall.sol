@@ -23,7 +23,9 @@ contract DealersMulticall is Ownable {
     error DealerNotInitialized(uint256 tokenId);
     error InvalidAddress();
 
-    /** @notice A dealer's balance for a single drug type */
+    /**
+     * @notice A dealer's balance for a single drug type
+     */
     struct DrugBalance {
         uint256 drugId;
         string name;
@@ -31,7 +33,9 @@ contract DealersMulticall is Ownable {
         IDrugRegistry.DrugRarity rarity;
     }
 
-    /** @notice Complete snapshot of a dealer's game state, stats, and boost info */
+    /**
+     * @notice Complete snapshot of a dealer's game state, stats, and boost info
+     */
     struct FullDealerState {
         uint256 reputation;
         uint256 stashBonusRep;
@@ -69,7 +73,9 @@ contract DealersMulticall is Ownable {
         uint256 infamy;
     }
 
-    /** @notice Drug availability and pricing within a specific area */
+    /**
+     * @notice Drug availability and pricing within a specific area
+     */
     struct AreaDrug {
         uint256 drugId;
         string name;
@@ -79,7 +85,9 @@ contract DealersMulticall is Ownable {
         bool isAvailable;
     }
 
-    /** @notice Full economic snapshot of an area including metadata, fees, and drug market */
+    /**
+     * @notice Full economic snapshot of an area including metadata, fees, and drug market
+     */
     struct AreaEconomy {
         uint8 areaId;
         string areaName;
@@ -98,13 +106,7 @@ contract DealersMulticall is Ownable {
     IAreaRegistry public areaRegistry;
     IDrugRegistry public drugRegistry;
 
-    constructor(
-        address _core,
-        address _pve,
-        address _pvp,
-        address _areaRegistry,
-        address _drugRegistry
-    ) {
+    constructor(address _core, address _pve, address _pvp, address _areaRegistry, address _drugRegistry) {
         if (_core == address(0)) revert ZeroAddress("core");
         if (_pve == address(0)) revert ZeroAddress("pve");
         if (_pvp == address(0)) revert ZeroAddress("pvp");
@@ -123,7 +125,7 @@ contract DealersMulticall is Ownable {
     /**
      * @notice Set the core state contract
      * @param _core Address of the DealersCore contract
- */
+     */
     function setCore(address _core) external onlyOwner {
         if (_core == address(0)) revert InvalidAddress();
         core = IDealersCore(_core);
@@ -132,7 +134,7 @@ contract DealersMulticall is Ownable {
     /**
      * @notice Set the PVE game module contract
      * @param _pve Address of the DealersPVE contract
- */
+     */
     function setPVE(address _pve) external onlyOwner {
         if (_pve == address(0)) revert InvalidAddress();
         pve = IDealersPVE(_pve);
@@ -141,7 +143,7 @@ contract DealersMulticall is Ownable {
     /**
      * @notice Set the PVP battle module contract
      * @param _pvp Address of the DealersPVP contract
- */
+     */
     function setPVP(address _pvp) external onlyOwner {
         if (_pvp == address(0)) revert InvalidAddress();
         pvp = IDealersPVP(_pvp);
@@ -150,7 +152,7 @@ contract DealersMulticall is Ownable {
     /**
      * @notice Set the area registry contract
      * @param _areaRegistry Address of the DealersAreaRegistry contract
- */
+     */
     function setAreaRegistry(address _areaRegistry) external onlyOwner {
         if (_areaRegistry == address(0)) revert InvalidAddress();
         areaRegistry = IAreaRegistry(_areaRegistry);
@@ -159,7 +161,7 @@ contract DealersMulticall is Ownable {
     /**
      * @notice Set the drug registry contract
      * @param _drugRegistry Address of the DealersDrugRegistry contract
- */
+     */
     function setDrugRegistry(address _drugRegistry) external onlyOwner {
         if (_drugRegistry == address(0)) revert InvalidAddress();
         drugRegistry = IDrugRegistry(_drugRegistry);
@@ -169,7 +171,7 @@ contract DealersMulticall is Ownable {
      * @notice Aggregate a dealer's full game state into a single call
      * @param tokenId The dealer NFT token ID
      * @return state Complete dealer state including stats, drugs, boosts, and PVE/PVP records
- */
+     */
     function getFullDealerState(uint256 tokenId) external view returns (FullDealerState memory state) {
         IDealersCore.GameState memory gs = core.getGameState(tokenId);
 
@@ -198,13 +200,11 @@ contract DealersMulticall is Ownable {
         state.drugBalances = new DrugBalance[](drugIds.length);
         for (uint256 i = 0; i < drugIds.length;) {
             IDrugRegistry.DrugInfo memory info = drugRegistry.getDrugInfo(drugIds[i]);
-            state.drugBalances[i] = DrugBalance({
-                drugId: drugIds[i],
-                name: info.name,
-                balance: balances[i],
-                rarity: info.rarity
-            });
-            unchecked { ++i; }
+            state.drugBalances[i] =
+                DrugBalance({drugId: drugIds[i], name: info.name, balance: balances[i], rarity: info.rarity});
+            unchecked {
+                ++i;
+            }
         }
 
         state.boostActive = gs.boostActive;
@@ -245,7 +245,7 @@ contract DealersMulticall is Ownable {
      * @notice Get the full economic state of a single area
      * @param areaId The area to query
      * @return Economy snapshot including drug market and dealer count
- */
+     */
     function getAreaEconomy(uint8 areaId) external view returns (AreaEconomy memory) {
         return _buildAreaEconomy(areaId);
     }
@@ -253,7 +253,7 @@ contract DealersMulticall is Ownable {
     /**
      * @notice Get economic snapshots for all areas (including safe house, jail, and black market)
      * @return economies Array of area economies ordered by area ID
- */
+     */
     function getAllAreas() external view returns (AreaEconomy[] memory economies) {
         uint8 totalAreas = areaRegistry.getTotalAreas();
         economies = new AreaEconomy[](totalAreas + 3);
@@ -261,7 +261,9 @@ contract DealersMulticall is Ownable {
         economies[0] = _buildAreaEconomy(0);
         for (uint8 i = 0; i < totalAreas;) {
             economies[i + 1] = _buildAreaEconomy(i + 1);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         economies[totalAreas + 1] = _buildAreaEconomy(areaRegistry.BLACK_MARKET_AREA());
         economies[totalAreas + 2] = _buildAreaEconomy(areaRegistry.JAIL_AREA());
@@ -292,7 +294,9 @@ contract DealersMulticall is Ownable {
                 sellPrice: drugConfig.sellPrice,
                 isAvailable: drugConfig.isAvailable
             });
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 }

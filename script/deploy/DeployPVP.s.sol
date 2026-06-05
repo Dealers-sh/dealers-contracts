@@ -24,10 +24,7 @@ contract DeployPVP is DeployBase {
         _requireAddress(areaRegistry, "AREA_REGISTRY");
 
         vm.startBroadcast();
-        pvp = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersPVP.sol:DealersPVP"),
-            abi.encode(core, nft, areaRegistry)
-        ));
+        pvp = _zkCreate(abi.encodePacked(vm.getCode("DealersPVP.sol:DealersPVP"), abi.encode(core, nft, areaRegistry)));
         vm.stopBroadcast();
 
         _saveAddresses();

@@ -19,10 +19,8 @@ contract DeployDealersChatFactory is DeployBase {
         _requireAddress(nft, "DEALERS_NFT");
 
         vm.startBroadcast();
-        chatFactory = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersChatFactory.sol:DealersChatFactory"),
-            abi.encode(nft)
-        ));
+        chatFactory =
+            _zkCreate(abi.encodePacked(vm.getCode("DealersChatFactory.sol:DealersChatFactory"), abi.encode(nft)));
         vm.stopBroadcast();
 
         _saveAddresses();

@@ -18,17 +18,17 @@ interface IDealersBankHeist {
     // =============================================================
 
     struct HeistEvent {
-        uint64 closesAt;     // end of the preparation window
+        uint64 closesAt; // end of the preparation window
         uint32 entryCount;
-        uint96 cashSunk;     // total $CASH paid into this event
-        bytes32 seed;        // Pyth random seed (0 until callback)
-        uint64 pythSeq;      // Pyth request sequence (0 until requested)
+        uint96 cashSunk; // total $CASH paid into this event
+        bytes32 seed; // Pyth random seed (0 until callback)
+        uint64 pythSeq; // Pyth request sequence (0 until requested)
         bool seeded;
         bool settled;
-        bool skipped;        // terminal: below-min skip OR refund-mode — blocks requestDraw/settle
+        bool skipped; // terminal: below-min skip OR refund-mode — blocks requestDraw/settle
         uint64 drawRequestedAt; // timestamp requestDraw fired (0 until requested); bounds the stuck-draw refund
-        uint32 weightCursor;    // entrants whose draw weight is frozen so far (must reach entryCount before settle)
-        uint256 totalWeight;    // sum of frozen weights, accrued during snapshotWeights
+        uint32 weightCursor; // entrants whose draw weight is frozen so far (must reach entryCount before settle)
+        uint256 totalWeight; // sum of frozen weights, accrued during snapshotWeights
     }
 
     // =============================================================
@@ -50,7 +50,9 @@ interface IDealersBankHeist {
     //                      VIEW FUNCTIONS
     // =============================================================
 
-    /** @notice The id of the currently open preparation window, derived from elapsed time. */
+    /**
+     * @notice The id of the currently open preparation window, derived from elapsed time.
+     */
     function currentEventId() external view returns (uint256);
 
     /**
@@ -60,23 +62,33 @@ interface IDealersBankHeist {
      */
     function getEvent(uint256 eventId) external view returns (HeistEvent memory);
 
-    /** @notice Total lifetime PVE + PVP + heist plays for a dealer (the activity metric). */
+    /**
+     * @notice Total lifetime PVE + PVP + heist plays for a dealer (the activity metric).
+     */
     function activityOf(uint256 tokenId) external view returns (uint64);
 
-    /** @notice The dealer's activity accrued inside an event window (settlement weight). */
+    /**
+     * @notice The dealer's activity accrued inside an event window (settlement weight).
+     */
     function eventWeight(uint256 eventId, uint256 tokenId) external view returns (uint256);
 
-    /** @notice Vault ETH available for prizes (balance minus unclaimed winnings). */
+    /**
+     * @notice Vault ETH available for prizes (balance minus unclaimed winnings).
+     */
     function availableVault() external view returns (uint256);
 
     // =============================================================
     //                    STATE-MODIFYING FUNCTIONS
     // =============================================================
 
-    /** @notice Enter the current cycle by paying the $CASH entry fee (a sink — no attempt, no ETH). */
+    /**
+     * @notice Enter the current cycle by paying the $CASH entry fee (a sink — no attempt, no ETH).
+     */
     function enter(uint256 tokenId) external;
 
-    /** @notice Request the Pyth Entropy draw for a closed event (pays the entropy fee; excess refunded). */
+    /**
+     * @notice Request the Pyth Entropy draw for a closed event (pays the entropy fee; excess refunded).
+     */
     function requestDraw(uint256 eventId) external payable;
 
     /**
@@ -88,12 +100,18 @@ interface IDealersBankHeist {
      */
     function snapshotWeights(uint256 eventId, uint256 maxCount) external;
 
-    /** @notice Settle a seeded event — picks activity-weighted winners and credits their pull-based winnings. */
+    /**
+     * @notice Settle a seeded event — picks activity-weighted winners and credits their pull-based winnings.
+     */
     function settle(uint256 eventId) external;
 
-    /** @notice Claim a dealer's credited winnings to the current NFT owner. */
+    /**
+     * @notice Claim a dealer's credited winnings to the current NFT owner.
+     */
     function claimWinnings(uint256 tokenId) external;
 
-    /** @notice Reclaim the $CASH entry for a skipped or stuck (past refundTimeout) event. */
+    /**
+     * @notice Reclaim the $CASH entry for a skipped or stuck (past refundTimeout) event.
+     */
     function claimRefund(uint256 eventId, uint256 tokenId) external;
 }

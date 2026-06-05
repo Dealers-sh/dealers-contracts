@@ -50,10 +50,12 @@ contract DeployHeists is DeployBase {
 
         vm.startBroadcast();
 
-        heists = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersHeists.sol:DealersHeists"),
-            abi.encode(core, nft, randomness, paymentHandler, drugRegistry, entropy)
-        ));
+        heists = _zkCreate(
+            abi.encodePacked(
+                vm.getCode("DealersHeists.sol:DealersHeists"),
+                abi.encode(core, nft, randomness, paymentHandler, drugRegistry, entropy)
+            )
+        );
         console.log("DealersHeists deployed:", heists);
 
         _wire();

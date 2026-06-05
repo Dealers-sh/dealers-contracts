@@ -23,10 +23,7 @@ contract DeployPVE is DeployBase {
         _requireAddress(areaRegistry, "AREA_REGISTRY");
 
         vm.startBroadcast();
-        pve = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersPVE.sol:DealersPVE"),
-            abi.encode(core, nft, areaRegistry)
-        ));
+        pve = _zkCreate(abi.encodePacked(vm.getCode("DealersPVE.sol:DealersPVE"), abi.encode(core, nft, areaRegistry)));
         vm.stopBroadcast();
 
         _saveAddresses();

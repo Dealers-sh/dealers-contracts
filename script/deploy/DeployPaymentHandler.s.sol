@@ -25,10 +25,11 @@ contract DeployPaymentHandler is DeployBase {
 
         vm.startBroadcast();
 
-        paymentHandler = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersPaymentHandler.sol:DealersPaymentHandler"),
-            abi.encode(devWallet, bankVault)
-        ));
+        paymentHandler = _zkCreate(
+            abi.encodePacked(
+                vm.getCode("DealersPaymentHandler.sol:DealersPaymentHandler"), abi.encode(devWallet, bankVault)
+            )
+        );
         console.log("DealersPaymentHandler deployed:", paymentHandler);
         console.log("  Old:", oldHandler);
 

@@ -4,19 +4,9 @@ pragma solidity ^0.8.28;
 import "../integration/BaseTest.sol";
 
 contract DealersBoostsTest is BaseTest {
-    event BoostPurchased(
-        uint256 indexed dealerId,
-        uint256 indexed tierId,
-        address indexed buyer,
-        uint64 expiresAt
-    );
+    event BoostPurchased(uint256 indexed dealerId, uint256 indexed tierId, address indexed buyer, uint64 expiresAt);
 
-    event BoostTierUpdated(
-        uint256 indexed tierId,
-        uint256 price,
-        uint64 duration,
-        bool isActive
-    );
+    event BoostTierUpdated(uint256 indexed tierId, uint256 price, uint64 duration, bool isActive);
 
     event BoostTierActiveStatusChanged(uint256 indexed tierId, bool isActive);
 
@@ -54,10 +44,10 @@ contract DealersBoostsTest is BaseTest {
 
         assertEq(tier.price, GRINDER_PRICE);
         assertEq(tier.duration, DURATION_3_DAYS);
-        assertEq(tier.drugMultiplier, 125);  // 1.25x
-        assertEq(tier.repMultiplier, 110);   // 1.1x
+        assertEq(tier.drugMultiplier, 125); // 1.25x
+        assertEq(tier.repMultiplier, 110); // 1.1x
         assertEq(tier.extraAttempts, 2);
-        assertEq(tier.cashMultiplier, 125);  // 1.25x
+        assertEq(tier.cashMultiplier, 125); // 1.25x
         assertFalse(tier.freeAreaMovement);
         assertTrue(tier.isActive);
     }
@@ -67,10 +57,10 @@ contract DealersBoostsTest is BaseTest {
 
         assertEq(tier.price, HUSTLER_PRICE);
         assertEq(tier.duration, DURATION_7_DAYS);
-        assertEq(tier.drugMultiplier, 150);  // 1.5x
-        assertEq(tier.repMultiplier, 115);   // 1.15x
+        assertEq(tier.drugMultiplier, 150); // 1.5x
+        assertEq(tier.repMultiplier, 115); // 1.15x
         assertEq(tier.extraAttempts, 3);
-        assertEq(tier.cashMultiplier, 150);  // 1.5x
+        assertEq(tier.cashMultiplier, 150); // 1.5x
         assertFalse(tier.freeAreaMovement);
         assertTrue(tier.isActive);
     }
@@ -79,11 +69,11 @@ contract DealersBoostsTest is BaseTest {
         DealersBoosts.BoostTier memory tier = boosts.getBoostTier(KINGPIN_TIER);
 
         assertEq(tier.price, KINGPIN_PRICE);
-        assertEq(tier.duration, 14 days);    // Kingpin is 14 days
-        assertEq(tier.drugMultiplier, 175);  // 1.75x
-        assertEq(tier.repMultiplier, 125);   // 1.25x
+        assertEq(tier.duration, 14 days); // Kingpin is 14 days
+        assertEq(tier.drugMultiplier, 175); // 1.75x
+        assertEq(tier.repMultiplier, 125); // 1.25x
         assertEq(tier.extraAttempts, 6);
-        assertEq(tier.cashMultiplier, 175);  // 1.75x
+        assertEq(tier.cashMultiplier, 175); // 1.75x
         assertTrue(tier.freeAreaMovement);
         assertTrue(tier.isActive);
     }
@@ -99,10 +89,10 @@ contract DealersBoostsTest is BaseTest {
         assertTrue(core.hasActiveBoost(dealer1));
 
         IDealersCore.BoostData memory boost = core.getBoost(dealer1);
-        assertEq(boost.drugMultiplier, 125);  // 1.25x
-        assertEq(boost.repMultiplier, 110);   // 1.1x
+        assertEq(boost.drugMultiplier, 125); // 1.25x
+        assertEq(boost.repMultiplier, 110); // 1.1x
         assertEq(boost.extraAttempts, 2);
-        assertEq(boost.cashMultiplier, 125);  // 1.25x
+        assertEq(boost.cashMultiplier, 125); // 1.25x
         assertFalse(boost.freeAreaMovement);
         assertEq(boost.expiresAt, uint64(block.timestamp + DURATION_3_DAYS));
     }
@@ -265,8 +255,8 @@ contract DealersBoostsTest is BaseTest {
         uint256 handlerBalanceAfter = address(paymentHandler).balance;
         uint256 bankBalanceAfter = bankVault.balance;
 
-        uint256 bankFee = (GRINDER_PRICE * 8000) / 10000;  // 80% to bank
-        uint256 devFee = (GRINDER_PRICE * 2000) / 10000;   // 20% to dev (pending in handler)
+        uint256 bankFee = (GRINDER_PRICE * 8000) / 10000; // 80% to bank
+        uint256 devFee = (GRINDER_PRICE * 2000) / 10000; // 20% to dev (pending in handler)
 
         assertEq(handlerBalanceAfter - handlerBalanceBefore, devFee);
         assertEq(bankBalanceAfter - bankBalanceBefore, bankFee);
@@ -325,7 +315,6 @@ contract DealersBoostsTest is BaseTest {
             repMultiplier: 250,
             extraAttempts: 15,
             freeAreaMovement: true,
-
             cashMultiplier: 250,
             isActive: true
         });
@@ -350,7 +339,6 @@ contract DealersBoostsTest is BaseTest {
             repMultiplier: 175,
             extraAttempts: 5,
             freeAreaMovement: false,
-
             cashMultiplier: 175,
             isActive: true
         });
@@ -462,26 +450,26 @@ contract DealersBoostsTest is BaseTest {
         for (uint256 i = 0; i < 5; i++) {
             core.useAttempt(dealer1);
         }
-        (, , uint8 attemptsBefore, , ,) = core.getDealerData(dealer1);
+        (,, uint8 attemptsBefore,,,) = core.getDealerData(dealer1);
         assertEq(attemptsBefore, 0);
 
         vm.prank(player1);
         boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
 
-        (, , uint8 attemptsAfter, , ,) = core.getDealerData(dealer1);
+        (,, uint8 attemptsAfter,,,) = core.getDealerData(dealer1);
         assertEq(attemptsAfter, 2, "pour-over: only +2 extras, base not refilled");
     }
 
     function test_purchaseBoost_pouredOverFromPartial() public {
         core.useAttempt(dealer1);
         core.useAttempt(dealer1);
-        (, , uint8 attemptsBefore, , ,) = core.getDealerData(dealer1);
+        (,, uint8 attemptsBefore,,,) = core.getDealerData(dealer1);
         assertEq(attemptsBefore, 3);
 
         vm.prank(player1);
         boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
 
-        (, , uint8 attemptsAfter, , ,) = core.getDealerData(dealer1);
+        (,, uint8 attemptsAfter,,,) = core.getDealerData(dealer1);
         assertEq(attemptsAfter, 5, "pour-over: 3 left + 2 extras = 5");
     }
 
@@ -492,13 +480,13 @@ contract DealersBoostsTest is BaseTest {
         for (uint256 i = 0; i < 7; i++) {
             core.useAttempt(dealer1);
         }
-        (, , uint8 attemptsBeforeUpgrade, , ,) = core.getDealerData(dealer1);
+        (,, uint8 attemptsBeforeUpgrade,,,) = core.getDealerData(dealer1);
         assertEq(attemptsBeforeUpgrade, 0);
 
         vm.prank(player1);
         boosts.purchaseBoost{value: HUSTLER_PRICE}(dealer1, HUSTLER_TIER);
 
-        (, , uint8 attemptsAfterUpgrade, , ,) = core.getDealerData(dealer1);
+        (,, uint8 attemptsAfterUpgrade,,,) = core.getDealerData(dealer1);
         assertEq(attemptsAfterUpgrade, 1, "pour-over upgrade: only +1 delta (Hustler 3 - Grinder 2)");
     }
 
@@ -525,7 +513,7 @@ contract DealersBoostsTest is BaseTest {
             core.useAttempt(dealer1);
         }
 
-        (, , uint8 attemptsLeft, , ,) = core.getDealerData(dealer1);
+        (,, uint8 attemptsLeft,,,) = core.getDealerData(dealer1);
         assertEq(attemptsLeft, 0, "laddered grind only yielded 5+2+1+3=11 total attempts");
     }
 
@@ -538,7 +526,7 @@ contract DealersBoostsTest is BaseTest {
         vm.prank(player1);
         boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
 
-        (, , uint8 attemptsAfter, , ,) = core.getDealerData(dealer1);
+        (,, uint8 attemptsAfter,,,) = core.getDealerData(dealer1);
         assertEq(attemptsAfter, 7, "lazy reset restores BASE before adding extras: 5 + 2");
     }
 }

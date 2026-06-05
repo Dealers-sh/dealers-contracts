@@ -25,10 +25,9 @@ contract DeployAreaRegistry is DeployBase {
         _requireAddress(drugRegistry, "DRUG_REGISTRY");
 
         vm.startBroadcast();
-        areaRegistry = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersAreaRegistry.sol:DealersAreaRegistry"),
-            abi.encode(drugRegistry)
-        ));
+        areaRegistry = _zkCreate(
+            abi.encodePacked(vm.getCode("DealersAreaRegistry.sol:DealersAreaRegistry"), abi.encode(drugRegistry))
+        );
         vm.stopBroadcast();
 
         _saveAddresses();

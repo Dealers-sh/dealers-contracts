@@ -79,7 +79,7 @@ contract ReputationSimulation is Test {
         uint8 heatLevel;
         bool inJail;
         uint256[12] drugBalances; // drugId 1-11
-        uint8 boostTier;          // 0=none, 1-4
+        uint8 boostTier; // 0=none, 1-4
         uint256 boostExpiresDay;
         uint256 totalPveGames;
         uint256 pveWins;
@@ -114,73 +114,101 @@ contract ReputationSimulation is Test {
 
     function _initConfig() private {
         // Tiers from SetupTiers.s.sol (deployment source of truth — convex 2.2x ladder)
-        tiers[0] = TierConfig({minRep: 0,     winBonus: 60, tieBonus: 25, lossPenalty: -2, repCap: 35});
-        tiers[1] = TierConfig({minRep: 100,   winBonus: 35, tieBonus: 18, lossPenalty: -3, repCap: 25});
-        tiers[2] = TierConfig({minRep: 250,   winBonus: 20, tieBonus: 10, lossPenalty: -3, repCap: 22});
-        tiers[3] = TierConfig({minRep: 600,   winBonus: 12, tieBonus: 5,  lossPenalty: -4, repCap: 22});
-        tiers[4] = TierConfig({minRep: 1500,  winBonus: 9,  tieBonus: 4,  lossPenalty: -5, repCap: 24});
-        tiers[5] = TierConfig({minRep: 3000,  winBonus: 7,  tieBonus: 3,  lossPenalty: -5, repCap: 26});
-        tiers[6] = TierConfig({minRep: 5500,  winBonus: 6,  tieBonus: 2,  lossPenalty: -6, repCap: 28});
-        tiers[7] = TierConfig({minRep: 10000, winBonus: 5,  tieBonus: 2,  lossPenalty: -6, repCap: 30});
-        tiers[8] = TierConfig({minRep: 22000, winBonus: 4,  tieBonus: 1,  lossPenalty: -7, repCap: 32});
-        tiers[9] = TierConfig({minRep: 50000, winBonus: 2,  tieBonus: 1,  lossPenalty: -8, repCap: 4});
+        tiers[0] = TierConfig({minRep: 0, winBonus: 60, tieBonus: 25, lossPenalty: -2, repCap: 35});
+        tiers[1] = TierConfig({minRep: 100, winBonus: 35, tieBonus: 18, lossPenalty: -3, repCap: 25});
+        tiers[2] = TierConfig({minRep: 250, winBonus: 20, tieBonus: 10, lossPenalty: -3, repCap: 22});
+        tiers[3] = TierConfig({minRep: 600, winBonus: 12, tieBonus: 5, lossPenalty: -4, repCap: 22});
+        tiers[4] = TierConfig({minRep: 1500, winBonus: 9, tieBonus: 4, lossPenalty: -5, repCap: 24});
+        tiers[5] = TierConfig({minRep: 3000, winBonus: 7, tieBonus: 3, lossPenalty: -5, repCap: 26});
+        tiers[6] = TierConfig({minRep: 5500, winBonus: 6, tieBonus: 2, lossPenalty: -6, repCap: 28});
+        tiers[7] = TierConfig({minRep: 10000, winBonus: 5, tieBonus: 2, lossPenalty: -6, repCap: 30});
+        tiers[8] = TierConfig({minRep: 22000, winBonus: 4, tieBonus: 1, lossPenalty: -7, repCap: 32});
+        tiers[9] = TierConfig({minRep: 50000, winBonus: 2, tieBonus: 1, lossPenalty: -8, repCap: 4});
 
         // Boosts from SetupBoosts.s.sol (Kingpin +6/1.25x, Godfather 2.25x/1.35x)
-        boosts[1] = BoostConfig({priceWei: 0.0025 ether, durationDays: 3,  drugMultiplier: 125, repMultiplier: 110, cashMultiplier: 125, extraAttempts: 2});
-        boosts[2] = BoostConfig({priceWei: 0.005 ether,  durationDays: 7,  drugMultiplier: 150, repMultiplier: 115, cashMultiplier: 150, extraAttempts: 3});
-        boosts[3] = BoostConfig({priceWei: 0.01 ether,   durationDays: 14, drugMultiplier: 175, repMultiplier: 125, cashMultiplier: 175, extraAttempts: 6});
-        boosts[4] = BoostConfig({priceWei: 0.023 ether,  durationDays: 30, drugMultiplier: 225, repMultiplier: 135, cashMultiplier: 225, extraAttempts: 7});
+        boosts[1] = BoostConfig({
+            priceWei: 0.0025 ether,
+            durationDays: 3,
+            drugMultiplier: 125,
+            repMultiplier: 110,
+            cashMultiplier: 125,
+            extraAttempts: 2
+        });
+        boosts[2] = BoostConfig({
+            priceWei: 0.005 ether,
+            durationDays: 7,
+            drugMultiplier: 150,
+            repMultiplier: 115,
+            cashMultiplier: 150,
+            extraAttempts: 3
+        });
+        boosts[3] = BoostConfig({
+            priceWei: 0.01 ether,
+            durationDays: 14,
+            drugMultiplier: 175,
+            repMultiplier: 125,
+            cashMultiplier: 175,
+            extraAttempts: 6
+        });
+        boosts[4] = BoostConfig({
+            priceWei: 0.023 ether,
+            durationDays: 30,
+            drugMultiplier: 225,
+            repMultiplier: 135,
+            cashMultiplier: 225,
+            extraAttempts: 7
+        });
 
         // Drug base cash values (drugId 1-11) from SetupDrugs.s.sol
-        drugBaseCashValues[1]  = 75;   // Goods
-        drugBaseCashValues[2]  = 500;  // Contraband
-        drugBaseCashValues[3]  = 2500; // Jewels
-        drugBaseCashValues[4]  = 1;    // Weed
-        drugBaseCashValues[5]  = 10;   // XTC
-        drugBaseCashValues[6]  = 100;  // Cocaine
-        drugBaseCashValues[7]  = 12;   // Shrooms
-        drugBaseCashValues[8]  = 150;  // Heroin
-        drugBaseCashValues[9]  = 18;   // Opioids
-        drugBaseCashValues[10] = 25;   // Meth
-        drugBaseCashValues[11] = 200;  // Fentanyl
+        drugBaseCashValues[1] = 75; // Goods
+        drugBaseCashValues[2] = 500; // Contraband
+        drugBaseCashValues[3] = 2500; // Jewels
+        drugBaseCashValues[4] = 1; // Weed
+        drugBaseCashValues[5] = 10; // XTC
+        drugBaseCashValues[6] = 100; // Cocaine
+        drugBaseCashValues[7] = 12; // Shrooms
+        drugBaseCashValues[8] = 150; // Heroin
+        drugBaseCashValues[9] = 18; // Opioids
+        drugBaseCashValues[10] = 25; // Meth
+        drugBaseCashValues[11] = 200; // Fentanyl
 
         // Area min reputation
-        areaMinRep[1] = 0;    // Manhattan
-        areaMinRep[2] = 100;  // Amsterdam
-        areaMinRep[3] = 250;  // Colombia
-        areaMinRep[4] = 600;  // Hong Kong
+        areaMinRep[1] = 0; // Manhattan
+        areaMinRep[2] = 100; // Amsterdam
+        areaMinRep[3] = 250; // Colombia
+        areaMinRep[4] = 600; // Hong Kong
         areaMinRep[5] = 1500; // Seoul
         areaMinRep[6] = 3000; // Tokyo
 
         // Area drug configs from SetupAreas.s.sol
         // Manhattan: Weed 1/1, XTC 12/10, Cocaine 120/100
-        areaDrugs[1][0] = AreaDrug({drugId: 4, buyPrice: 1,   sellPrice: 1});
-        areaDrugs[1][1] = AreaDrug({drugId: 5, buyPrice: 12,  sellPrice: 10});
+        areaDrugs[1][0] = AreaDrug({drugId: 4, buyPrice: 1, sellPrice: 1});
+        areaDrugs[1][1] = AreaDrug({drugId: 5, buyPrice: 12, sellPrice: 10});
         areaDrugs[1][2] = AreaDrug({drugId: 6, buyPrice: 120, sellPrice: 100});
 
         // Amsterdam: Weed 3/2, Shrooms 15/12, Heroin 180/150
-        areaDrugs[2][0] = AreaDrug({drugId: 4, buyPrice: 3,   sellPrice: 2});
-        areaDrugs[2][1] = AreaDrug({drugId: 7, buyPrice: 15,  sellPrice: 12});
+        areaDrugs[2][0] = AreaDrug({drugId: 4, buyPrice: 3, sellPrice: 2});
+        areaDrugs[2][1] = AreaDrug({drugId: 7, buyPrice: 15, sellPrice: 12});
         areaDrugs[2][2] = AreaDrug({drugId: 8, buyPrice: 180, sellPrice: 150});
 
         // Colombia: Weed 1/1, Cocaine 60/50, Heroin 90/75
-        areaDrugs[3][0] = AreaDrug({drugId: 4, buyPrice: 1,   sellPrice: 1});
-        areaDrugs[3][1] = AreaDrug({drugId: 6, buyPrice: 60,  sellPrice: 50});
-        areaDrugs[3][2] = AreaDrug({drugId: 8, buyPrice: 90,  sellPrice: 75});
+        areaDrugs[3][0] = AreaDrug({drugId: 4, buyPrice: 1, sellPrice: 1});
+        areaDrugs[3][1] = AreaDrug({drugId: 6, buyPrice: 60, sellPrice: 50});
+        areaDrugs[3][2] = AreaDrug({drugId: 8, buyPrice: 90, sellPrice: 75});
 
         // Hong Kong: Opioids 22/18, Meth 30/25, Heroin 175/160
-        areaDrugs[4][0] = AreaDrug({drugId: 9,  buyPrice: 22,  sellPrice: 18});
-        areaDrugs[4][1] = AreaDrug({drugId: 10, buyPrice: 30,  sellPrice: 25});
-        areaDrugs[4][2] = AreaDrug({drugId: 8,  buyPrice: 175, sellPrice: 160});
+        areaDrugs[4][0] = AreaDrug({drugId: 9, buyPrice: 22, sellPrice: 18});
+        areaDrugs[4][1] = AreaDrug({drugId: 10, buyPrice: 30, sellPrice: 25});
+        areaDrugs[4][2] = AreaDrug({drugId: 8, buyPrice: 175, sellPrice: 160});
 
         // Seoul: Opioids 8/7, Meth 14/12, Fentanyl 90/75
-        areaDrugs[5][0] = AreaDrug({drugId: 9,  buyPrice: 8,  sellPrice: 7});
+        areaDrugs[5][0] = AreaDrug({drugId: 9, buyPrice: 8, sellPrice: 7});
         areaDrugs[5][1] = AreaDrug({drugId: 10, buyPrice: 14, sellPrice: 12});
         areaDrugs[5][2] = AreaDrug({drugId: 11, buyPrice: 90, sellPrice: 75});
 
         // Tokyo: Opioids 24/20, Meth 32/26, Fentanyl 200/160
-        areaDrugs[6][0] = AreaDrug({drugId: 9,  buyPrice: 24,  sellPrice: 20});
-        areaDrugs[6][1] = AreaDrug({drugId: 10, buyPrice: 32,  sellPrice: 26});
+        areaDrugs[6][0] = AreaDrug({drugId: 9, buyPrice: 24, sellPrice: 20});
+        areaDrugs[6][1] = AreaDrug({drugId: 10, buyPrice: 32, sellPrice: 26});
         areaDrugs[6][2] = AreaDrug({drugId: 11, buyPrice: 200, sellPrice: 160});
     }
 
@@ -208,9 +236,9 @@ contract ReputationSimulation is Test {
 
     function _rollPveOutcome() private returns (uint8) {
         uint256 roll = _nextRng() % 100;
-        if (roll < TIE_CHANCE) return 1;                    // 0-49: TIE (50%)
-        if (roll < TIE_CHANCE + WIN_CHANCE) return 0;       // 50-69: WIN (20%)
-        return 2;                                            // 70-99: LOSS (30%)
+        if (roll < TIE_CHANCE) return 1; // 0-49: TIE (50%)
+        if (roll < TIE_CHANCE + WIN_CHANCE) return 0; // 50-69: WIN (20%)
+        return 2; // 70-99: LOSS (30%)
     }
 
     function _rollPvpWin(uint256 winChance) private returns (bool) {
@@ -225,9 +253,9 @@ contract ReputationSimulation is Test {
 
     function _rollDayVariation() private returns (uint8) {
         uint256 roll = _nextRng() % 100;
-        if (roll < 70) return 2;  // full play
-        if (roll < 90) return 1;  // half play
-        return 0;                 // skip
+        if (roll < 70) return 2; // full play
+        if (roll < 90) return 1; // half play
+        return 0; // skip
     }
 
     // =============================================================
@@ -236,8 +264,10 @@ contract ReputationSimulation is Test {
 
     function _getTierIndex(uint256 rep) private view returns (uint8) {
         uint8 idx = 0;
-        for (uint8 i = uint8(NUM_TIERS); i > 0; ) {
-            unchecked { --i; }
+        for (uint8 i = uint8(NUM_TIERS); i > 0;) {
+            unchecked {
+                --i;
+            }
             if (rep >= tiers[i].minRep) {
                 idx = i;
                 break;
@@ -304,12 +334,11 @@ contract ReputationSimulation is Test {
         return 100;
     }
 
-    function _calculatePveRepChange(
-        uint8 tierIdx,
-        uint8 outcome,
-        uint256 stakeValue,
-        uint16 repMultiplier
-    ) private view returns (int256) {
+    function _calculatePveRepChange(uint8 tierIdx, uint8 outcome, uint256 stakeValue, uint16 repMultiplier)
+        private
+        view
+        returns (int256)
+    {
         TierConfig memory t = tiers[tierIdx];
         int16 baseRep;
         if (outcome == 0) baseRep = t.winBonus;
@@ -381,7 +410,11 @@ contract ReputationSimulation is Test {
     //                     PVE SIMULATION
     // =============================================================
 
-    function _findBestSellDrug(uint256 dealerIdx) private view returns (uint256 drugId, uint256 sellPrice, uint256 maxAmount) {
+    function _findBestSellDrug(uint256 dealerIdx)
+        private
+        view
+        returns (uint256 drugId, uint256 sellPrice, uint256 maxAmount)
+    {
         uint8 area = dealers[dealerIdx].currentArea;
         uint256 bestValue;
 
@@ -397,7 +430,11 @@ contract ReputationSimulation is Test {
         }
     }
 
-    function _findBestBuyDrug(uint256 dealerIdx) private view returns (uint256 drugId, uint256 buyPrice, uint256 sellPrice, uint256 maxAmount) {
+    function _findBestBuyDrug(uint256 dealerIdx)
+        private
+        view
+        returns (uint256 drugId, uint256 buyPrice, uint256 sellPrice, uint256 maxAmount)
+    {
         uint8 area = dealers[dealerIdx].currentArea;
         uint256 cash = dealers[dealerIdx].cash;
         uint256 bestSellPrice;
@@ -636,7 +673,7 @@ contract ReputationSimulation is Test {
         }
     }
 
-    function _handleJailStart(uint256 dealerIdx, uint256 /* day */) private {
+    function _handleJailStart(uint256 dealerIdx, uint256 /* day */ ) private {
         SimDealer storage d = dealers[dealerIdx];
         if (!d.inJail) return;
 
@@ -650,9 +687,9 @@ contract ReputationSimulation is Test {
         uint8 variation = _rollDayVariation();
         uint256 maxAttempts = _getMaxAttempts(dealerIdx);
 
-        if (variation == 0) return 0;         // skip day
+        if (variation == 0) return 0; // skip day
         if (variation == 1) return maxAttempts / 2; // half day
-        return maxAttempts;                    // full day
+        return maxAttempts; // full day
     }
 
     // =============================================================
@@ -824,7 +861,11 @@ contract ReputationSimulation is Test {
         return best;
     }
 
-    function _findBoostBestSellDrug(uint256 idx) private view returns (uint256 drugId, uint256 sellPrice, uint256 maxAmount) {
+    function _findBoostBestSellDrug(uint256 idx)
+        private
+        view
+        returns (uint256 drugId, uint256 sellPrice, uint256 maxAmount)
+    {
         uint8 area = boostDealers[idx].currentArea;
         uint256 bestValue;
         for (uint256 i = 0; i < 3; i++) {
@@ -839,7 +880,11 @@ contract ReputationSimulation is Test {
         }
     }
 
-    function _findBoostBestBuyDrug(uint256 idx) private view returns (uint256 drugId, uint256 buyPrice, uint256 maxAmount) {
+    function _findBoostBestBuyDrug(uint256 idx)
+        private
+        view
+        returns (uint256 drugId, uint256 buyPrice, uint256 maxAmount)
+    {
         uint8 area = boostDealers[idx].currentArea;
         uint256 cash = boostDealers[idx].cash;
         uint256 bestSellPrice;

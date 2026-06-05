@@ -69,19 +69,9 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
     //                            EVENTS
     // =============================================================
 
-    event BoostPurchased(
-        uint256 indexed dealerId,
-        uint256 indexed tierId,
-        address indexed buyer,
-        uint64 expiresAt
-    );
+    event BoostPurchased(uint256 indexed dealerId, uint256 indexed tierId, address indexed buyer, uint64 expiresAt);
 
-    event BoostTierUpdated(
-        uint256 indexed tierId,
-        uint256 price,
-        uint64 duration,
-        bool isActive
-    );
+    event BoostTierUpdated(uint256 indexed tierId, uint256 price, uint64 duration, bool isActive);
 
     event BoostTierActiveStatusChanged(uint256 indexed tierId, bool isActive);
 
@@ -117,12 +107,8 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
      * @param _dealersCore Address of the core dealers contract
      * @param _dealersNFT Address of the NFT contract
      * @param _paymentHandler Address of the payment handler
- */
-    constructor(
-        address _dealersCore,
-        address _dealersNFT,
-        address _paymentHandler
-    ) {
+     */
+    constructor(address _dealersCore, address _dealersNFT, address _paymentHandler) {
         if (_dealersCore == address(0)) revert InvalidAddress();
         if (_dealersNFT == address(0)) revert InvalidAddress();
         if (_paymentHandler == address(0)) revert InvalidAddress();
@@ -142,9 +128,8 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
 
     modifier contractsSet() {
         if (
-            address(dealersCore) == address(0) ||
-            address(dealersNFT) == address(0) ||
-            address(paymentHandler) == address(0)
+            address(dealersCore) == address(0) || address(dealersNFT) == address(0)
+                || address(paymentHandler) == address(0)
         ) {
             revert ContractNotSet();
         }
@@ -179,17 +164,17 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
     /**
      * @notice Initialize the three default boost tiers
      * @dev Called during construction
- */
+     */
     function _initializeDefaultTiers() private {
         // Tier 1: Grinder - 0.0025 ETH, 3 days
         boostTiers[1] = BoostTier({
             price: 0.0025 ether,
             duration: DURATION_3_DAYS,
-            drugMultiplier: 125,     // 1.25x drugs
-            repMultiplier: 110,      // 1.1x rep
-            extraAttempts: 2,        // 5 base + 2 = 7 max
+            drugMultiplier: 125, // 1.25x drugs
+            repMultiplier: 110, // 1.1x rep
+            extraAttempts: 2, // 5 base + 2 = 7 max
             freeAreaMovement: false,
-            cashMultiplier: 125,     // 1.25x cash
+            cashMultiplier: 125, // 1.25x cash
             isActive: true
         });
 
@@ -197,11 +182,11 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
         boostTiers[2] = BoostTier({
             price: 0.005 ether,
             duration: DURATION_7_DAYS,
-            drugMultiplier: 150,     // 1.5x drugs
-            repMultiplier: 115,      // 1.15x rep
-            extraAttempts: 3,        // 5 base + 3 = 8 max
+            drugMultiplier: 150, // 1.5x drugs
+            repMultiplier: 115, // 1.15x rep
+            extraAttempts: 3, // 5 base + 3 = 8 max
             freeAreaMovement: false,
-            cashMultiplier: 150,     // 1.5x cash
+            cashMultiplier: 150, // 1.5x cash
             isActive: true
         });
 
@@ -209,11 +194,11 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
         boostTiers[3] = BoostTier({
             price: 0.01 ether,
             duration: DURATION_14_DAYS,
-            drugMultiplier: 175,     // 1.75x drugs
-            repMultiplier: 125,      // 1.25x rep
-            extraAttempts: 6,        // 5 base + 6 = 11 max
+            drugMultiplier: 175, // 1.75x drugs
+            repMultiplier: 125, // 1.25x rep
+            extraAttempts: 6, // 5 base + 6 = 11 max
             freeAreaMovement: true,
-            cashMultiplier: 175,     // 1.75x cash
+            cashMultiplier: 175, // 1.75x cash
             isActive: true
         });
 
@@ -221,11 +206,11 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
         boostTiers[4] = BoostTier({
             price: 0.023 ether,
             duration: DURATION_30_DAYS,
-            drugMultiplier: 225,     // 2.25x drugs
-            repMultiplier: 135,      // 1.35x rep
-            extraAttempts: 7,        // 5 base + 7 = 12 max
+            drugMultiplier: 225, // 2.25x drugs
+            repMultiplier: 135, // 1.35x rep
+            extraAttempts: 7, // 5 base + 7 = 12 max
             freeAreaMovement: true,
-            cashMultiplier: 225,     // 2.25x cash
+            cashMultiplier: 225, // 2.25x cash
             isActive: true
         });
 
@@ -241,12 +226,12 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
      * @dev Uses low-level call to handle transfer failures gracefully
      * @param to The address to send ETH to
      * @param amount The amount of ETH to send in wei
- */
+     */
     function _safeTransferETH(address to, uint256 amount) private {
         if (amount == 0) return;
         if (to == address(0)) revert InvalidAddress();
 
-        (bool success, ) = to.call{value: amount}("");
+        (bool success,) = to.call{value: amount}("");
         if (!success) revert TransferFailed();
     }
 
@@ -254,7 +239,7 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
      * @dev Returns true if `dealerId` can move to a boost of price `newTierPrice`.
      *      A dealer with no active boost can always upgrade; an active boost
      *      may only be replaced with a strictly more expensive tier.
- */
+     */
     function _canUpgradeBoost(uint256 dealerId, uint256 newTierPrice) private view returns (bool) {
         if (!dealersCore.hasActiveBoost(dealerId)) return true;
         return newTierPrice > boostTiers[activeTierId[dealerId]].price;
@@ -268,7 +253,7 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
      * @notice Purchase a boost for a single dealer
      * @param dealerId The ID of the dealer NFT to apply boost to
      * @param tierId The tier of boost to purchase (1, 2, or 3)
- */
+     */
     function purchaseBoost(uint256 dealerId, uint256 tierId)
         external
         payable
@@ -313,7 +298,7 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
      * @dev Skips dealers not owned by caller (no revert)
      * @param dealerIds Array of dealer IDs to apply boost to
      * @param tierId The tier of boost to purchase
- */
+     */
     function purchaseBoostBatch(uint256[] calldata dealerIds, uint256 tierId)
         external
         payable
@@ -333,16 +318,20 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
 
         uint256 successfulPurchases = 0;
 
-        for (uint256 i = 0; i < len; ) {
+        for (uint256 i = 0; i < len;) {
             uint256 dealerId = dealerIds[i];
 
             if (!dealersCore.isInitialized(dealerId)) {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
 
             if (!_canUpgradeBoost(dealerId, tier.price)) {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
 
@@ -364,7 +353,9 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
 
             emit BoostPurchased(dealerId, tierId, msg.sender, expiresAt);
 
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         // Calculate actual cost based on successful purchases
@@ -389,7 +380,7 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
      * @notice Get details of a specific boost tier
      * @param tierId The tier ID to query
      * @return The boost tier data
- */
+     */
     function getBoostTier(uint256 tierId) external view returns (BoostTier memory) {
         return boostTiers[tierId];
     }
@@ -398,18 +389,19 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
      * @notice Get all active boost tiers
      * @return tiers Array of all active boost tiers
      * @return tierIds Array of tier IDs corresponding to the tiers
- */
-    function getActiveTiers() external view returns (
-        BoostTier[] memory tiers,
-        uint256[] memory tierIds
-    ) {
+     */
+    function getActiveTiers() external view returns (BoostTier[] memory tiers, uint256[] memory tierIds) {
         // First, count active tiers
         uint256 activeCount = 0;
-        for (uint256 i = 1; i <= totalTiers; ) {
+        for (uint256 i = 1; i <= totalTiers;) {
             if (boostTiers[i].isActive) {
-                unchecked { ++activeCount; }
+                unchecked {
+                    ++activeCount;
+                }
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         // Allocate arrays
@@ -418,13 +410,17 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
 
         // Fill arrays
         uint256 index = 0;
-        for (uint256 i = 1; i <= totalTiers; ) {
+        for (uint256 i = 1; i <= totalTiers;) {
             if (boostTiers[i].isActive) {
                 tiers[index] = boostTiers[i];
                 tierIds[index] = i;
-                unchecked { ++index; }
+                unchecked {
+                    ++index;
+                }
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -433,11 +429,8 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
      * @param dealerId The dealer ID to check
      * @return hasBoost Whether the dealer has an active boost
      * @return expiresAt When the boost expires (0 if no boost)
- */
-    function checkBoostStatus(uint256 dealerId) external view returns (
-        bool hasBoost,
-        uint64 expiresAt
-    ) {
+     */
+    function checkBoostStatus(uint256 dealerId) external view returns (bool hasBoost, uint64 expiresAt) {
         hasBoost = dealersCore.hasActiveBoost(dealerId);
         if (hasBoost) {
             IDealersCore.BoostData memory boost = dealersCore.getBoost(dealerId);
@@ -450,7 +443,7 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
      * @param dealerCount Number of dealers to boost
      * @param tierId The tier to purchase
      * @return totalCost Total ETH required
- */
+     */
     function calculateBatchCost(uint256 dealerCount, uint256 tierId)
         external
         view
@@ -469,7 +462,7 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
      * @dev Can update existing tiers or add new ones
      * @param tierId The tier ID to set (use totalTiers + 1 for new tier)
      * @param tier The tier configuration
- */
+     */
     function setBoostTier(uint256 tierId, BoostTier calldata tier) external onlyOwner {
         if (tierId == 0) revert InvalidTier();
         if (tierId > MAX_TIERS) revert InvalidTier();
@@ -489,19 +482,14 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
 
         boostTiers[tierId] = tier;
 
-        emit BoostTierUpdated(
-            tierId,
-            tier.price,
-            tier.duration,
-            tier.isActive
-        );
+        emit BoostTierUpdated(tierId, tier.price, tier.duration, tier.isActive);
     }
 
     /**
      * @notice Enable or disable a boost tier
      * @param tierId The tier ID to modify
      * @param active Whether the tier should be active
- */
+     */
     function setTierActive(uint256 tierId, bool active) external onlyOwner validTier(tierId) {
         boostTiers[tierId].isActive = active;
         emit BoostTierActiveStatusChanged(tierId, active);
@@ -511,7 +499,7 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
      * @notice Update the price of a boost tier
      * @param tierId The tier ID to modify
      * @param newPrice The new price in wei
- */
+     */
     function setTierPrice(uint256 tierId, uint256 newPrice) external onlyOwner validTier(tierId) {
         if (newPrice == 0) revert InvalidTier();
         uint256 oldPrice = boostTiers[tierId].price;
@@ -522,7 +510,7 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
     /**
      * @notice Updates the core dealers contract address
      * @param _dealersCore The new core dealers contract address
- */
+     */
     function setDealersCore(address _dealersCore) external onlyOwner {
         if (_dealersCore == address(0)) revert InvalidAddress();
         address old = address(dealersCore);
@@ -533,7 +521,7 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
     /**
      * @notice Updates the NFT contract address
      * @param _dealersNFT The new NFT contract address
- */
+     */
     function setDealersNFT(address _dealersNFT) external onlyOwner {
         if (_dealersNFT == address(0)) revert InvalidAddress();
         address old = address(dealersNFT);
@@ -544,7 +532,7 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
     /**
      * @notice Updates the payment handler contract address
      * @param _paymentHandler The new payment handler address
- */
+     */
     function setPaymentHandler(address _paymentHandler) external onlyOwner {
         if (_paymentHandler == address(0)) revert InvalidAddress();
         address old = address(paymentHandler);
@@ -554,7 +542,7 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
 
     /**
      * @notice Pauses the contract, preventing boost purchases
- */
+     */
     function pause() external onlyOwner {
         paused = true;
         emit Paused(msg.sender);
@@ -562,7 +550,7 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
 
     /**
      * @notice Unpauses the contract, allowing boost purchases
- */
+     */
     function unpause() external onlyOwner {
         paused = false;
         emit Unpaused(msg.sender);

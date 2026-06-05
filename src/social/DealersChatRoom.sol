@@ -39,11 +39,7 @@ contract DealersChatRoom is IDealersChatRoom {
             ++_messageCount;
         }
 
-        _messages[index] = Message({
-            tokenId: tokenId,
-            timestamp: uint40(block.timestamp),
-            text: text
-        });
+        _messages[index] = Message({tokenId: tokenId, timestamp: uint40(block.timestamp), text: text});
 
         emit MessagePosted(tokenId, uint40(block.timestamp), text);
     }

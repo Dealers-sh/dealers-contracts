@@ -23,11 +23,7 @@ contract MockPVE {
         _stats[tokenId] = IDealersPVE.PveStats(wins, losses, ties, 0, 0, 0);
     }
 
-    function dealerPveStats(uint256 tokenId)
-        external
-        view
-        returns (uint32, uint32, uint32, uint32, uint32, uint32)
-    {
+    function dealerPveStats(uint256 tokenId) external view returns (uint32, uint32, uint32, uint32, uint32, uint32) {
         IDealersPVE.PveStats storage s = _stats[tokenId];
         return (s.wins, s.losses, s.ties, s.dealChoices, s.threatenChoices, s.bailChoices);
     }
@@ -36,15 +32,13 @@ contract MockPVE {
 contract MockPVP {
     mapping(uint256 => IDealersPVP.PvpStats) private _stats;
 
-    function setStats(uint256 tokenId, uint32 attackWins, uint32 attackLosses, uint32 defendWins, uint32 defendLosses) external {
+    function setStats(uint256 tokenId, uint32 attackWins, uint32 attackLosses, uint32 defendWins, uint32 defendLosses)
+        external
+    {
         _stats[tokenId] = IDealersPVP.PvpStats(attackWins, attackLosses, defendWins, defendLosses);
     }
 
-    function dealerPvpStats(uint256 tokenId)
-        external
-        view
-        returns (uint32, uint32, uint32, uint32)
-    {
+    function dealerPvpStats(uint256 tokenId) external view returns (uint32, uint32, uint32, uint32) {
         IDealersPVP.PvpStats storage s = _stats[tokenId];
         return (s.attackWins, s.attackLosses, s.defendWins, s.defendLosses);
     }
@@ -89,9 +83,7 @@ contract DealersClaimsTest is Test, IERC721Receiver {
 
         core = new DealersCore();
         nft = new DealersNFT(makeAddr("royalty"));
-        claims = new DealersClaims(
-            address(core), address(nft), address(mockPVE), address(mockPVP)
-        );
+        claims = new DealersClaims(address(core), address(nft), address(mockPVE), address(mockPVP));
 
         core.setNFTContract(address(nft));
         core.setPaymentHandler(address(paymentHandler));
@@ -127,41 +119,55 @@ contract DealersClaimsTest is Test, IERC721Receiver {
     }
 
     function _setupDrugsAndAreas() internal {
-        drugRegistry.createDrug("Goods",      IDrugRegistry.DrugRarity.COMMON,   75);
+        drugRegistry.createDrug("Goods", IDrugRegistry.DrugRarity.COMMON, 75);
         drugRegistry.createDrug("Contraband", IDrugRegistry.DrugRarity.UNCOMMON, 500);
-        drugRegistry.createDrug("Jewels",     IDrugRegistry.DrugRarity.RARE,     2500);
-        drugRegistry.createDrug("Weed",       IDrugRegistry.DrugRarity.COMMON,   1);
-        drugRegistry.createDrug("XTC",        IDrugRegistry.DrugRarity.UNCOMMON, 10);
-        drugRegistry.createDrug("Cocaine",    IDrugRegistry.DrugRarity.RARE,     100);
-        drugRegistry.createDrug("Shrooms",    IDrugRegistry.DrugRarity.UNCOMMON, 12);
-        drugRegistry.createDrug("Heroin",     IDrugRegistry.DrugRarity.RARE,     150);
-        drugRegistry.createDrug("Opioids",    IDrugRegistry.DrugRarity.COMMON,   18);
-        drugRegistry.createDrug("Meth",       IDrugRegistry.DrugRarity.UNCOMMON, 25);
-        drugRegistry.createDrug("Fentanyl",   IDrugRegistry.DrugRarity.RARE,     200);
+        drugRegistry.createDrug("Jewels", IDrugRegistry.DrugRarity.RARE, 2500);
+        drugRegistry.createDrug("Weed", IDrugRegistry.DrugRarity.COMMON, 1);
+        drugRegistry.createDrug("XTC", IDrugRegistry.DrugRarity.UNCOMMON, 10);
+        drugRegistry.createDrug("Cocaine", IDrugRegistry.DrugRarity.RARE, 100);
+        drugRegistry.createDrug("Shrooms", IDrugRegistry.DrugRarity.UNCOMMON, 12);
+        drugRegistry.createDrug("Heroin", IDrugRegistry.DrugRarity.RARE, 150);
+        drugRegistry.createDrug("Opioids", IDrugRegistry.DrugRarity.COMMON, 18);
+        drugRegistry.createDrug("Meth", IDrugRegistry.DrugRarity.UNCOMMON, 25);
+        drugRegistry.createDrug("Fentanyl", IDrugRegistry.DrugRarity.RARE, 200);
 
         areaRegistry.createArea("Manhattan", 0.001 ether, 0, false, false);
         uint256[] memory ids = new uint256[](3);
         uint256[] memory buys = new uint256[](3);
         uint256[] memory sells = new uint256[](3);
-        ids[0] = 4; ids[1] = 5; ids[2] = 6;
-        buys[0] = 1; buys[1] = 12; buys[2] = 120;
-        sells[0] = 1; sells[1] = 10; sells[2] = 100;
+        ids[0] = 4;
+        ids[1] = 5;
+        ids[2] = 6;
+        buys[0] = 1;
+        buys[1] = 12;
+        buys[2] = 120;
+        sells[0] = 1;
+        sells[1] = 10;
+        sells[2] = 100;
         areaRegistry.batchConfigureAreaDrugs(1, ids, buys, sells);
     }
 
     function _setAchievement(
-        uint256 id, uint8 conditionType, uint256 conditionValue, uint256 threshold,
-        uint8 rewardType, uint256 rewardId, uint256 rewardAmount
+        uint256 id,
+        uint8 conditionType,
+        uint256 conditionValue,
+        uint256 threshold,
+        uint8 rewardType,
+        uint256 rewardId,
+        uint256 rewardAmount
     ) internal {
-        claims.setAchievement(id, DealersClaims.Achievement({
-            conditionType: conditionType,
-            conditionValue: conditionValue,
-            threshold: threshold,
-            rewardType: rewardType,
-            rewardId: rewardId,
-            rewardAmount: rewardAmount,
-            active: true
-        }));
+        claims.setAchievement(
+            id,
+            DealersClaims.Achievement({
+                conditionType: conditionType,
+                conditionValue: conditionValue,
+                threshold: threshold,
+                rewardType: rewardType,
+                rewardId: rewardId,
+                rewardAmount: rewardAmount,
+                active: true
+            })
+        );
     }
 
     // =========================================================================
@@ -238,9 +244,7 @@ contract DealersClaimsTest is Test, IERC721Receiver {
         claims.claimAchievement(DEALER_1, 0);
 
         assertEq(
-            core.getGameState(DEALER_1).dailyAttemptsRemaining,
-            maxAttempts,
-            "ATTEMPTS reward refills attempts to max"
+            core.getGameState(DEALER_1).dailyAttemptsRemaining, maxAttempts, "ATTEMPTS reward refills attempts to max"
         );
     }
 
@@ -310,10 +314,18 @@ contract DealersClaimsTest is Test, IERC721Receiver {
     }
 
     function test_claimAchievement_revertNotActive() public {
-        claims.setAchievement(0, DealersClaims.Achievement({
-            conditionType: 1, conditionValue: 0, threshold: 1,
-            rewardType: 1, rewardId: 0, rewardAmount: 50, active: false
-        }));
+        claims.setAchievement(
+            0,
+            DealersClaims.Achievement({
+                conditionType: 1,
+                conditionValue: 0,
+                threshold: 1,
+                rewardType: 1,
+                rewardId: 0,
+                rewardAmount: 50,
+                active: false
+            })
+        );
         mockPVE.setStats(DEALER_1, 5, 0, 0);
 
         vm.prank(player1);

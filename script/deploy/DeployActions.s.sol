@@ -26,10 +26,9 @@ contract DeployActions is DeployBase {
         _requireAddress(areaRegistry, "AREA_REGISTRY");
 
         vm.startBroadcast();
-        actions = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersActions.sol:DealersActions"),
-            abi.encode(core, nft, areaRegistry)
-        ));
+        actions = _zkCreate(
+            abi.encodePacked(vm.getCode("DealersActions.sol:DealersActions"), abi.encode(core, nft, areaRegistry))
+        );
         vm.stopBroadcast();
 
         _saveAddresses();

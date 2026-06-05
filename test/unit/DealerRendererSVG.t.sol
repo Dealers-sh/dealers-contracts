@@ -15,7 +15,9 @@ contract DealerRendererSVGTest is Test {
 
     event TraitsStored(uint256 indexed tokenId);
     event TraitUpdated(uint256 indexed tokenId, uint8 indexed category, uint8 traitIndex);
-    event TraitPointerUpdated(uint8 indexed characterType, uint8 indexed category, uint256 indexed traitIndex, address newPointer);
+    event TraitPointerUpdated(
+        uint8 indexed characterType, uint8 indexed category, uint256 indexed traitIndex, address newPointer
+    );
 
     function setUp() public {
         owner = address(this);
@@ -30,16 +32,9 @@ contract DealerRendererSVGTest is Test {
         uint32 dataLength = uint32(data.length);
 
         BytecodeSlice[] memory slices = new BytecodeSlice[](1);
-        slices[0] = BytecodeSlice({
-            pointer: contentPointer,
-            start: 1,
-            end: dataLength + 1
-        });
+        slices[0] = BytecodeSlice({pointer: contentPointer, start: 1, end: dataLength + 1});
 
-        File memory file = File({
-            size: dataLength,
-            slices: slices
-        });
+        File memory file = File({size: dataLength, slices: slices});
 
         return SSTORE2.write(abi.encode(file));
     }
@@ -60,30 +55,22 @@ contract DealerRendererSVGTest is Test {
 
     function _packTraitsWithType(uint8[12] memory t, uint8 charType) internal pure returns (bytes32) {
         return bytes32(
-            uint256(t[0]) |
-            (uint256(t[1]) << 8) |
-            (uint256(t[2]) << 16) |
-            (uint256(t[3]) << 24) |
-            (uint256(t[4]) << 32) |
-            (uint256(t[5]) << 40) |
-            (uint256(t[6]) << 48) |
-            (uint256(t[7]) << 56) |
-            (uint256(t[8]) << 64) |
-            (uint256(t[9]) << 72) |
-            (uint256(t[10]) << 80) |
-            (uint256(t[11]) << 88) |
-            (uint256(charType) << 96)
+            uint256(t[0]) | (uint256(t[1]) << 8) | (uint256(t[2]) << 16) | (uint256(t[3]) << 24) | (uint256(t[4]) << 32)
+                | (uint256(t[5]) << 40) | (uint256(t[6]) << 48) | (uint256(t[7]) << 56) | (uint256(t[8]) << 64)
+                | (uint256(t[9]) << 72) | (uint256(t[10]) << 80) | (uint256(t[11]) << 88) | (uint256(charType) << 96)
         );
     }
 
     function _svgPrefix(uint256 tokenId) internal pure returns (string memory) {
-        return string(abi.encodePacked(
-            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 58 58" fill="none" id="',
-            vm.toString(tokenId),
-            '" data-token-id="',
-            vm.toString(tokenId),
-            '">'
-        ));
+        return string(
+            abi.encodePacked(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 58 58" fill="none" id="',
+                vm.toString(tokenId),
+                '" data-token-id="',
+                vm.toString(tokenId),
+                '">'
+            )
+        );
     }
 
     function _wrapSvg(uint256 tokenId, string memory inner) internal pure returns (string memory) {
@@ -413,8 +400,10 @@ contract DealerRendererSVGTest is Test {
         bytes memory metaBytes = bytes(metadata);
         bool hasNormalType = false;
         for (uint256 i = 0; i < metaBytes.length - 5; i++) {
-            if (metaBytes[i] == "N" && metaBytes[i+1] == "o" && metaBytes[i+2] == "r" &&
-                metaBytes[i+3] == "m" && metaBytes[i+4] == "a" && metaBytes[i+5] == "l") {
+            if (
+                metaBytes[i] == "N" && metaBytes[i + 1] == "o" && metaBytes[i + 2] == "r" && metaBytes[i + 3] == "m"
+                    && metaBytes[i + 4] == "a" && metaBytes[i + 5] == "l"
+            ) {
                 hasNormalType = true;
                 break;
             }
@@ -447,8 +436,10 @@ contract DealerRendererSVGTest is Test {
         bytes memory metaBytes = bytes(metadata);
         bool hasSpecialType = false;
         for (uint256 i = 0; i < metaBytes.length - 6; i++) {
-            if (metaBytes[i] == "S" && metaBytes[i+1] == "p" && metaBytes[i+2] == "e" &&
-                metaBytes[i+3] == "c" && metaBytes[i+4] == "i" && metaBytes[i+5] == "a" && metaBytes[i+6] == "l") {
+            if (
+                metaBytes[i] == "S" && metaBytes[i + 1] == "p" && metaBytes[i + 2] == "e" && metaBytes[i + 3] == "c"
+                    && metaBytes[i + 4] == "i" && metaBytes[i + 5] == "a" && metaBytes[i + 6] == "l"
+            ) {
                 hasSpecialType = true;
                 break;
             }
@@ -466,8 +457,10 @@ contract DealerRendererSVGTest is Test {
         bytes memory metaBytes = bytes(metadata);
         bool hasOneOfOne = false;
         for (uint256 i = 0; i < metaBytes.length - 9; i++) {
-            if (metaBytes[i] == "O" && metaBytes[i+1] == "n" && metaBytes[i+2] == "e" &&
-                metaBytes[i+3] == " " && metaBytes[i+4] == "o" && metaBytes[i+5] == "f") {
+            if (
+                metaBytes[i] == "O" && metaBytes[i + 1] == "n" && metaBytes[i + 2] == "e" && metaBytes[i + 3] == " "
+                    && metaBytes[i + 4] == "o" && metaBytes[i + 5] == "f"
+            ) {
                 hasOneOfOne = true;
                 break;
             }
@@ -548,8 +541,12 @@ contract DealerRendererSVGTest is Test {
         string[] memory names = new string[](2);
         address[] memory pointers = new address[](2);
 
-        characterTypes[0] = 1; categories[0] = 0; names[0] = "Special1";
-        characterTypes[1] = 1; categories[1] = 0; names[1] = "Special2";
+        characterTypes[0] = 1;
+        categories[0] = 0;
+        names[0] = "Special1";
+        characterTypes[1] = 1;
+        categories[1] = 0;
+        names[1] = "Special2";
 
         pointers[0] = _createFileStorePointer(bytes("<rect/>"));
         pointers[1] = _createFileStorePointer(bytes("<ellipse/>"));
@@ -563,8 +560,12 @@ contract DealerRendererSVGTest is Test {
         string[] memory names = new string[](2);
         address[] memory pointers = new address[](2);
 
-        characterTypes[0] = 0; categories[0] = 0; names[0] = "Test1";
-        characterTypes[1] = 0; categories[1] = 0; names[1] = "Test2";
+        characterTypes[0] = 0;
+        categories[0] = 0;
+        names[0] = "Test1";
+        characterTypes[1] = 0;
+        categories[1] = 0;
+        names[1] = "Test2";
 
         pointers[0] = _createFileStorePointer(bytes("<rect/>"));
         pointers[1] = address(0);
@@ -599,8 +600,10 @@ contract DealerRendererSVGTest is Test {
         string[] memory names = new string[](2);
         address[] memory pointers = new address[](2);
 
-        tokenIds[0] = 1; names[0] = "Legend1";
-        tokenIds[1] = 2; names[1] = "Legend2";
+        tokenIds[0] = 1;
+        names[0] = "Legend1";
+        tokenIds[1] = 2;
+        names[1] = "Legend2";
 
         pointers[0] = _createFileStorePointer(bytes("<text>1</text>"));
         pointers[1] = _createFileStorePointer(bytes("<text>2</text>"));
@@ -620,8 +623,10 @@ contract DealerRendererSVGTest is Test {
         string[] memory names = new string[](2);
         address[] memory pointers = new address[](2);
 
-        tokenIds[0] = 1; names[0] = "Test1";
-        tokenIds[1] = 2; names[1] = "Test2";
+        tokenIds[0] = 1;
+        names[0] = "Test1";
+        tokenIds[1] = 2;
+        names[1] = "Test2";
 
         pointers[0] = _createFileStorePointer(bytes("<text/>"));
         pointers[1] = address(0);
@@ -767,8 +772,18 @@ contract DealerRendererSVGTest is Test {
     // =============================================================
 
     function testFuzz_packUnpack_roundtrip(
-        uint8 a, uint8 b, uint8 c, uint8 d, uint8 e, uint8 f,
-        uint8 g, uint8 h, uint8 i, uint8 j, uint8 k, uint8 l
+        uint8 a,
+        uint8 b,
+        uint8 c,
+        uint8 d,
+        uint8 e,
+        uint8 f,
+        uint8 g,
+        uint8 h,
+        uint8 i,
+        uint8 j,
+        uint8 k,
+        uint8 l
     ) public {
         uint8[12] memory t = [a, b, c, d, e, f, g, h, i, j, k, l];
         bytes32 packed = _packTraits(t);

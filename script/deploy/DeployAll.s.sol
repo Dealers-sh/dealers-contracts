@@ -15,8 +15,8 @@ import "../base/DeployBase.s.sol";
  *
  * Usage:
  *   source .env && forge script script/deploy/DeployAll.s.sol:DeployAll \
-      --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
-      --skip "RendererSVG"
+ *       --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
+ *       --skip "RendererSVG"
  */
 contract DeployAll is DeployBase {
     bool internal skipNFT;
@@ -116,10 +116,9 @@ contract DeployAll is DeployBase {
         // On mainnet, prefer admin functions on the existing registry instead.
         if (areaRegistry == address(0)) {
             _requireAddress(drugRegistry, "DRUG_REGISTRY");
-            areaRegistry = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersAreaRegistry.sol:DealersAreaRegistry"),
-                abi.encode(drugRegistry)
-            ));
+            areaRegistry = _zkCreate(
+                abi.encodePacked(vm.getCode("DealersAreaRegistry.sol:DealersAreaRegistry"), abi.encode(drugRegistry))
+            );
             console.log("DealersAreaRegistry deployed:", areaRegistry);
         } else {
             console.log("DealersAreaRegistry: skipped (exists)");
@@ -133,10 +132,11 @@ contract DeployAll is DeployBase {
         }
 
         if (paymentHandler == address(0)) {
-            paymentHandler = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersPaymentHandler.sol:DealersPaymentHandler"),
-                abi.encode(devWallet, bankVault)
-            ));
+            paymentHandler = _zkCreate(
+                abi.encodePacked(
+                    vm.getCode("DealersPaymentHandler.sol:DealersPaymentHandler"), abi.encode(devWallet, bankVault)
+                )
+            );
             console.log("DealersPaymentHandler deployed:", paymentHandler);
         } else {
             console.log("DealersPaymentHandler: skipped (exists)");
@@ -152,10 +152,7 @@ contract DeployAll is DeployBase {
         if (skipNFT) {
             console.log("DealersNFT: skipped (game-only mode, placeholder=devWallet)");
         } else if (nft == address(0)) {
-            nft = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersNFT.sol:DealersNFT"),
-                abi.encode(royaltyReceiver)
-            ));
+            nft = _zkCreate(abi.encodePacked(vm.getCode("DealersNFT.sol:DealersNFT"), abi.encode(royaltyReceiver)));
             console.log("DealersNFT deployed:", nft);
         } else {
             console.log("DealersNFT: skipped (exists)");
@@ -167,10 +164,11 @@ contract DeployAll is DeployBase {
             _requireAddress(core, "DEALERS_CORE");
             _requireAddress(nftCtor, "DEALERS_NFT or DEV_WALLET (game-only)");
             _requireAddress(paymentHandler, "PAYMENT_HANDLER");
-            boosts = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersBoosts.sol:DealersBoosts"),
-                abi.encode(core, nftCtor, paymentHandler)
-            ));
+            boosts = _zkCreate(
+                abi.encodePacked(
+                    vm.getCode("DealersBoosts.sol:DealersBoosts"), abi.encode(core, nftCtor, paymentHandler)
+                )
+            );
             console.log("DealersBoosts deployed:", boosts);
         } else {
             console.log("DealersBoosts: skipped (exists)");
@@ -180,10 +178,9 @@ contract DeployAll is DeployBase {
             _requireAddress(core, "DEALERS_CORE");
             _requireAddress(nftCtor, "DEALERS_NFT or DEV_WALLET (game-only)");
             _requireAddress(areaRegistry, "AREA_REGISTRY");
-            pve = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersPVE.sol:DealersPVE"),
-                abi.encode(core, nftCtor, areaRegistry)
-            ));
+            pve = _zkCreate(
+                abi.encodePacked(vm.getCode("DealersPVE.sol:DealersPVE"), abi.encode(core, nftCtor, areaRegistry))
+            );
             console.log("DealersPVE deployed:", pve);
         } else {
             console.log("DealersPVE: skipped (exists)");
@@ -193,10 +190,9 @@ contract DeployAll is DeployBase {
             _requireAddress(core, "DEALERS_CORE");
             _requireAddress(nftCtor, "DEALERS_NFT or DEV_WALLET (game-only)");
             _requireAddress(areaRegistry, "AREA_REGISTRY");
-            pvp = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersPVP.sol:DealersPVP"),
-                abi.encode(core, nftCtor, areaRegistry)
-            ));
+            pvp = _zkCreate(
+                abi.encodePacked(vm.getCode("DealersPVP.sol:DealersPVP"), abi.encode(core, nftCtor, areaRegistry))
+            );
             console.log("DealersPVP deployed:", pvp);
         } else {
             console.log("DealersPVP: skipped (exists)");
@@ -207,10 +203,9 @@ contract DeployAll is DeployBase {
             _requireAddress(nftCtor, "DEALERS_NFT or DEV_WALLET (game-only)");
             _requireAddress(pve, "DEALERS_PVE");
             _requireAddress(pvp, "DEALERS_PVP");
-            claims = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersClaims.sol:DealersClaims"),
-                abi.encode(core, nftCtor, pve, pvp)
-            ));
+            claims = _zkCreate(
+                abi.encodePacked(vm.getCode("DealersClaims.sol:DealersClaims"), abi.encode(core, nftCtor, pve, pvp))
+            );
             console.log("DealersClaims deployed:", claims);
         } else {
             console.log("DealersClaims: skipped (exists)");
@@ -220,20 +215,23 @@ contract DeployAll is DeployBase {
             _requireAddress(core, "DEALERS_CORE");
             _requireAddress(nftCtor, "DEALERS_NFT or DEV_WALLET (game-only)");
             _requireAddress(areaRegistry, "AREA_REGISTRY");
-            actions = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersActions.sol:DealersActions"),
-                abi.encode(core, nftCtor, areaRegistry)
-            ));
+            actions = _zkCreate(
+                abi.encodePacked(
+                    vm.getCode("DealersActions.sol:DealersActions"), abi.encode(core, nftCtor, areaRegistry)
+                )
+            );
             console.log("DealersActions deployed:", actions);
         } else {
             console.log("DealersActions: skipped (exists)");
         }
 
         if (multicall == address(0)) {
-            multicall = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersMulticall.sol:DealersMulticall"),
-                abi.encode(core, pve, pvp, areaRegistry, drugRegistry)
-            ));
+            multicall = _zkCreate(
+                abi.encodePacked(
+                    vm.getCode("DealersMulticall.sol:DealersMulticall"),
+                    abi.encode(core, pve, pvp, areaRegistry, drugRegistry)
+                )
+            );
             console.log("DealersMulticall deployed:", multicall);
         } else {
             console.log("DealersMulticall: skipped (exists)");
@@ -241,10 +239,9 @@ contract DeployAll is DeployBase {
 
         if (chatFactory == address(0)) {
             _requireAddress(nftCtor, "DEALERS_NFT or DEV_WALLET (game-only)");
-            chatFactory = _zkCreate(abi.encodePacked(
-                vm.getCode("DealersChatFactory.sol:DealersChatFactory"),
-                abi.encode(nftCtor)
-            ));
+            chatFactory = _zkCreate(
+                abi.encodePacked(vm.getCode("DealersChatFactory.sol:DealersChatFactory"), abi.encode(nftCtor))
+            );
             console.log("DealersChatFactory deployed:", chatFactory);
         } else {
             console.log("DealersChatFactory: skipped (exists)");
@@ -280,7 +277,9 @@ contract DeployAll is DeployBase {
         IPaymentHandler payHandler = IPaymentHandler(paymentHandler);
         if (!payHandler.authorizedContracts(core)) payHandler.authorizeContract(core, true);
         if (!payHandler.authorizedContracts(boosts)) payHandler.authorizeContract(boosts, true);
-        if (actions != address(0) && !payHandler.authorizedContracts(actions)) payHandler.authorizeContract(actions, true);
+        if (actions != address(0) && !payHandler.authorizedContracts(actions)) {
+            payHandler.authorizeContract(actions, true);
+        }
 
         // AreaRegistry -> Core
         IAreaRegistry areaReg = IAreaRegistry(areaRegistry);
@@ -376,17 +375,17 @@ contract DeployAll is DeployBase {
         }
 
         console.log("Registering 11 drugs...");
-        reg.createDrug("Goods",      0, 75);
+        reg.createDrug("Goods", 0, 75);
         reg.createDrug("Contraband", 1, 500);
-        reg.createDrug("Jewels",     2, 2500);
-        reg.createDrug("Weed",       0, 1);
-        reg.createDrug("XTC",        1, 10);
-        reg.createDrug("Cocaine",    2, 100);
-        reg.createDrug("Shrooms",    1, 12);
-        reg.createDrug("Heroin",     2, 150);
-        reg.createDrug("Opioids",    0, 18);
-        reg.createDrug("Meth",       1, 25);
-        reg.createDrug("Fentanyl",   2, 200);
+        reg.createDrug("Jewels", 2, 2500);
+        reg.createDrug("Weed", 0, 1);
+        reg.createDrug("XTC", 1, 10);
+        reg.createDrug("Cocaine", 2, 100);
+        reg.createDrug("Shrooms", 1, 12);
+        reg.createDrug("Heroin", 2, 150);
+        reg.createDrug("Opioids", 0, 18);
+        reg.createDrug("Meth", 1, 25);
+        reg.createDrug("Fentanyl", 2, 200);
         console.log("  11 drugs registered");
         console.log("");
     }
@@ -457,16 +456,86 @@ contract DeployAll is DeployBase {
         console.log("Setting up 10-tier reputation system (convex 2.2x ladder)...");
 
         ReputationTier[] memory tiers = new ReputationTier[](10);
-        tiers[0] = ReputationTier({minReputation: 0,     winBonus: 60, tieBonus: 25, lossPenalty: -2, repCap: 35, tierName: "Outsider"});
-        tiers[1] = ReputationTier({minReputation: 100,   winBonus: 35, tieBonus: 18, lossPenalty: -3, repCap: 25, tierName: "Associate"});
-        tiers[2] = ReputationTier({minReputation: 250,   winBonus: 20, tieBonus: 10, lossPenalty: -3, repCap: 22, tierName: "Dealer"});
-        tiers[3] = ReputationTier({minReputation: 600,   winBonus: 12, tieBonus: 5,  lossPenalty: -4, repCap: 22, tierName: "Soldier"});
-        tiers[4] = ReputationTier({minReputation: 1500,  winBonus: 9,  tieBonus: 4,  lossPenalty: -5, repCap: 24, tierName: "Capo"});
-        tiers[5] = ReputationTier({minReputation: 3000,  winBonus: 7,  tieBonus: 3,  lossPenalty: -5, repCap: 26, tierName: "Consigliere"});
-        tiers[6] = ReputationTier({minReputation: 5500,  winBonus: 6,  tieBonus: 2,  lossPenalty: -6, repCap: 28, tierName: "Underboss"});
-        tiers[7] = ReputationTier({minReputation: 10000, winBonus: 5,  tieBonus: 2,  lossPenalty: -6, repCap: 30, tierName: "Don"});
-        tiers[8] = ReputationTier({minReputation: 22000, winBonus: 4,  tieBonus: 1,  lossPenalty: -7, repCap: 32, tierName: "Godfather"});
-        tiers[9] = ReputationTier({minReputation: 50000, winBonus: 2,  tieBonus: 1,  lossPenalty: -8, repCap: 4,  tierName: "Legend"});
+        tiers[0] = ReputationTier({
+            minReputation: 0,
+            winBonus: 60,
+            tieBonus: 25,
+            lossPenalty: -2,
+            repCap: 35,
+            tierName: "Outsider"
+        });
+        tiers[1] = ReputationTier({
+            minReputation: 100,
+            winBonus: 35,
+            tieBonus: 18,
+            lossPenalty: -3,
+            repCap: 25,
+            tierName: "Associate"
+        });
+        tiers[2] = ReputationTier({
+            minReputation: 250,
+            winBonus: 20,
+            tieBonus: 10,
+            lossPenalty: -3,
+            repCap: 22,
+            tierName: "Dealer"
+        });
+        tiers[3] = ReputationTier({
+            minReputation: 600,
+            winBonus: 12,
+            tieBonus: 5,
+            lossPenalty: -4,
+            repCap: 22,
+            tierName: "Soldier"
+        });
+        tiers[4] = ReputationTier({
+            minReputation: 1500,
+            winBonus: 9,
+            tieBonus: 4,
+            lossPenalty: -5,
+            repCap: 24,
+            tierName: "Capo"
+        });
+        tiers[5] = ReputationTier({
+            minReputation: 3000,
+            winBonus: 7,
+            tieBonus: 3,
+            lossPenalty: -5,
+            repCap: 26,
+            tierName: "Consigliere"
+        });
+        tiers[6] = ReputationTier({
+            minReputation: 5500,
+            winBonus: 6,
+            tieBonus: 2,
+            lossPenalty: -6,
+            repCap: 28,
+            tierName: "Underboss"
+        });
+        tiers[7] = ReputationTier({
+            minReputation: 10000,
+            winBonus: 5,
+            tieBonus: 2,
+            lossPenalty: -6,
+            repCap: 30,
+            tierName: "Don"
+        });
+        tiers[8] = ReputationTier({
+            minReputation: 22000,
+            winBonus: 4,
+            tieBonus: 1,
+            lossPenalty: -7,
+            repCap: 32,
+            tierName: "Godfather"
+        });
+        tiers[9] = ReputationTier({
+            minReputation: 50000,
+            winBonus: 2,
+            tieBonus: 1,
+            lossPenalty: -8,
+            repCap: 4,
+            tierName: "Legend"
+        });
 
         c.setReputationTiers(tiers);
         c.setMaxReputation(75000);
@@ -484,28 +553,34 @@ contract DeployAll is DeployBase {
         console.log("Retuning Kingpin + Godfather boost perks...");
 
         // Kingpin (tier 3) - +6 attempts (was +5), 1.25x rep (was 1.20)
-        b.setBoostTier(3, IBoostsAdmin.BoostTier({
-            price: 0.01 ether,
-            duration: 14 days,
-            drugMultiplier: 175,
-            repMultiplier: 125,
-            extraAttempts: 6,
-            freeAreaMovement: true,
-            cashMultiplier: 175,
-            isActive: true
-        }));
+        b.setBoostTier(
+            3,
+            IBoostsAdmin.BoostTier({
+                price: 0.01 ether,
+                duration: 14 days,
+                drugMultiplier: 175,
+                repMultiplier: 125,
+                extraAttempts: 6,
+                freeAreaMovement: true,
+                cashMultiplier: 175,
+                isActive: true
+            })
+        );
 
         // Godfather (tier 4) - 2.25x drug/cash (was 2x), 1.35x rep (was 1.25)
-        b.setBoostTier(4, IBoostsAdmin.BoostTier({
-            price: 0.023 ether,
-            duration: 30 days,
-            drugMultiplier: 225,
-            repMultiplier: 135,
-            extraAttempts: 7,
-            freeAreaMovement: true,
-            cashMultiplier: 225,
-            isActive: true
-        }));
+        b.setBoostTier(
+            4,
+            IBoostsAdmin.BoostTier({
+                price: 0.023 ether,
+                duration: 30 days,
+                drugMultiplier: 225,
+                repMultiplier: 135,
+                extraAttempts: 7,
+                freeAreaMovement: true,
+                cashMultiplier: 225,
+                isActive: true
+            })
+        );
 
         console.log("  Kingpin: +6 attempts, 1.25x rep | Godfather: 2.25x drug/cash, 1.35x rep");
         console.log("");
@@ -555,49 +630,49 @@ contract DeployAll is DeployBase {
         console.log("Configuring 33 achievements (rebalanced for new ladder)...");
 
         // Early game (0-11)
-        c.setAchievement(0,  _ach(PVE_TOTAL,            0, 1,   REWARD_CASH, 0, 250));
-        c.setAchievement(1,  _ach(PVE_TOTAL,            0, 10,  REWARD_CASH, 0, 1000));
-        c.setAchievement(2,  _ach(PVE_WINS,             0, 10,  REWARD_DRUG, XTC, 5));
-        c.setAchievement(3,  _ach(PVE_TIES,             0, 10,  REWARD_DRUG, XTC, 5));
-        c.setAchievement(4,  _ach(PVE_LOSSES,           0, 10,  REWARD_CASH, 0, 1000));
-        c.setAchievement(5,  _ach(PVE_DEAL_CHOICES,     0, 10,  REWARD_DRUG, SHROOMS, 5));
-        c.setAchievement(6,  _ach(PVE_THREATEN_CHOICES, 0, 10,  REWARD_DRUG, SHROOMS, 5));
-        c.setAchievement(7,  _ach(PVE_BAIL_CHOICES,     0, 10,  REWARD_DRUG, SHROOMS, 5));
-        c.setAchievement(8,  _ach(PVP_TOTAL_WINS,       0, 1,   REWARD_REP,  0, 25));
-        c.setAchievement(9,  _ach(PVP_ATTACK_WINS,      0, 10,  REWARD_DRUG, GENERAL_GOODS, 3));
-        c.setAchievement(10, _ach(PVP_DEFEND_WINS,      0, 10,  REWARD_DRUG, GENERAL_GOODS, 3));
-        c.setAchievement(11, _ach(REPUTATION,           0, 100, REWARD_DRUG, WEED, 100));
+        c.setAchievement(0, _ach(PVE_TOTAL, 0, 1, REWARD_CASH, 0, 250));
+        c.setAchievement(1, _ach(PVE_TOTAL, 0, 10, REWARD_CASH, 0, 1000));
+        c.setAchievement(2, _ach(PVE_WINS, 0, 10, REWARD_DRUG, XTC, 5));
+        c.setAchievement(3, _ach(PVE_TIES, 0, 10, REWARD_DRUG, XTC, 5));
+        c.setAchievement(4, _ach(PVE_LOSSES, 0, 10, REWARD_CASH, 0, 1000));
+        c.setAchievement(5, _ach(PVE_DEAL_CHOICES, 0, 10, REWARD_DRUG, SHROOMS, 5));
+        c.setAchievement(6, _ach(PVE_THREATEN_CHOICES, 0, 10, REWARD_DRUG, SHROOMS, 5));
+        c.setAchievement(7, _ach(PVE_BAIL_CHOICES, 0, 10, REWARD_DRUG, SHROOMS, 5));
+        c.setAchievement(8, _ach(PVP_TOTAL_WINS, 0, 1, REWARD_REP, 0, 25));
+        c.setAchievement(9, _ach(PVP_ATTACK_WINS, 0, 10, REWARD_DRUG, GENERAL_GOODS, 3));
+        c.setAchievement(10, _ach(PVP_DEFEND_WINS, 0, 10, REWARD_DRUG, GENERAL_GOODS, 3));
+        c.setAchievement(11, _ach(REPUTATION, 0, 100, REWARD_DRUG, WEED, 100));
 
         // Tier milestones (12-20) aligned with new convex ladder
-        c.setAchievement(12, _ach(REPUTATION, 0, 75,    REWARD_CASH, 0, 500));      // Associate
-        c.setAchievement(13, _ach(REPUTATION, 0, 200,   REWARD_CASH, 0, 2000));     // Dealer
-        c.setAchievement(14, _ach(REPUTATION, 0, 500,   REWARD_CASH, 0, 10000));    // Soldier
-        c.setAchievement(15, _ach(REPUTATION, 0, 1200,  REWARD_CASH, 0, 25000));    // Capo
-        c.setAchievement(16, _ach(REPUTATION, 0, 2500,  REWARD_CASH, 0, 75000));    // Consigliere
-        c.setAchievement(17, _ach(REPUTATION, 0, 5000,  REWARD_CASH, 0, 200000));   // Underboss
-        c.setAchievement(18, _ach(REPUTATION, 0, 10000, REWARD_CASH, 0, 500000));   // Don
-        c.setAchievement(19, _ach(REPUTATION, 0, 22000, REWARD_CASH, 0, 1000000));  // Godfather
-        c.setAchievement(20, _ach(REPUTATION, 0, 50000, REWARD_CASH, 0, 2000000));  // Legend
+        c.setAchievement(12, _ach(REPUTATION, 0, 75, REWARD_CASH, 0, 500)); // Associate
+        c.setAchievement(13, _ach(REPUTATION, 0, 200, REWARD_CASH, 0, 2000)); // Dealer
+        c.setAchievement(14, _ach(REPUTATION, 0, 500, REWARD_CASH, 0, 10000)); // Soldier
+        c.setAchievement(15, _ach(REPUTATION, 0, 1200, REWARD_CASH, 0, 25000)); // Capo
+        c.setAchievement(16, _ach(REPUTATION, 0, 2500, REWARD_CASH, 0, 75000)); // Consigliere
+        c.setAchievement(17, _ach(REPUTATION, 0, 5000, REWARD_CASH, 0, 200000)); // Underboss
+        c.setAchievement(18, _ach(REPUTATION, 0, 10000, REWARD_CASH, 0, 500000)); // Don
+        c.setAchievement(19, _ach(REPUTATION, 0, 22000, REWARD_CASH, 0, 1000000)); // Godfather
+        c.setAchievement(20, _ach(REPUTATION, 0, 50000, REWARD_CASH, 0, 2000000)); // Legend
 
         // Drug + PvP rewards (21-23)
-        c.setAchievement(21, _ach(REPUTATION,     0, 250, REWARD_DRUG, HEROIN, 5));
-        c.setAchievement(22, _ach(PVP_TOTAL_WINS, 0, 1,   REWARD_DRUG, GENERAL_GOODS, 3));
-        c.setAchievement(23, _ach(PVP_TOTAL_WINS, 0, 10,  REWARD_DRUG, CONTRABAND, 3));
+        c.setAchievement(21, _ach(REPUTATION, 0, 250, REWARD_DRUG, HEROIN, 5));
+        c.setAchievement(22, _ach(PVP_TOTAL_WINS, 0, 1, REWARD_DRUG, GENERAL_GOODS, 3));
+        c.setAchievement(23, _ach(PVP_TOTAL_WINS, 0, 10, REWARD_DRUG, CONTRABAND, 3));
 
         // Cash thresholds (24-27)
-        c.setAchievement(24, _ach(CASH_BALANCE, 0, 10000,   REWARD_DRUG, XTC, 1));
-        c.setAchievement(25, _ach(CASH_BALANCE, 0, 100000,  REWARD_DRUG, COCAINE, 1));
-        c.setAchievement(26, _ach(CASH_BALANCE, 0, 500000,  REWARD_DRUG, JEWELS, 1));
+        c.setAchievement(24, _ach(CASH_BALANCE, 0, 10000, REWARD_DRUG, XTC, 1));
+        c.setAchievement(25, _ach(CASH_BALANCE, 0, 100000, REWARD_DRUG, COCAINE, 1));
+        c.setAchievement(26, _ach(CASH_BALANCE, 0, 500000, REWARD_DRUG, JEWELS, 1));
         c.setAchievement(27, _ach(CASH_BALANCE, 0, 2000000, REWARD_DRUG, JEWELS, 3));
 
         // Drug stockpiles (28-29)
         c.setAchievement(28, _ach(DRUG_BALANCE, FENTANYL, 1000, REWARD_CASH, 0, 25000));
-        c.setAchievement(29, _ach(DRUG_BALANCE, COCAINE,  5000, REWARD_CASH, 0, 100000));
+        c.setAchievement(29, _ach(DRUG_BALANCE, COCAINE, 5000, REWARD_CASH, 0, 100000));
 
         // Long grind (30-32)
-        c.setAchievement(30, _ach(PVE_TOTAL,      0, 100,  REWARD_CASH, 0, 5000));
-        c.setAchievement(31, _ach(PVE_TOTAL,      0, 1000, REWARD_CASH, 0, 50000));
-        c.setAchievement(32, _ach(PVP_TOTAL_WINS, 0, 100,  REWARD_CASH, 0, 100000));
+        c.setAchievement(30, _ach(PVE_TOTAL, 0, 100, REWARD_CASH, 0, 5000));
+        c.setAchievement(31, _ach(PVE_TOTAL, 0, 1000, REWARD_CASH, 0, 50000));
+        c.setAchievement(32, _ach(PVP_TOTAL_WINS, 0, 100, REWARD_CASH, 0, 100000));
 
         console.log("  33 achievements configured");
         console.log("");
@@ -642,10 +717,8 @@ contract DeployAll is DeployBase {
         address worldRoom = factory.createRoom(IChatFactory.RoomType.WORLD, 0, address(0));
         console.log("  WORLD room:", worldRoom);
 
-        address gate = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersAreaChatGate.sol:DealersAreaChatGate"),
-            abi.encode(core)
-        ));
+        address gate =
+            _zkCreate(abi.encodePacked(vm.getCode("DealersAreaChatGate.sol:DealersAreaChatGate"), abi.encode(core)));
         console.log("  AreaChatGate:", gate);
 
         uint8[9] memory areas = [uint8(1), 2, 3, 4, 5, 6, 7, 254, 255];

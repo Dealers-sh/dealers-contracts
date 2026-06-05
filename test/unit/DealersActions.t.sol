@@ -160,7 +160,11 @@ contract DealersActionsTest is BaseTest {
         vm.prank(player1);
         actions.travel{value: 0}(dealerToken, AREA_COLOMBIA);
 
-        assertEq(core.getGameState(dealerToken).currentArea, AREA_MANHATTAN, "Destination param ignored; returned to previousArea");
+        assertEq(
+            core.getGameState(dealerToken).currentArea,
+            AREA_MANHATTAN,
+            "Destination param ignored; returned to previousArea"
+        );
     }
 
     function test_travel_fromBlackMarket_exitIsFree() public {

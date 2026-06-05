@@ -72,12 +72,7 @@ interface IDealerRendererSVG {
     //                      TRAIT MANAGEMENT
     // =============================================================
 
-    function addTrait(
-        uint8 characterType,
-        uint8 category,
-        string calldata name,
-        address fileStorePointer
-    ) external;
+    function addTrait(uint8 characterType, uint8 category, string calldata name, address fileStorePointer) external;
 
     function batchAddTraits(
         uint8[] calldata characterTypes,
@@ -86,18 +81,10 @@ interface IDealerRendererSVG {
         address[] calldata fileStorePointers
     ) external;
 
-    function updateTraitPointer(
-        uint8 characterType,
-        uint8 category,
-        uint256 traitIndex,
-        address newFileStorePointer
-    ) external;
+    function updateTraitPointer(uint8 characterType, uint8 category, uint256 traitIndex, address newFileStorePointer)
+        external;
 
-    function setOneOfOne(
-        uint256 tokenId,
-        string calldata characterName,
-        address fileStorePointer
-    ) external;
+    function setOneOfOne(uint256 tokenId, string calldata characterName, address fileStorePointer) external;
 
     function batchSetOneOfOnes(
         uint256[] calldata tokenIds,

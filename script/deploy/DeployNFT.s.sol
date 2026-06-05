@@ -23,10 +23,7 @@ contract DeployNFT is DeployBase {
         _requireAddress(royaltyReceiver, "ROYALTY_RECEIVER");
 
         vm.startBroadcast();
-        nft = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersNFT.sol:DealersNFT"),
-            abi.encode(royaltyReceiver)
-        ));
+        nft = _zkCreate(abi.encodePacked(vm.getCode("DealersNFT.sol:DealersNFT"), abi.encode(royaltyReceiver)));
         vm.stopBroadcast();
 
         _saveAddresses();

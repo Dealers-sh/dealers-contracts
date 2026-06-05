@@ -109,11 +109,7 @@ contract DealersChatFactory is Ownable {
         if (rooms[key].room != address(0)) revert RoomAlreadyExists();
 
         room = address(new DealersChatRoom{salt: key}(address(this)));
-        rooms[key] = RoomInfo({
-            room: room,
-            gate: IDealersChatGate(gate),
-            roomId: id
-        });
+        rooms[key] = RoomInfo({room: room, gate: IDealersChatGate(gate), roomId: id});
 
         emit RoomCreated(roomType, id, room, gate);
     }

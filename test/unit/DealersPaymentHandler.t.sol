@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import "../base/BaseTest.sol";
 
 contract DealersPaymentHandlerTest is BaseTest {
-    uint256 public constant BANK_FEE_PERCENT = 8000;  // 80%
+    uint256 public constant BANK_FEE_PERCENT = 8000; // 80%
 
     address public authorizedCaller;
 

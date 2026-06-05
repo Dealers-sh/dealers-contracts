@@ -25,18 +25,14 @@ struct File {
     BytecodeSlice[] slices;
 }
 // extend File struct with read functions
+
 using {read} for File global;
 using {readUnchecked} for File global;
 
 /**
  * @dev Error thrown when a slice is out of the bounds of the contract's bytecode
  */
-error SliceOutOfBounds(
-    address pointer,
-    uint32 codeSize,
-    uint32 sliceStart,
-    uint32 sliceEnd
-);
+error SliceOutOfBounds(address pointer, uint32 codeSize, uint32 sliceStart, uint32 sliceEnd);
 
 /**
  * @notice Reads the contents of a file by concatenating its slices
@@ -57,11 +53,7 @@ function read(File memory file) view returns (string memory contents) {
         let end
         let codeSize
 
-        for {
-            let i := 0
-        } lt(i, len) {
-            i := add(i, 1)
-        } {
+        for { let i := 0 } lt(i, len) { i := add(i, 1) } {
             slice := mload(add(slices, add(0x20, mul(i, 0x20))))
             pointer := mload(slice)
             start := mload(add(slice, 0x20))
@@ -106,11 +98,7 @@ function readUnchecked(File memory file) view returns (string memory contents) {
         let end
         let codeSize
 
-        for {
-            let i := 0
-        } lt(i, len) {
-            i := add(i, 1)
-        } {
+        for { let i := 0 } lt(i, len) { i := add(i, 1) } {
             slice := mload(add(slices, add(0x20, mul(i, 0x20))))
             pointer := mload(slice)
             start := mload(add(slice, 0x20))
@@ -118,12 +106,7 @@ function readUnchecked(File memory file) view returns (string memory contents) {
 
             codeSize := extcodesize(pointer)
             if lt(end, codeSize) {
-                extcodecopy(
-                    pointer,
-                    add(contents, size),
-                    start,
-                    sub(end, start)
-                )
+                extcodecopy(pointer, add(contents, size), start, sub(end, start))
                 size := add(size, sub(end, start))
             }
         }

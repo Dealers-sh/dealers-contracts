@@ -57,16 +57,16 @@ contract DealersBankHeist is IDealersBankHeist, IEntropyConsumer, ReentrancyGuar
      */
     uint64 public immutable prepDuration;
     uint64 public immutable genesisStart;
-    uint96 public entryFee = 5000;          // $CASH sink to enter
-    uint256 public entryRepGate;            // totalReputation required (0 = open)
-    uint16 public eventCapBps = 2500;       // ≤25% of available vault per cycle
-    uint256 public vaultFloor = 1 ether;    // skip entries while vault below this
+    uint96 public entryFee = 5000; // $CASH sink to enter
+    uint256 public entryRepGate; // totalReputation required (0 = open)
+    uint16 public eventCapBps = 2500; // ≤25% of available vault per cycle
+    uint256 public vaultFloor = 1 ether; // skip entries while vault below this
     uint32 public minEntrants = 10;
-    uint32 public maxEntrants = 5000;       // bounds the settlement loop
-    uint256 public baseWeight;              // floor weight per paying entrant (0 = pure activity)
-    uint256 public settleFee;               // ETH paid to settle() caller (0 = keeper-run)
-    uint64 public refundTimeout = 7 days;   // post-close grace before a stuck draw is refundable
-    uint16[] public prizeSplitBps;          // winner split, e.g. [6000,3000,1000]
+    uint32 public maxEntrants = 5000; // bounds the settlement loop
+    uint256 public baseWeight; // floor weight per paying entrant (0 = pure activity)
+    uint256 public settleFee; // ETH paid to settle() caller (0 = keeper-run)
+    uint64 public refundTimeout = 7 days; // post-close grace before a stuck draw is refundable
+    uint16[] public prizeSplitBps; // winner split, e.g. [6000,3000,1000]
 
     // --- events / entries ---
     mapping(uint256 eventId => HeistEvent) public events;
@@ -203,7 +203,9 @@ contract DealersBankHeist is IDealersBankHeist, IEntropyConsumer, ReentrancyGuar
         entered[eid][tokenId] = true;
         entryAt[eid][e.entryCount] = tokenId;
         activityAtEntry[eid][tokenId] = snapshot;
-        unchecked { e.entryCount++; }
+        unchecked {
+            e.entryCount++;
+        }
         e.cashSunk += fee;
 
         emit Entered(eid, tokenId, msg.sender, snapshot);
@@ -286,7 +288,7 @@ contract DealersBankHeist is IDealersBankHeist, IEntropyConsumer, ReentrancyGuar
         if (end > count) end = count;
 
         uint256 added;
-        for (; i < end; ) {
+        for (; i < end;) {
             uint256 tid = entryAt[eventId][i];
             uint256 w;
             if (!refunded[eventId][tid]) {
@@ -296,7 +298,9 @@ contract DealersBankHeist is IDealersBankHeist, IEntropyConsumer, ReentrancyGuar
             }
             weightAt[eventId][i] = w;
             added += w;
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         e.weightCursor = uint32(i);
         e.totalWeight += added;
@@ -340,16 +344,18 @@ contract DealersBankHeist is IDealersBankHeist, IEntropyConsumer, ReentrancyGuar
         uint256 n = prizeSplitBps.length;
 
         uint256[] memory weights = new uint256[](count);
-        for (uint256 i = 0; i < count; ) {
+        for (uint256 i = 0; i < count;) {
             weights[i] = weightAt[eventId][i];
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         uint256 picks = n < count ? n : count;
-        for (uint256 k = 0; k < picks; ) {
+        for (uint256 k = 0; k < picks;) {
             uint256 r = uint256(keccak256(abi.encodePacked(seed, k))) % totalWeight;
             uint256 acc;
-            for (uint256 i = 0; i < count; ) {
+            for (uint256 i = 0; i < count;) {
                 acc += weights[i];
                 if (r < acc && weights[i] != 0) {
                     uint256 tid = entryAt[eventId][i];
@@ -361,13 +367,19 @@ contract DealersBankHeist is IDealersBankHeist, IEntropyConsumer, ReentrancyGuar
                     emit WinnerSelected(eventId, tid, k, amount);
                     totalWeight -= weights[i];
                     weights[i] = 0;
-                    unchecked { ++winnerCount; }
+                    unchecked {
+                        ++winnerCount;
+                    }
                     break;
                 }
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
             }
             if (totalWeight == 0) break;
-            unchecked { ++k; }
+            unchecked {
+                ++k;
+            }
         }
     }
 
@@ -417,27 +429,34 @@ contract DealersBankHeist is IDealersBankHeist, IEntropyConsumer, ReentrancyGuar
     //                        VIEW FUNCTIONS
     // =============================================================
 
-    /** @notice The id of the currently open preparation window, derived from elapsed time. */
+    /**
+     * @notice The id of the currently open preparation window, derived from elapsed time.
+     */
     function currentEventId() public view returns (uint256) {
         return (block.timestamp - genesisStart) / prepDuration;
     }
 
-    /** @notice Read the full state of a heist event. */
+    /**
+     * @notice Read the full state of a heist event.
+     */
     function getEvent(uint256 eventId) external view returns (HeistEvent memory) {
         return events[eventId];
     }
 
-    /** @notice A dealer's lifetime PVE + PVP + heist plays — the raw activity metric. */
+    /**
+     * @notice A dealer's lifetime PVE + PVP + heist plays — the raw activity metric.
+     */
     function activityOf(uint256 tokenId) public view returns (uint64) {
         IDealersPVE.PveStats memory p = pve.getDealerPveStats(tokenId);
         IDealersPVP.PvpStats memory v = pvp.getDealerPvpStats(tokenId);
-        uint256 total = uint256(p.wins) + p.losses + p.ties
-            + uint256(v.attackWins) + v.attackLosses + v.defendWins + v.defendLosses
-            + uint256(heists.heistRuns(tokenId));
+        uint256 total = uint256(p.wins) + p.losses + p.ties + uint256(v.attackWins) + v.attackLosses + v.defendWins
+            + v.defendLosses + uint256(heists.heistRuns(tokenId));
         return uint64(total);
     }
 
-    /** @notice A dealer's LIVE in-window activity weight (informational; settlement uses the frozen snapshot). */
+    /**
+     * @notice A dealer's LIVE in-window activity weight (informational; settlement uses the frozen snapshot).
+     */
     function eventWeight(uint256 eventId, uint256 tokenId) external view returns (uint256) {
         if (!entered[eventId][tokenId]) return 0;
         uint64 cur = activityOf(tokenId);
@@ -445,13 +464,17 @@ contract DealersBankHeist is IDealersBankHeist, IEntropyConsumer, ReentrancyGuar
         return (cur > snap ? uint256(cur - snap) : 0) + baseWeight;
     }
 
-    /** @notice Vault ETH available for prizes and fees (balance minus unclaimed winnings). */
+    /**
+     * @notice Vault ETH available for prizes and fees (balance minus unclaimed winnings).
+     */
     function availableVault() public view returns (uint256) {
         uint256 bal = address(this).balance;
         return bal > totalUnclaimedWinnings ? bal - totalUnclaimedWinnings : 0;
     }
 
-    /** @notice Number of winner ranks per event (the length of the prize split). */
+    /**
+     * @notice Number of winner ranks per event (the length of the prize split).
+     */
     function winnerCountTarget() external view returns (uint256) {
         return prizeSplitBps.length;
     }
@@ -467,7 +490,7 @@ contract DealersBankHeist is IDealersBankHeist, IEntropyConsumer, ReentrancyGuar
     function _safeTransferETH(address to, uint256 amount) private {
         if (amount == 0) return;
         if (to == address(0)) revert InvalidAddress();
-        (bool ok, ) = to.call{value: amount}("");
+        (bool ok,) = to.call{value: amount}("");
         if (!ok) revert TransferFailed();
     }
 
@@ -475,7 +498,9 @@ contract DealersBankHeist is IDealersBankHeist, IEntropyConsumer, ReentrancyGuar
     //                        ADMIN
     // =============================================================
 
-    /** @notice Update module references; zero-address args are left unchanged. */
+    /**
+     * @notice Update module references; zero-address args are left unchanged.
+     */
     function setContracts(
         address _core,
         address _nftContract,
@@ -493,14 +518,18 @@ contract DealersBankHeist is IDealersBankHeist, IEntropyConsumer, ReentrancyGuar
         emit ContractsUpdated();
     }
 
-    /** @notice Set the $CASH entry fee and reputation gate applied to FUTURE events (existing events keep their locked fee). */
+    /**
+     * @notice Set the $CASH entry fee and reputation gate applied to FUTURE events (existing events keep their locked fee).
+     */
     function setCycleConfig(uint96 _entryFee, uint256 _entryRepGate) external onlyOwner {
         entryFee = _entryFee;
         entryRepGate = _entryRepGate;
         emit ConfigUpdated();
     }
 
-    /** @notice Configure prize cap, vault floor, entrant bounds, base weight, settle fee, refund timeout, and winner split. */
+    /**
+     * @notice Configure prize cap, vault floor, entrant bounds, base weight, settle fee, refund timeout, and winner split.
+     */
     function setPrizeConfig(
         uint16 _eventCapBps,
         uint256 _vaultFloor,
@@ -513,9 +542,11 @@ contract DealersBankHeist is IDealersBankHeist, IEntropyConsumer, ReentrancyGuar
     ) external onlyOwner {
         if (_eventCapBps > BPS || _maxEntrants == 0 || _prizeSplitBps.length == 0) revert InvalidConfig();
         uint256 sum;
-        for (uint256 i = 0; i < _prizeSplitBps.length; ) {
+        for (uint256 i = 0; i < _prizeSplitBps.length;) {
             sum += _prizeSplitBps[i];
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         if (sum > BPS) revert InvalidConfig();
 
@@ -540,13 +571,17 @@ contract DealersBankHeist is IDealersBankHeist, IEntropyConsumer, ReentrancyGuar
         emit EmergencyWithdrawn(to, amount);
     }
 
-    /** @notice Pause entries (accrual and claims continue). */
+    /**
+     * @notice Pause entries (accrual and claims continue).
+     */
     function pause() external onlyOwner {
         paused = true;
         emit Paused(msg.sender);
     }
 
-    /** @notice Resume entries. */
+    /**
+     * @notice Resume entries.
+     */
     function unpause() external onlyOwner {
         paused = false;
         emit Unpaused(msg.sender);

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  FOUNDRY_PROFILE: default
+
+jobs:
+  build-and-test:
+    name: fmt · build · test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Abstract is a zkSync chain — game contracts build/test with `--zksync`.
+      # foundry-zksync's forge also handles plain EVM builds (the SVG renderer), so one toolchain covers both paths.
+      - name: Install foundry-zksync
+        run: |
+          curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
+          echo "$HOME/.foundry/bin" >> "$GITHUB_PATH"
+
+      - name: Show toolchain
+        run: forge --version
+
+      # Dependencies are not vendored in-repo (lib/ is gitignored, no submodules). Pin them here.
+      # OpenZeppelin is pinned to the installed tag; pin solady/forge-std once the repo commits its deps.
+      - name: Install dependencies
+        run: |
+          git clone --depth 1 --branch v5.5.0 https://github.com/OpenZeppelin/openzeppelin-contracts lib/openzeppelin-contracts
+          git clone --depth 1 https://github.com/Vectorized/solady lib/solady
+          git clone --depth 1 https://github.com/foundry-rs/forge-std lib/forge-std
+
+      - name: Check formatting
+        run: forge fmt --check
+
+      # --- Game contracts: native zkSync (skip the EVM-only SSTORE2 artifacts) ---
+      - name: Build (zkSync)
+        run: forge build --zksync --skip "RendererSVG" --skip "UploadTraits"
+
+      - name: Test (zkSync)
+        run: forge test --zksync --skip "RendererSVG" --skip "UploadTraits"
+
+      # --- SVG renderer: EVM bytecode (EXTCODECOPY via SSTORE2/FileStore) ---
+      - name: Build (EVM renderer)
+        run: forge build
+
+      - name: Test (EVM renderer)
+        run: forge test --match-contract "DealerRendererSVG"

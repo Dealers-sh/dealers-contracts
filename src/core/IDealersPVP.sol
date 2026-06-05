@@ -57,27 +57,30 @@ interface IDealersPVP {
 
     function config() external view returns (PVPConfig memory);
 
-    function getPotentialTargets(
-        uint256 attackerId,
-        uint256 offset,
-        uint256 limit
-    ) external view returns (PVPTarget[] memory targets, uint256 totalInArea);
+    function getPotentialTargets(uint256 attackerId, uint256 offset, uint256 limit)
+        external
+        view
+        returns (PVPTarget[] memory targets, uint256 totalInArea);
 
-    /** @notice Raw mapping getter — returns tuple (for Claims compatibility) */
-    function dealerPvpStats(uint256 tokenId) external view returns (
-        uint32 attackWins,
-        uint32 attackLosses,
-        uint32 defendWins,
-        uint32 defendLosses
-    );
+    /**
+     * @notice Raw mapping getter — returns tuple (for Claims compatibility)
+     */
+    function dealerPvpStats(uint256 tokenId)
+        external
+        view
+        returns (uint32 attackWins, uint32 attackLosses, uint32 defendWins, uint32 defendLosses);
 
     // =============================================================
     //                    STATE-MODIFYING FUNCTIONS
     // =============================================================
 
-    /** @notice Commit a PVP attack; outcome is revealed in a later tx */
+    /**
+     * @notice Commit a PVP attack; outcome is revealed in a later tx
+     */
     function commitAttack(uint256 attackerId, uint256 defenderId) external returns (uint64 seq);
 
-    /** @notice Resolve a previously committed PVP attack (anyone may call) */
+    /**
+     * @notice Resolve a previously committed PVP attack (anyone may call)
+     */
     function resolveAttack(uint64 seq) external;
 }

@@ -63,10 +63,14 @@ interface IDealersChatRoom {
      */
     function getLatestMessages(uint256 count) external view returns (Message[] memory);
 
-    /** @dev Returns min(_messageCount, BUFFER_SIZE) */
+    /**
+     * @dev Returns min(_messageCount, BUFFER_SIZE)
+     */
     function getMessageCount() external view returns (uint256);
 
-    /** @dev Returns raw total messages ever posted */
+    /**
+     * @dev Returns raw total messages ever posted
+     */
     function totalMessages() external view returns (uint256);
 
     function factory() external view returns (address);

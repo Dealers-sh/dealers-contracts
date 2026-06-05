@@ -82,7 +82,7 @@ contract PVPBattleFlowsTest is BaseTest {
             "Defender drugs unchanged when attacker arrested"
         );
 
-        (uint8 area, , , , , ) = core.getDealerData(attackerToken);
+        (uint8 area,,,,,) = core.getDealerData(attackerToken);
         assertEq(area, JAIL, "Attacker area should be JAIL");
     }
 
@@ -125,7 +125,7 @@ contract PVPBattleFlowsTest is BaseTest {
         vm.prank(player1);
         actions.travel{value: 0}(safeToken, SAFE_HOUSE);
 
-        (uint8 area, , , , , ) = core.getDealerData(safeToken);
+        (uint8 area,,,,,) = core.getDealerData(safeToken);
         assertEq(area, SAFE_HOUSE, "Should be in safe house");
 
         vm.prank(player1);
@@ -162,11 +162,11 @@ contract PVPBattleFlowsTest is BaseTest {
     }
 
     function test_pvpFlow_reputationChanges() public {
-        (, uint256 attackerRepBefore, , , , ) = core.getDealerData(attackerToken);
+        (, uint256 attackerRepBefore,,,,) = core.getDealerData(attackerToken);
 
         _execAttack(999, 0, 10);
 
-        (, uint256 attackerRepAfter, , , , ) = core.getDealerData(attackerToken);
+        (, uint256 attackerRepAfter,,,,) = core.getDealerData(attackerToken);
         assertTrue(attackerRepAfter != attackerRepBefore, "Reputation should change after battle");
     }
 

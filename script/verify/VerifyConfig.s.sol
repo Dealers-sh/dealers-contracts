@@ -11,10 +11,9 @@ import "../base/DeployBase.s.sol";
  *
  * Usage:
  *   source .env && forge script script/verify/VerifyConfig.s.sol:VerifyConfig \
-      --rpc-url https://api.testnet.abs.xyz \
-      --skip "RendererSVG" --zksync
+ *       --rpc-url https://api.testnet.abs.xyz \
+ *       --skip "RendererSVG" --zksync
  */
-
 interface IVerifyCore {
     function drugRegistry() external view returns (address);
     function areaRegistry() external view returns (address);

@@ -30,28 +30,34 @@ contract SetupBoosts is DeployBase {
         vm.startBroadcast();
 
         // Kingpin - 0.01 ETH, 14 days (price/duration unchanged)
-        b.setBoostTier(3, IBoostsAdmin.BoostTier({
-            price: 0.01 ether,
-            duration: DURATION_14_DAYS,
-            drugMultiplier: 175,
-            repMultiplier: 125,        // was 120 (1.20x -> 1.25x)
-            extraAttempts: 6,          // was 5 (5+5=10 -> 5+6=11)
-            freeAreaMovement: true,
-            cashMultiplier: 175,
-            isActive: true
-        }));
+        b.setBoostTier(
+            3,
+            IBoostsAdmin.BoostTier({
+                price: 0.01 ether,
+                duration: DURATION_14_DAYS,
+                drugMultiplier: 175,
+                repMultiplier: 125, // was 120 (1.20x -> 1.25x)
+                extraAttempts: 6, // was 5 (5+5=10 -> 5+6=11)
+                freeAreaMovement: true,
+                cashMultiplier: 175,
+                isActive: true
+            })
+        );
 
         // Godfather - 0.023 ETH, 30 days (price/duration unchanged)
-        b.setBoostTier(4, IBoostsAdmin.BoostTier({
-            price: 0.023 ether,
-            duration: DURATION_30_DAYS,
-            drugMultiplier: 225,       // was 200 (2x -> 2.25x)
-            repMultiplier: 135,        // was 125 (1.25x -> 1.35x)
-            extraAttempts: 7,
-            freeAreaMovement: true,
-            cashMultiplier: 225,       // was 200 (2x -> 2.25x)
-            isActive: true
-        }));
+        b.setBoostTier(
+            4,
+            IBoostsAdmin.BoostTier({
+                price: 0.023 ether,
+                duration: DURATION_30_DAYS,
+                drugMultiplier: 225, // was 200 (2x -> 2.25x)
+                repMultiplier: 135, // was 125 (1.25x -> 1.35x)
+                extraAttempts: 7,
+                freeAreaMovement: true,
+                cashMultiplier: 225, // was 200 (2x -> 2.25x)
+                isActive: true
+            })
+        );
 
         vm.stopBroadcast();
 

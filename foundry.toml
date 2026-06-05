@@ -9,10 +9,20 @@ optimizer = true
 optimizer_runs = 100
 via_ir = true
 solc = "0.8.28"
+gas_limit = "9223372036854775807" # Monte-Carlo sims (test/simulation/) exceed the 2^30 default
 
 fs_permissions = [
     { access = "read-write", path = "script/data" }
 ]
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+quote_style = "double"
+number_underscore = "preserve"
+multiline_func_header = "attributes_first"
 
 [rpc_endpoints]
 abstract = "https://api.mainnet.abs.xyz"

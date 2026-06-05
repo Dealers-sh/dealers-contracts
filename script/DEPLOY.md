@@ -28,7 +28,7 @@ For Solidity scripts the network is detected from `block.chainid` via the `--rpc
 10. UploadTraits — uploadOneOfOnesRange()  NO --zksync   (1/1 SVGs to FileStore)
 11. UploadGzipJs.s.sol upload()    NO --zksync           (upload JS to FileStore)
 12. UploadGzipJs.s.sol setFilename --zksync              (set filename on HTML renderer)
-13. SetupTestnetPricing.s.sol  --zksync                  (optional: 10x fee reduction)
+13. testnet/SetupTestnetPricing.s.sol  --zksync          (optional: 10x fee reduction)
 14a. ../generateAssignments.py                          (per-token trait combos → assignments.json)
 14b. assign-traits.sh                                    (chunked batchSetTraits + batchSetOneOfOnes)
 15. reveal() on RendererSVG                               (switch from placeholder)
@@ -229,7 +229,7 @@ source .env && forge script script/upload/UploadGzipJs.s.sol:UploadGzipJs --sig 
 Divides all ETH fees by 10 for cheaper testnet gameplay.
 
 ```bash
-source .env && forge script script/setup/SetupTestnetPricing.s.sol:SetupTestnetPricing --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG"
+source .env && forge script script/testnet/SetupTestnetPricing.s.sol:SetupTestnetPricing --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG"
 ```
 
 ---

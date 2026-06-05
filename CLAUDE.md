@@ -104,7 +104,7 @@ Deployment uses `--zksync` flag for Abstract Chain compatibility.
 
 ## Contract Dependencies
 
-- **OpenZeppelin v5.4.0**: ERC721Enumerable, ReentrancyGuard, ECDSA
+- **OpenZeppelin v5.5.0**: ERC721Enumerable, ReentrancyGuard, ECDSA
 - **Solady**: Ownable, LibString, Base64, gas-optimized utilities
 - **forge-std**: Testing framework
 
@@ -122,7 +122,7 @@ Drug supply is not tracked on-chain — there is no global cap. Frontend / analy
 - Safe House: Free to enter, costs movement fee to leave. No farming allowed. Manhattan is the starting area.
 
 ### Gas Optimization
-- Optimizer: 200 runs with via-ir enabled
+- Optimizer: 100 runs with via-ir enabled
 - Pack related uint8/uint32 fields in single storage slots
 - Use unchecked blocks for safe arithmetic
 - Cache storage reads in memory variables

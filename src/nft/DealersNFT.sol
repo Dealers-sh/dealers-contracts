@@ -47,11 +47,17 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     //                            STORAGE
     // =============================================================
 
-    enum MintStatus { DISABLED, FAMILY, WHITELIST, PUBLIC }
+    enum MintStatus {
+        DISABLED,
+        FAMILY,
+        WHITELIST,
+        PUBLIC
+    }
+
     MintStatus public mintStatus = MintStatus.DISABLED;
     bool public paused;
 
-    uint32  public totalMinted;          // fits in 32 bits
+    uint32 public totalMinted; // fits in 32 bits
     uint256 public currentTokenId = 1;
 
     address public dealersCore;
@@ -64,7 +70,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     mapping(address => uint256) private familyClaimed;
     mapping(address => uint256) private whitelistClaimed;
 
-    IDealerRendererSVG  public contractRendererSVG;
+    IDealerRendererSVG public contractRendererSVG;
     IDealerRendererHTML public contractRendererHTML;
 
     uint256 public mintPrice = 0.01 ether;
@@ -117,9 +123,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     //                          CONSTRUCTOR
     // =============================================================
 
-    constructor(address _royaltyReceiver)
-        ERC721("dealers.sh", "DEALER")
-    {
+    constructor(address _royaltyReceiver) ERC721("dealers.sh", "DEALER") {
         _initializeOwner(msg.sender);
         royaltyReceiver = _royaltyReceiver;
     }
@@ -128,10 +132,25 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     //                           MODIFIERS
     // =============================================================
 
-    modifier whenNotPaused() { if (paused) revert ContractPaused(); _; }
-    modifier onlyFamilyMint() { if (mintStatus != MintStatus.FAMILY) revert NotFamilyMint(); _; }
-    modifier onlyWhitelistMint() { if (mintStatus != MintStatus.WHITELIST) revert NotWhitelistMint(); _; }
-    modifier onlyPublicMint() { if (mintStatus != MintStatus.PUBLIC) revert NotPublicMint(); _; }
+    modifier whenNotPaused() {
+        if (paused) revert ContractPaused();
+        _;
+    }
+
+    modifier onlyFamilyMint() {
+        if (mintStatus != MintStatus.FAMILY) revert NotFamilyMint();
+        _;
+    }
+
+    modifier onlyWhitelistMint() {
+        if (mintStatus != MintStatus.WHITELIST) revert NotWhitelistMint();
+        _;
+    }
+
+    modifier onlyPublicMint() {
+        if (mintStatus != MintStatus.PUBLIC) revert NotPublicMint();
+        _;
+    }
 
     modifier checkAndUpdateTotalMinted(uint256 nftAmount) {
         uint256 newTotal = uint256(totalMinted) + nftAmount;
@@ -155,12 +174,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      * @notice Reserve NFTs to the owner address
      * @param nftAmount Number of NFTs to reserve
      */
-    function reserve(uint256 nftAmount)
-        public
-        onlyOwner
-        nonReentrant
-        checkAndUpdateTotalMinted(nftAmount)
-    {
+    function reserve(uint256 nftAmount) public onlyOwner nonReentrant checkAndUpdateTotalMinted(nftAmount) {
         _mintDealer(msg.sender, nftAmount);
     }
 
@@ -190,9 +204,11 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         checkAndUpdateTotalMinted(nftAmount * recipients.length)
     {
         uint256 len = recipients.length;
-        for (uint256 i; i < len; ) {
+        for (uint256 i; i < len;) {
             _mintDealer(recipients[i], nftAmount);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -203,11 +219,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      * @param maxAllocation Maximum allocation for this address in merkle tree
      * @param proof Merkle proof for family list inclusion
      */
-    function mintFamily(
-        uint256 count,
-        uint256 maxAllocation,
-        bytes32[] calldata proof
-    )
+    function mintFamily(uint256 count, uint256 maxAllocation, bytes32[] calldata proof)
         external
         nonReentrant
         whenNotPaused
@@ -236,11 +248,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      * @param maxAllocation Maximum allocation for this address in merkle tree
      * @param proof Merkle proof for whitelist inclusion
      */
-    function mintWhitelist(
-        uint256 count,
-        uint256 maxAllocation,
-        bytes32[] calldata proof
-    )
+    function mintWhitelist(uint256 count, uint256 maxAllocation, bytes32[] calldata proof)
         external
         payable
         nonReentrant
@@ -266,7 +274,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         _mintDealer(msg.sender, count);
 
         if (msg.value > requiredPayment) {
-            (bool success, ) = msg.sender.call{value: msg.value - requiredPayment}("");
+            (bool success,) = msg.sender.call{value: msg.value - requiredPayment}("");
             if (!success) revert ETHTransferFailed();
         }
     }
@@ -290,7 +298,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         _mintDealer(dest, count);
 
         if (msg.value > requiredPayment) {
-            (bool success, ) = msg.sender.call{value: msg.value - requiredPayment}("");
+            (bool success,) = msg.sender.call{value: msg.value - requiredPayment}("");
             if (!success) revert ETHTransferFailed();
         }
     }
@@ -299,10 +307,13 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         address core = dealersCore;
         uint256 id = currentTokenId;
 
-        for (uint256 i; i < nftAmount; ) {
+        for (uint256 i; i < nftAmount;) {
             uint256 tokenId = id;
             _safeMint(to, tokenId);
-            unchecked { ++id; ++i; }
+            unchecked {
+                ++id;
+                ++i;
+            }
 
             if (core != address(0)) {
                 IDealersCore(core).initializeDealer(tokenId);
@@ -342,11 +353,18 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         string memory description = _buildDescription(tokenId);
 
         bytes memory json = abi.encodePacked(
-            '{"name":"Dealer #', tokenId.toString(),
-            '","description":"', description, '",',
-            '"attributes":[', attrs, '],',
+            '{"name":"Dealer #',
+            tokenId.toString(),
+            '","description":"',
+            description,
+            '",',
+            '"attributes":[',
+            attrs,
+            "],",
             _getAnimationUrl(tokenId, svg),
-            '"image":"data:image/svg+xml;base64,', Base64.encode(bytes(svg)), '"}'
+            '"image":"data:image/svg+xml;base64,',
+            Base64.encode(bytes(svg)),
+            '"}'
         );
 
         return string(json);
@@ -358,12 +376,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      * @return Base64-encoded data URI containing token metadata
      */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        return string(
-            abi.encodePacked(
-                "data:application/json;base64,",
-                Base64.encode(bytes(tokenJson(tokenId)))
-            )
-        );
+        return string(abi.encodePacked("data:application/json;base64,", Base64.encode(bytes(tokenJson(tokenId)))));
     }
 
     /**
@@ -372,18 +385,21 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      */
     function contractURI() external view returns (string memory) {
         bytes memory json = abi.encodePacked(
-            '{"name":"', name(),
-            '","description":"', contractDescription,
-            '","image":"', contractImage,
-            '","banner_image":"', contractBannerImage,
-            '","featured_image":"', contractFeaturedImage,
-            '","external_link":"', contractExternalLink,
+            '{"name":"',
+            name(),
+            '","description":"',
+            contractDescription,
+            '","image":"',
+            contractImage,
+            '","banner_image":"',
+            contractBannerImage,
+            '","featured_image":"',
+            contractFeaturedImage,
+            '","external_link":"',
+            contractExternalLink,
             '"}'
         );
-        return string(abi.encodePacked(
-            "data:application/json;base64,",
-            Base64.encode(json)
-        ));
+        return string(abi.encodePacked("data:application/json;base64,", Base64.encode(json)));
     }
 
     function _getStaticTraits(uint256 tokenId) private view returns (bytes memory) {
@@ -406,10 +422,10 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
 
         try IDealersCore(core).getDealerData(tokenId) returns (
             uint8 currentArea,
-            uint256 /* reputation */,
-            uint8 /* dailyAttemptsRemaining */,
+            uint256, /* reputation */
+            uint8, /* dailyAttemptsRemaining */
             uint8 heatLevel,
-            uint32 /* lastPlayTimestamp */,
+            uint32, /* lastPlayTimestamp */
             bool isInitialized
         ) {
             if (!isInitialized) return "";
@@ -421,10 +437,18 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
             uint256 infamy = IDealersCore(core).getInfamy(tokenId);
 
             return abi.encodePacked(
-                '{"trait_type":"Rank","value":"', rank, '"},',
-                '{"trait_type":"Infamy","display_type":"number","value":', infamy.toString(), '},',
-                '{"trait_type":"Area","value":"', areaName, '"},',
-                '{"trait_type":"Heat","value":"', heat, '"}'
+                '{"trait_type":"Rank","value":"',
+                rank,
+                '"},',
+                '{"trait_type":"Infamy","display_type":"number","value":',
+                infamy.toString(),
+                "},",
+                '{"trait_type":"Area","value":"',
+                areaName,
+                '"},',
+                '{"trait_type":"Heat","value":"',
+                heat,
+                '"}'
             );
         } catch {
             return "";
@@ -434,43 +458,59 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     function _buildDescription(uint256 tokenId) private view returns (string memory) {
         address core = dealersCore;
         if (core == address(0)) {
-            return string(abi.encodePacked(
-                "Dealer #", tokenId.toString(),
-                " is part of the Dealers.sh collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
-            ));
+            return string(
+                abi.encodePacked(
+                    "Dealer #",
+                    tokenId.toString(),
+                    " is part of the Dealers.sh collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
+                )
+            );
         }
 
         try IDealersCore(core).getDealerData(tokenId) returns (
-            uint8 /* currentArea */,
-            uint256 /* reputation */,
-            uint8 /* dailyAttemptsRemaining */,
-            uint8 /* heatLevel */,
-            uint32 /* lastPlayTimestamp */,
+            uint8, /* currentArea */
+            uint256, /* reputation */
+            uint8, /* dailyAttemptsRemaining */
+            uint8, /* heatLevel */
+            uint32, /* lastPlayTimestamp */
             bool isInitialized
         ) {
             if (!isInitialized) {
-                return string(abi.encodePacked(
-                    "Dealer #", tokenId.toString(),
-                    " is part of the Dealers.sh collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
-                ));
+                return string(
+                    abi.encodePacked(
+                        "Dealer #",
+                        tokenId.toString(),
+                        " is part of the Dealers.sh collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
+                    )
+                );
             }
 
             uint256 totalRep = IDealersCore(core).getTotalReputation(tokenId);
             string memory rank = IDealersCore(core).getReputationTitle(totalRep);
             uint256 infamy = IDealersCore(core).getInfamy(tokenId);
 
-            return string(abi.encodePacked(
-                "Dealer #", tokenId.toString(),
-                " is a ", rank,
-                " (", totalRep.toString(), " rep)",
-                " with an infamy score of ", infamy.toString(),
-                ". Part of the Dealers.sh collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
-            ));
+            return string(
+                abi.encodePacked(
+                    "Dealer #",
+                    tokenId.toString(),
+                    " is a ",
+                    rank,
+                    " (",
+                    totalRep.toString(),
+                    " rep)",
+                    " with an infamy score of ",
+                    infamy.toString(),
+                    ". Part of the Dealers.sh collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
+                )
+            );
         } catch {
-            return string(abi.encodePacked(
-                "Dealer #", tokenId.toString(),
-                " is part of the Dealers.sh collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
-            ));
+            return string(
+                abi.encodePacked(
+                    "Dealer #",
+                    tokenId.toString(),
+                    " is part of the Dealers.sh collection - 8,888 on-chain dealers hustling, fighting, and climbing the ranks on Abstract Chain."
+                )
+            );
         }
     }
 
@@ -497,9 +537,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         IDealerRendererHTML htmlRenderer = contractRendererHTML;
         if (address(htmlRenderer) == address(0)) return "";
         return abi.encodePacked(
-            '"animation_url":"data:text/html;base64,',
-            Base64.encode(bytes(htmlRenderer.getHTML(tokenId, svg))),
-            '",'
+            '"animation_url":"data:text/html;base64,', Base64.encode(bytes(htmlRenderer.getHTML(tokenId, svg))), '",'
         );
     }
 
@@ -666,7 +704,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         if (withdrawAmount == 0) revert InsufficientBalance();
         if (withdrawAmount > address(this).balance) revert InsufficientBalance();
 
-        (bool ok, ) = recipient.call{value: withdrawAmount}("");
+        (bool ok,) = recipient.call{value: withdrawAmount}("");
         if (!ok) revert TransferFailed();
     }
 
@@ -691,13 +729,11 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      * @return currentSupply Current total supply
      * @return maxSupply Maximum total supply
      */
-    function getMintConfig() external view returns (
-        MintStatus status,
-        uint256 price,
-        uint256 maxPerWallet,
-        uint256 currentSupply,
-        uint256 maxSupply
-    ) {
+    function getMintConfig()
+        external
+        view
+        returns (MintStatus status, uint256 price, uint256 maxPerWallet, uint256 currentSupply, uint256 maxSupply)
+    {
         status = mintStatus;
         price = mintPrice;
         maxPerWallet = MAX_PER_WALLET;
@@ -732,9 +768,11 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
         uint256 n = balanceOf(owner_);
         if (n == 0) return new uint256[](0);
         uint256[] memory ids = new uint256[](n);
-        for (uint256 i; i < n; ) {
+        for (uint256 i; i < n;) {
             ids[i] = tokenOfOwnerByIndex(owner_, i);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         return ids;
     }
@@ -749,7 +787,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      * @return receiver Address to receive royalty payment
      * @return royaltyAmount Royalty amount in wei
      */
-    function royaltyInfo(uint256 /*tokenId*/, uint256 salePrice)
+    function royaltyInfo(uint256, /*tokenId*/ uint256 salePrice)
         external
         view
         override
@@ -764,12 +802,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
      * @param interfaceId Interface identifier to check
      * @return True if interface is supported
      */
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC721Enumerable, IERC165)
-        returns (bool)
-    {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721Enumerable, IERC165) returns (bool) {
         return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
     }
 

@@ -18,14 +18,8 @@ contract DealersCoreTest is BaseTest {
     // =============================================================
 
     function test_initializeDealer_starterValues() public view {
-        (
-            uint8 currentArea,
-            uint256 reputation,
-            uint8 dailyAttemptsRemaining,
-            uint8 heatLevel,
-            ,
-            bool isInitialized
-        ) = core.getDealerData(tokenId1);
+        (uint8 currentArea, uint256 reputation, uint8 dailyAttemptsRemaining, uint8 heatLevel,, bool isInitialized) =
+            core.getDealerData(tokenId1);
 
         assertEq(currentArea, core.STARTING_AREA());
         assertEq(reputation, core.STARTING_REPUTATION());
@@ -64,9 +58,9 @@ contract DealersCoreTest is BaseTest {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
-        (, uint256 repBefore, , , , ) = core.getDealerData(tokenId1);
+        (, uint256 repBefore,,,,) = core.getDealerData(tokenId1);
         core.updateReputation(tokenId1, 50);
-        (, uint256 repAfter, , , , ) = core.getDealerData(tokenId1);
+        (, uint256 repAfter,,,,) = core.getDealerData(tokenId1);
 
         assertEq(repAfter, repBefore + 50);
     }
@@ -75,9 +69,9 @@ contract DealersCoreTest is BaseTest {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
-        (, uint256 repBefore, , , , ) = core.getDealerData(tokenId1);
+        (, uint256 repBefore,,,,) = core.getDealerData(tokenId1);
         core.updateReputation(tokenId1, -10);
-        (, uint256 repAfter, , , , ) = core.getDealerData(tokenId1);
+        (, uint256 repAfter,,,,) = core.getDealerData(tokenId1);
 
         assertEq(repAfter, repBefore - 10);
     }
@@ -87,7 +81,7 @@ contract DealersCoreTest is BaseTest {
         core.authorizeContract(address(this), true);
 
         core.updateReputation(tokenId1, -1000);
-        (, uint256 repAfter, , , , ) = core.getDealerData(tokenId1);
+        (, uint256 repAfter,,,,) = core.getDealerData(tokenId1);
 
         assertEq(repAfter, 0);
     }
@@ -96,7 +90,7 @@ contract DealersCoreTest is BaseTest {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
-        (, uint256 repBefore, , , , ) = core.getDealerData(tokenId1);
+        (, uint256 repBefore,,,,) = core.getDealerData(tokenId1);
 
         vm.expectEmit(true, false, false, true);
         emit DealersCore.ReputationUpdated(tokenId1, repBefore + 25, 25);
@@ -138,7 +132,7 @@ contract DealersCoreTest is BaseTest {
 
         core.updateDrugBalance(tokenId1, 6, 100);
 
-        (, uint256 baseRep, , , , ) = core.getDealerData(tokenId1);
+        (, uint256 baseRep,,,,) = core.getDealerData(tokenId1);
         IDealersCore.GameState memory gs = core.getGameState(tokenId1);
         uint256 stashBonus = gs.totalReputation - baseRep;
 
@@ -198,9 +192,9 @@ contract DealersCoreTest is BaseTest {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
-        (, , , uint8 heatBefore, , ) = core.getDealerData(tokenId1);
+        (,,, uint8 heatBefore,,) = core.getDealerData(tokenId1);
         core.incrementHeatLevel(tokenId1);
-        (, , , uint8 heatAfter, , ) = core.getDealerData(tokenId1);
+        (,,, uint8 heatAfter,,) = core.getDealerData(tokenId1);
 
         assertEq(heatAfter, heatBefore + 1);
     }
@@ -213,7 +207,7 @@ contract DealersCoreTest is BaseTest {
             core.incrementHeatLevel(tokenId1);
         }
 
-        (, , , uint8 heatLevel, , ) = core.getDealerData(tokenId1);
+        (,,, uint8 heatLevel,,) = core.getDealerData(tokenId1);
         assertEq(heatLevel, core.MAX_HEAT_LEVEL());
     }
 
@@ -238,7 +232,7 @@ contract DealersCoreTest is BaseTest {
         actions.payBail{value: bailAmount}(tokenId1);
 
         assertFalse(_isInJail(tokenId1));
-        (uint8 currentArea, , , , , ) = core.getDealerData(tokenId1);
+        (uint8 currentArea,,,,,) = core.getDealerData(tokenId1);
         assertEq(currentArea, 1);
     }
 
@@ -262,7 +256,7 @@ contract DealersCoreTest is BaseTest {
         vm.prank(player1);
         actions.payBail{value: bailAmount}(tokenId1);
 
-        (uint8 currentArea, , , , , ) = core.getDealerData(tokenId1);
+        (uint8 currentArea,,,,,) = core.getDealerData(tokenId1);
         assertEq(currentArea, 1);
     }
 
@@ -330,12 +324,12 @@ contract DealersCoreTest is BaseTest {
 
         core.incrementHeatLevel(tokenId1);
 
-        (, , uint8 attemptsBefore, , , ) = core.getDealerData(tokenId1);
+        (,, uint8 attemptsBefore,,,) = core.getDealerData(tokenId1);
 
         vm.prank(player1);
         actions.commitWantedPoster(tokenId1);
 
-        (, , uint8 attemptsAfter, , , ) = core.getDealerData(tokenId1);
+        (,, uint8 attemptsAfter,,,) = core.getDealerData(tokenId1);
         assertEq(attemptsAfter, attemptsBefore - 1);
     }
 
@@ -353,9 +347,9 @@ contract DealersCoreTest is BaseTest {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
-        (, , uint8 attemptsBefore, , , ) = core.getDealerData(tokenId1);
+        (,, uint8 attemptsBefore,,,) = core.getDealerData(tokenId1);
         core.useAttempt(tokenId1);
-        (, , uint8 attemptsAfter, , , ) = core.getDealerData(tokenId1);
+        (,, uint8 attemptsAfter,,,) = core.getDealerData(tokenId1);
 
         assertEq(attemptsAfter, attemptsBefore - 1);
     }
@@ -383,7 +377,7 @@ contract DealersCoreTest is BaseTest {
         vm.prank(player1);
         actions.purchaseAttemptReset{value: resetFee}(tokenId1);
 
-        (, , uint8 attemptsAfter, , , ) = core.getDealerData(tokenId1);
+        (,, uint8 attemptsAfter,,,) = core.getDealerData(tokenId1);
         assertEq(attemptsAfter, core.BASE_MAX_ATTEMPTS());
     }
 
@@ -559,7 +553,7 @@ contract DealersCoreTest is BaseTest {
         vm.prank(owner);
         core.authorizeContract(address(this), true);
 
-        (uint8 areaBefore, , , , , ) = core.getDealerData(tokenId1);
+        (uint8 areaBefore,,,,,) = core.getDealerData(tokenId1);
         assertEq(areaBefore, core.STARTING_AREA(), "Should start in Manhattan");
 
         // Create a new area to move to
@@ -572,7 +566,7 @@ contract DealersCoreTest is BaseTest {
         core.authorizeContract(address(this), true);
         core.moveToArea(tokenId1, brooklynId);
 
-        (uint8 areaAfter, , , , , ) = core.getDealerData(tokenId1);
+        (uint8 areaAfter,,,,,) = core.getDealerData(tokenId1);
         assertEq(areaAfter, brooklynId);
     }
 
@@ -611,7 +605,7 @@ contract DealersCoreTest is BaseTest {
         core.updateReputation(tokenId1, 500);
         core.moveToArea(tokenId1, newAreaId);
 
-        (uint8 currentArea, , , , , ) = core.getDealerData(tokenId1);
+        (uint8 currentArea,,,,,) = core.getDealerData(tokenId1);
         assertEq(currentArea, newAreaId);
     }
 
@@ -690,13 +684,13 @@ contract DealersCoreTest is BaseTest {
         vm.prank(player1);
         actions.travel{value: fee}(tokenId1, brooklynId);
 
-        (uint8 currentArea, , , , , ) = core.getDealerData(tokenId1);
+        (uint8 currentArea,,,,,) = core.getDealerData(tokenId1);
         assertEq(currentArea, brooklynId, "Should be in Brooklyn");
     }
 
     function test_travel_firstMoveToSafeHouseIsFree() public {
         // First move from STARTING_AREA is always free (covers Safe House as destination).
-        (uint8 areaBefore, , , , , ) = core.getDealerData(tokenId1);
+        (uint8 areaBefore,,,,,) = core.getDealerData(tokenId1);
         assertEq(areaBefore, 1, "Should start in Manhattan");
 
         uint256 balanceBefore = player1.balance;
@@ -704,7 +698,7 @@ contract DealersCoreTest is BaseTest {
         vm.prank(player1);
         actions.travel{value: 0}(tokenId1, 0);
 
-        (uint8 areaAfter, , , , , ) = core.getDealerData(tokenId1);
+        (uint8 areaAfter,,,,,) = core.getDealerData(tokenId1);
         assertEq(areaAfter, 0, "Should be in Safe House");
         assertEq(player1.balance, balanceBefore, "First move should not have paid anything");
     }
@@ -730,7 +724,7 @@ contract DealersCoreTest is BaseTest {
         vm.prank(player1);
         actions.travel{value: 0.001 ether}(tokenId1, 0);
 
-        (uint8 areaAfter, , , , , ) = core.getDealerData(tokenId1);
+        (uint8 areaAfter,,,,,) = core.getDealerData(tokenId1);
         assertEq(areaAfter, 0, "Should be in Safe House");
         assertEq(player1.balance, balanceBefore - 0.001 ether, "Should have paid the Safe House entry fee");
     }
@@ -748,7 +742,7 @@ contract DealersCoreTest is BaseTest {
         vm.prank(player1);
         actions.travel{value: 0}(tokenId1, brooklynId);
 
-        (uint8 currentArea, , , , , ) = core.getDealerData(tokenId1);
+        (uint8 currentArea,,,,,) = core.getDealerData(tokenId1);
         assertEq(currentArea, brooklynId, "Should be in Brooklyn");
         assertEq(player1.balance, balanceBefore, "First move should be free");
     }
@@ -864,7 +858,7 @@ contract DealersCoreTest is BaseTest {
         vm.prank(player1);
         actions.travel{value: 0}(tokenId1, queensId);
 
-        (uint8 currentArea, , , , , ) = core.getDealerData(tokenId1);
+        (uint8 currentArea,,,,,) = core.getDealerData(tokenId1);
         assertEq(currentArea, queensId, "Should be in Queens");
         assertEq(player1.balance, balanceBefore, "Should not have paid with boost");
     }
@@ -882,7 +876,7 @@ contract DealersCoreTest is BaseTest {
     }
 
     function test_travel_revertAlreadyInArea() public {
-        (uint8 areaBefore, , , , , ) = core.getDealerData(tokenId1);
+        (uint8 areaBefore,,,,,) = core.getDealerData(tokenId1);
         assertEq(areaBefore, 1, "Should start in Manhattan");
 
         vm.prank(player1);
@@ -906,7 +900,7 @@ contract DealersCoreTest is BaseTest {
     }
 
     function test_breakout_returnsToPreviousArea() public {
-        (uint8 areaBefore, , , , , ) = core.getDealerData(tokenId1);
+        (uint8 areaBefore,,,,,) = core.getDealerData(tokenId1);
         assertEq(areaBefore, 1, "Should start in Manhattan");
 
         vm.prank(owner);
@@ -927,7 +921,7 @@ contract DealersCoreTest is BaseTest {
         actions.resolveBreakout(seq);
 
         assertFalse(_isInJail(tokenId1), "Should escape jail");
-        (uint8 areaAfter, , , , , ) = core.getDealerData(tokenId1);
+        (uint8 areaAfter,,,,,) = core.getDealerData(tokenId1);
         assertEq(areaAfter, 1, "Should return to Manhattan after breakout");
     }
 

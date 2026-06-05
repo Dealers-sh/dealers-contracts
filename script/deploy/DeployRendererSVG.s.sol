@@ -11,9 +11,9 @@ import "../../src/nft/DealerRendererSVG.sol";
  *
  * Usage:
  *   forge script script/deploy/DeployRendererSVG.s.sol:DeployRendererSVG \
-      --rpc-url https://api.testnet.abs.xyz \
-      --account dealersKeystore \
-      --broadcast
+ *       --rpc-url https://api.testnet.abs.xyz \
+ *       --account dealersKeystore \
+ *       --broadcast
  *
  * @author Berny0x
  */

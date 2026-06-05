@@ -72,8 +72,18 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     bool public revealed;
 
     string[12] public categoryNames = [
-        "Backdrop", "Head", "Expression", "Eyes", "Nose", "Eartip",
-        "Ear Accessory", "Facial Hair", "Mouth", "Chin", "Neck", "Accessory"
+        "Backdrop",
+        "Head",
+        "Expression",
+        "Eyes",
+        "Nose",
+        "Eartip",
+        "Ear Accessory",
+        "Facial Hair",
+        "Mouth",
+        "Chin",
+        "Neck",
+        "Accessory"
     ];
 
     // Packed: 12 trait uint8s (bytes 0-11) + charType uint8 (byte 12) = 13 bytes in one slot.
@@ -85,7 +95,9 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     // =============================================================
 
     event TraitAdded(uint8 indexed characterType, uint8 indexed category, uint256 traitIndex, string name);
-    event TraitPointerUpdated(uint8 indexed characterType, uint8 indexed category, uint256 indexed traitIndex, address newPointer);
+    event TraitPointerUpdated(
+        uint8 indexed characterType, uint8 indexed category, uint256 indexed traitIndex, address newPointer
+    );
     event OneOfOneSet(uint256 indexed tokenId, string characterName);
     event PlaceholderSvgSet(address indexed pointer);
     event Revealed();
@@ -122,28 +134,23 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     //                        STORED TRAITS
     // =============================================================
 
-    function batchSetTraits(
-        uint256[] calldata tokenIds,
-        bytes32[] calldata packedTraits
-    ) external onlyOwner {
+    function batchSetTraits(uint256[] calldata tokenIds, bytes32[] calldata packedTraits) external onlyOwner {
         uint256 len = tokenIds.length;
         if (len != packedTraits.length) revert ArrayLengthMismatch();
 
-        for (uint256 i; i < len; ) {
+        for (uint256 i; i < len;) {
             uint256 tokenId = tokenIds[i];
             if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
 
             storedTraits[tokenId] = packedTraits[i];
             emit TraitsStored(tokenId);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
-    function setTraitForToken(
-        uint256 tokenId,
-        uint8 category,
-        uint8 traitIndex
-    ) external onlyOwner {
+    function setTraitForToken(uint256 tokenId, uint8 category, uint8 traitIndex) external onlyOwner {
         if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
         if (category >= CATEGORY_COUNT) revert InvalidCategory();
 
@@ -202,11 +209,17 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
             }
         }
 
-        return string(abi.encodePacked(
-            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 58 58" fill="none" id="', tokenId.toString(), '" data-token-id="', tokenId.toString(), '">',
-            inner,
-            "</svg>"
-        ));
+        return string(
+            abi.encodePacked(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 58 58" fill="none" id="',
+                tokenId.toString(),
+                '" data-token-id="',
+                tokenId.toString(),
+                '">',
+                inner,
+                "</svg>"
+            )
+        );
     }
 
     function getTraitsMetadataForToken(uint256 tokenId) public view returns (string memory) {
@@ -231,12 +244,10 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     //                         TRAIT MANAGEMENT
     // =============================================================
 
-    function addTrait(
-        uint8 characterType,
-        uint8 category,
-        string calldata name,
-        address fileStorePointer
-    ) external onlyOwner {
+    function addTrait(uint8 characterType, uint8 category, string calldata name, address fileStorePointer)
+        external
+        onlyOwner
+    {
         if (characterType > uint8(CharacterType.ONE_OF_ONE)) revert InvalidCharacterType();
         if (category >= CATEGORY_COUNT) revert InvalidCategory();
         if (fileStorePointer == address(0)) revert InvalidPointer();
@@ -254,13 +265,11 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         address[] calldata fileStorePointers
     ) external onlyOwner {
         uint256 len = characterTypes.length;
-        if (
-            len != categories.length ||
-            len != names.length ||
-            len != fileStorePointers.length
-        ) revert ArrayLengthMismatch();
+        if (len != categories.length || len != names.length || len != fileStorePointers.length) {
+            revert ArrayLengthMismatch();
+        }
 
-        for (uint256 i; i < len; ) {
+        for (uint256 i; i < len;) {
             uint8 ctype = characterTypes[i];
             uint8 cat = categories[i];
             if (ctype > uint8(CharacterType.ONE_OF_ONE)) revert InvalidCharacterType();
@@ -271,16 +280,16 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
             arr.push(TraitConfig({name: names[i], svgContract: fileStorePointers[i]}));
 
             emit TraitAdded(ctype, cat, arr.length - 1, names[i]);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
-    function updateTraitPointer(
-        uint8 characterType,
-        uint8 category,
-        uint256 traitIndex,
-        address newFileStorePointer
-    ) external onlyOwner {
+    function updateTraitPointer(uint8 characterType, uint8 category, uint256 traitIndex, address newFileStorePointer)
+        external
+        onlyOwner
+    {
         if (characterType > uint8(CharacterType.ONE_OF_ONE)) revert InvalidCharacterType();
         if (category >= CATEGORY_COUNT) revert InvalidCategory();
         if (newFileStorePointer == address(0)) revert InvalidPointer();
@@ -292,19 +301,12 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         emit TraitPointerUpdated(characterType, category, traitIndex, newFileStorePointer);
     }
 
-    function setOneOfOne(
-        uint256 tokenId,
-        string calldata characterName,
-        address fileStorePointer
-    ) external onlyOwner {
+    function setOneOfOne(uint256 tokenId, string calldata characterName, address fileStorePointer) external onlyOwner {
         if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
         if (fileStorePointer == address(0)) revert InvalidPointer();
 
-        oneOfOnes[tokenId] = OneOfOneData({
-            characterName: characterName,
-            completeSvgContract: fileStorePointer,
-            exists: true
-        });
+        oneOfOnes[tokenId] =
+            OneOfOneData({characterName: characterName, completeSvgContract: fileStorePointer, exists: true});
 
         emit OneOfOneSet(tokenId, characterName);
     }
@@ -317,7 +319,7 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         uint256 len = tokenIds.length;
         if (len != characterNames.length || len != fileStorePointers.length) revert ArrayLengthMismatch();
 
-        for (uint256 i; i < len; ) {
+        for (uint256 i; i < len;) {
             uint256 tid = tokenIds[i];
             if (tid == 0 || tid > MAX_SUPPLY) revert InvalidTokenId();
             if (fileStorePointers[i] == address(0)) revert InvalidPointer();
@@ -329,7 +331,9 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
             });
 
             emit OneOfOneSet(tid, characterNames[i]);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -381,30 +385,39 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
 
     function _unpackCharacterData(bytes32 packed) internal pure returns (CharacterData memory d) {
         uint256 v = uint256(packed);
-        d.backdrop     = uint8(v);
-        d.head         = uint8(v >> 8);
-        d.expression   = uint8(v >> 16);
-        d.eyes         = uint8(v >> 24);
-        d.nose         = uint8(v >> 32);
-        d.eartip       = uint8(v >> 40);
+        d.backdrop = uint8(v);
+        d.head = uint8(v >> 8);
+        d.expression = uint8(v >> 16);
+        d.eyes = uint8(v >> 24);
+        d.nose = uint8(v >> 32);
+        d.eartip = uint8(v >> 40);
         d.earAccessory = uint8(v >> 48);
-        d.facialHair   = uint8(v >> 56);
-        d.mouth        = uint8(v >> 64);
-        d.chin         = uint8(v >> 72);
-        d.neck         = uint8(v >> 80);
-        d.accessory    = uint8(v >> 88);
+        d.facialHair = uint8(v >> 56);
+        d.mouth = uint8(v >> 64);
+        d.chin = uint8(v >> 72);
+        d.neck = uint8(v >> 80);
+        d.accessory = uint8(v >> 88);
     }
 
     function _assembleSVG(CharacterData memory d, CharacterType charType) internal view returns (bytes memory) {
         uint8 t = uint8(charType);
         uint8[12] memory idx = [
-            d.backdrop, d.head, d.expression, d.eyes,
-            d.nose, d.eartip, d.earAccessory, d.facialHair,
-            d.mouth, d.chin, d.neck, d.accessory
+            d.backdrop,
+            d.head,
+            d.expression,
+            d.eyes,
+            d.nose,
+            d.eartip,
+            d.earAccessory,
+            d.facialHair,
+            d.mouth,
+            d.chin,
+            d.neck,
+            d.accessory
         ];
 
         bytes memory layers;
-        for (uint8 i; i < CATEGORY_COUNT; ) {
+        for (uint8 i; i < CATEGORY_COUNT;) {
             uint8 sel = idx[i];
             if (sel != 0) {
                 TraitConfig[] storage arr = traits[t][i];
@@ -418,7 +431,9 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
                     }
                 }
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         return layers;
@@ -426,30 +441,41 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
 
     function _formatOneOfOneMetadata(string memory nm) internal view returns (string memory) {
         bytes memory m = abi.encodePacked('{"trait_type":"Character Type","value":"One of One"}');
-        for (uint8 i; i < CATEGORY_COUNT; ) {
-            m = abi.encodePacked(
-                m, ',{"trait_type":"', categoryNames[i], '","value":"', nm, '"}'
-            );
-            unchecked { ++i; }
+        for (uint8 i; i < CATEGORY_COUNT;) {
+            m = abi.encodePacked(m, ',{"trait_type":"', categoryNames[i], '","value":"', nm, '"}');
+            unchecked {
+                ++i;
+            }
         }
         return string(m);
     }
 
-    function _formatTraitsMetadata(CharacterData memory d, CharacterType charType) internal view returns (string memory) {
+    function _formatTraitsMetadata(CharacterData memory d, CharacterType charType)
+        internal
+        view
+        returns (string memory)
+    {
         bytes memory m = abi.encodePacked(
-            '{"trait_type":"Character Type","value":"',
-            (charType == CharacterType.SPECIAL ? "Special" : "Normal"),
-            '"}'
+            '{"trait_type":"Character Type","value":"', (charType == CharacterType.SPECIAL ? "Special" : "Normal"), '"}'
         );
 
         uint8 t = uint8(charType);
         uint8[12] memory idx = [
-            d.backdrop, d.head, d.expression, d.eyes,
-            d.nose, d.eartip, d.earAccessory, d.facialHair,
-            d.mouth, d.chin, d.neck, d.accessory
+            d.backdrop,
+            d.head,
+            d.expression,
+            d.eyes,
+            d.nose,
+            d.eartip,
+            d.earAccessory,
+            d.facialHair,
+            d.mouth,
+            d.chin,
+            d.neck,
+            d.accessory
         ];
 
-        for (uint8 i; i < CATEGORY_COUNT; ) {
+        for (uint8 i; i < CATEGORY_COUNT;) {
             uint8 sel = idx[i];
             if (sel != 0) {
                 TraitConfig[] storage arr = traits[t][i];
@@ -458,12 +484,12 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
                 }
                 if (sel <= arr.length) {
                     TraitConfig storage conf = arr[sel - 1];
-                    m = abi.encodePacked(
-                        m, ',{"trait_type":"', categoryNames[i], '","value":"', conf.name, '"}'
-                    );
+                    m = abi.encodePacked(m, ',{"trait_type":"', categoryNames[i], '","value":"', conf.name, '"}');
                 }
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         return string(m);
     }

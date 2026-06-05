@@ -183,7 +183,12 @@ contract SetupWiring is DeployBase {
         IBoostsContract boostsContract = IBoostsContract(boosts);
         _setIfNeeded(boostsContract.dealersCore(), core, "Boosts -> Core", boostsContract.setDealersCore);
         _setIfNeeded(boostsContract.dealersNFT(), nft, "Boosts -> NFT", boostsContract.setDealersNFT);
-        _setIfNeeded(boostsContract.paymentHandler(), paymentHandler, "Boosts -> PaymentHandler", boostsContract.setPaymentHandler);
+        _setIfNeeded(
+            boostsContract.paymentHandler(),
+            paymentHandler,
+            "Boosts -> PaymentHandler",
+            boostsContract.setPaymentHandler
+        );
 
         IPVEContract pveContract = IPVEContract(pve);
         _setIfNeeded(pveContract.dealersCore(), core, "PVE -> Core", pveContract.setDealersCore);
@@ -212,8 +217,15 @@ contract SetupWiring is DeployBase {
 
         if (actions != address(0)) {
             IActionsContract actionsContract = IActionsContract(actions);
-            _setIfNeeded(actionsContract.paymentHandler(), paymentHandler, "Actions -> PaymentHandler", actionsContract.setPaymentHandler);
-            _setIfNeeded(actionsContract.randomness(), randomness, "Actions -> Randomness", actionsContract.setRandomness);
+            _setIfNeeded(
+                actionsContract.paymentHandler(),
+                paymentHandler,
+                "Actions -> PaymentHandler",
+                actionsContract.setPaymentHandler
+            );
+            _setIfNeeded(
+                actionsContract.randomness(), randomness, "Actions -> Randomness", actionsContract.setRandomness
+            );
             _setIfNeeded(actionsContract.nftContract(), nft, "Actions -> NFT", actionsContract.setNFTContract);
         }
 
@@ -243,7 +255,9 @@ contract SetupWiring is DeployBase {
         }
     }
 
-    function _setIfNeeded(address current, address target, string memory label, function(address) external setter) internal {
+    function _setIfNeeded(address current, address target, string memory label, function(address) external setter)
+        internal
+    {
         if (current != target) {
             setter(target);
             console.log(string.concat("  ", label, ": SET"));

@@ -13,9 +13,9 @@ import {DealersAreaChatGate} from "../../src/social/DealersAreaChatGate.sol";
  *      - Skips Safe House (area 0)
  *
  * Usage:
-   source .env && forge script script/setup/SetupChat.s.sol:SetupChat \
-     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
-     --skip "RendererSVG"
+ *    source .env && forge script script/setup/SetupChat.s.sol:SetupChat \
+ *      --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
+ *      --skip "RendererSVG"
  */
 contract SetupChat is DeployBase {
     function run() external {

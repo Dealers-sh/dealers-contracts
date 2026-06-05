@@ -22,10 +22,8 @@ contract DeployClaims is DeployBase {
         _requireAddress(pve, "DEALERS_PVE");
         _requireAddress(pvp, "DEALERS_PVP");
         vm.startBroadcast();
-        claims = _zkCreate(abi.encodePacked(
-            vm.getCode("DealersClaims.sol:DealersClaims"),
-            abi.encode(core, nft, pve, pvp)
-        ));
+        claims =
+            _zkCreate(abi.encodePacked(vm.getCode("DealersClaims.sol:DealersClaims"), abi.encode(core, nft, pve, pvp)));
         vm.stopBroadcast();
 
         _saveAddresses();

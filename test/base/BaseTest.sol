@@ -99,17 +99,17 @@ abstract contract BaseTest is Test, IERC721Receiver {
         vm.startPrank(owner);
 
         // Register 11 drugs (IDs auto-increment 1-11)
-        drugRegistry.createDrug("Goods",      IDrugRegistry.DrugRarity.COMMON,   75);
+        drugRegistry.createDrug("Goods", IDrugRegistry.DrugRarity.COMMON, 75);
         drugRegistry.createDrug("Contraband", IDrugRegistry.DrugRarity.UNCOMMON, 500);
-        drugRegistry.createDrug("Jewels",     IDrugRegistry.DrugRarity.RARE,     2500);
-        drugRegistry.createDrug("Weed",       IDrugRegistry.DrugRarity.COMMON,   1);
-        drugRegistry.createDrug("XTC",        IDrugRegistry.DrugRarity.UNCOMMON, 10);
-        drugRegistry.createDrug("Cocaine",    IDrugRegistry.DrugRarity.RARE,     100);
-        drugRegistry.createDrug("Shrooms",    IDrugRegistry.DrugRarity.UNCOMMON, 12);
-        drugRegistry.createDrug("Heroin",     IDrugRegistry.DrugRarity.RARE,     150);
-        drugRegistry.createDrug("Opioids",    IDrugRegistry.DrugRarity.COMMON,   18);
-        drugRegistry.createDrug("Meth",       IDrugRegistry.DrugRarity.UNCOMMON, 25);
-        drugRegistry.createDrug("Fentanyl",   IDrugRegistry.DrugRarity.RARE,     200);
+        drugRegistry.createDrug("Jewels", IDrugRegistry.DrugRarity.RARE, 2500);
+        drugRegistry.createDrug("Weed", IDrugRegistry.DrugRarity.COMMON, 1);
+        drugRegistry.createDrug("XTC", IDrugRegistry.DrugRarity.UNCOMMON, 10);
+        drugRegistry.createDrug("Cocaine", IDrugRegistry.DrugRarity.RARE, 100);
+        drugRegistry.createDrug("Shrooms", IDrugRegistry.DrugRarity.UNCOMMON, 12);
+        drugRegistry.createDrug("Heroin", IDrugRegistry.DrugRarity.RARE, 150);
+        drugRegistry.createDrug("Opioids", IDrugRegistry.DrugRarity.COMMON, 18);
+        drugRegistry.createDrug("Meth", IDrugRegistry.DrugRarity.UNCOMMON, 25);
+        drugRegistry.createDrug("Fentanyl", IDrugRegistry.DrugRarity.RARE, 200);
 
         // Create 6 game areas (IDs auto-increment 1-6)
         areaRegistry.createArea("Manhattan", 0.001 ether, 0, false, false);
@@ -133,7 +133,9 @@ abstract contract BaseTest is Test, IERC721Receiver {
         vm.stopPrank();
     }
 
-    function _batchDrugs(uint8 areaId, uint256[] memory drugIds, uint256[] memory buys, uint256[] memory sells) internal {
+    function _batchDrugs(uint8 areaId, uint256[] memory drugIds, uint256[] memory buys, uint256[] memory sells)
+        internal
+    {
         areaRegistry.batchConfigureAreaDrugs(areaId, drugIds, buys, sells);
     }
 
@@ -176,16 +178,86 @@ abstract contract BaseTest is Test, IERC721Receiver {
     function _setupReputationTiers() internal {
         IDealersCore.ReputationTier[] memory tiers = new IDealersCore.ReputationTier[](10);
 
-        tiers[0] = IDealersCore.ReputationTier({minReputation: 0, winBonus: 15, tieBonus: 5, lossPenalty: -2, repCap: 25, tierName: "Outsider"});
-        tiers[1] = IDealersCore.ReputationTier({minReputation: 50, winBonus: 12, tieBonus: 4, lossPenalty: -3, repCap: 22, tierName: "Associate"});
-        tiers[2] = IDealersCore.ReputationTier({minReputation: 150, winBonus: 10, tieBonus: 4, lossPenalty: -3, repCap: 18, tierName: "Dealer"});
-        tiers[3] = IDealersCore.ReputationTier({minReputation: 300, winBonus: 9, tieBonus: 3, lossPenalty: -4, repCap: 17, tierName: "Soldier"});
-        tiers[4] = IDealersCore.ReputationTier({minReputation: 700, winBonus: 8, tieBonus: 3, lossPenalty: -4, repCap: 16, tierName: "Capo"});
-        tiers[5] = IDealersCore.ReputationTier({minReputation: 1250, winBonus: 7, tieBonus: 3, lossPenalty: -5, repCap: 14, tierName: "Consigliere"});
-        tiers[6] = IDealersCore.ReputationTier({minReputation: 1900, winBonus: 6, tieBonus: 2, lossPenalty: -5, repCap: 12, tierName: "Underboss"});
-        tiers[7] = IDealersCore.ReputationTier({minReputation: 2600, winBonus: 5, tieBonus: 2, lossPenalty: -6, repCap: 12, tierName: "Don"});
-        tiers[8] = IDealersCore.ReputationTier({minReputation: 3500, winBonus: 4, tieBonus: 2, lossPenalty: -6, repCap: 10, tierName: "Godfather"});
-        tiers[9] = IDealersCore.ReputationTier({minReputation: 5000, winBonus: 3, tieBonus: 1, lossPenalty: -7, repCap: 8, tierName: "Legend"});
+        tiers[0] = IDealersCore.ReputationTier({
+            minReputation: 0,
+            winBonus: 15,
+            tieBonus: 5,
+            lossPenalty: -2,
+            repCap: 25,
+            tierName: "Outsider"
+        });
+        tiers[1] = IDealersCore.ReputationTier({
+            minReputation: 50,
+            winBonus: 12,
+            tieBonus: 4,
+            lossPenalty: -3,
+            repCap: 22,
+            tierName: "Associate"
+        });
+        tiers[2] = IDealersCore.ReputationTier({
+            minReputation: 150,
+            winBonus: 10,
+            tieBonus: 4,
+            lossPenalty: -3,
+            repCap: 18,
+            tierName: "Dealer"
+        });
+        tiers[3] = IDealersCore.ReputationTier({
+            minReputation: 300,
+            winBonus: 9,
+            tieBonus: 3,
+            lossPenalty: -4,
+            repCap: 17,
+            tierName: "Soldier"
+        });
+        tiers[4] = IDealersCore.ReputationTier({
+            minReputation: 700,
+            winBonus: 8,
+            tieBonus: 3,
+            lossPenalty: -4,
+            repCap: 16,
+            tierName: "Capo"
+        });
+        tiers[5] = IDealersCore.ReputationTier({
+            minReputation: 1250,
+            winBonus: 7,
+            tieBonus: 3,
+            lossPenalty: -5,
+            repCap: 14,
+            tierName: "Consigliere"
+        });
+        tiers[6] = IDealersCore.ReputationTier({
+            minReputation: 1900,
+            winBonus: 6,
+            tieBonus: 2,
+            lossPenalty: -5,
+            repCap: 12,
+            tierName: "Underboss"
+        });
+        tiers[7] = IDealersCore.ReputationTier({
+            minReputation: 2600,
+            winBonus: 5,
+            tieBonus: 2,
+            lossPenalty: -6,
+            repCap: 12,
+            tierName: "Don"
+        });
+        tiers[8] = IDealersCore.ReputationTier({
+            minReputation: 3500,
+            winBonus: 4,
+            tieBonus: 2,
+            lossPenalty: -6,
+            repCap: 10,
+            tierName: "Godfather"
+        });
+        tiers[9] = IDealersCore.ReputationTier({
+            minReputation: 5000,
+            winBonus: 3,
+            tieBonus: 1,
+            lossPenalty: -7,
+            repCap: 8,
+            tierName: "Legend"
+        });
 
         core.setReputationTiers(tiers);
         core.setMaxReputation(6000);
@@ -220,7 +292,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
     // =========================================================================
 
     /// @dev Roll past REVEAL_OFFSET so reveal()/isExpired() are valid for `seq`
-    function _advanceToRevealable(uint64 /*seq*/) internal {
+    function _advanceToRevealable(uint64 /*seq*/ ) internal {
         vm.roll(block.number + uint256(randomness.REVEAL_OFFSET()) + 1);
     }
 
@@ -232,26 +304,19 @@ abstract contract BaseTest is Test, IERC721Receiver {
     /// @dev Mock reveal(seq) to return a specific bit-packed rand
     function _mockReveal(uint64 seq, uint256 mockedRand) internal {
         vm.mockCall(
-            address(randomness),
-            abi.encodeWithSelector(IDealersRandomness.reveal.selector, seq),
-            abi.encode(mockedRand)
+            address(randomness), abi.encodeWithSelector(IDealersRandomness.reveal.selector, seq), abi.encode(mockedRand)
         );
     }
 
     /// @dev Build a rand uint256 by packing 16-bit slots:
     ///      slot0 = arrest, slot1 = outcome, slot2 = drugSteal,
     ///      slot3 = drop, slot4 = confiscation
-    function _packRand(
-        uint16 arrestRng,
-        uint16 outcomeRng,
-        uint16 drugRng,
-        uint16 dropRng,
-        uint16 confiscRng
-    ) internal pure returns (uint256) {
-        return uint256(arrestRng)
-            | (uint256(outcomeRng) << 16)
-            | (uint256(drugRng) << 32)
-            | (uint256(dropRng) << 48)
+    function _packRand(uint16 arrestRng, uint16 outcomeRng, uint16 drugRng, uint16 dropRng, uint16 confiscRng)
+        internal
+        pure
+        returns (uint256)
+    {
+        return uint256(arrestRng) | (uint256(outcomeRng) << 16) | (uint256(drugRng) << 32) | (uint256(dropRng) << 48)
             | (uint256(confiscRng) << 64);
     }
 
@@ -271,12 +336,10 @@ abstract contract BaseTest is Test, IERC721Receiver {
         pve.resolveGame(seq);
     }
 
-    function _commitAndResolvePvp(
-        address attackerOwner,
-        uint256 attackerId,
-        uint256 defenderId,
-        uint256 mockedRand
-    ) internal returns (uint64 seq) {
+    function _commitAndResolvePvp(address attackerOwner, uint256 attackerId, uint256 defenderId, uint256 mockedRand)
+        internal
+        returns (uint64 seq)
+    {
         vm.prank(attackerOwner);
         seq = pvp.commitAttack(attackerId, defenderId);
         _mockReveal(seq, mockedRand);
@@ -295,11 +358,11 @@ abstract contract BaseTest is Test, IERC721Receiver {
     //   With heat=0, arrest never triggers regardless of arrestRng
     //   With heat>0, set arrestRng=0 to force arrest, 999 to avoid
 
-    uint16 internal constant ARREST_RNG_NO  = 999;
+    uint16 internal constant ARREST_RNG_NO = 999;
     uint16 internal constant ARREST_RNG_YES = 0;
-    uint16 internal constant OUTCOME_RNG_TIE  = 30;  // < 50
-    uint16 internal constant OUTCOME_RNG_WIN  = 60;  // 50 <= 60 < 70
-    uint16 internal constant OUTCOME_RNG_LOSS = 99;  // >= 70
+    uint16 internal constant OUTCOME_RNG_TIE = 30; // < 50
+    uint16 internal constant OUTCOME_RNG_WIN = 60; // 50 <= 60 < 70
+    uint16 internal constant OUTCOME_RNG_LOSS = 99; // >= 70
 
     function _randPveOutcome(uint16 outcomeRng) internal pure returns (uint256) {
         return _packRand(ARREST_RNG_NO, outcomeRng, 0, 0, 0);
@@ -373,19 +436,22 @@ abstract contract BaseTest is Test, IERC721Receiver {
     }
 
     function _pvpAttackerWins(address attackerOwner, uint256 attackerId, uint256 defenderId)
-        internal returns (uint64)
+        internal
+        returns (uint64)
     {
         return _commitAndResolvePvp(attackerOwner, attackerId, defenderId, _randPvpAttackerWin());
     }
 
     function _pvpAttackerLoses(address attackerOwner, uint256 attackerId, uint256 defenderId)
-        internal returns (uint64)
+        internal
+        returns (uint64)
     {
         return _commitAndResolvePvp(attackerOwner, attackerId, defenderId, _randPvpAttackerLoss());
     }
 
     function _pvpAttackerArrested(address attackerOwner, uint256 attackerId, uint256 defenderId)
-        internal returns (uint64)
+        internal
+        returns (uint64)
     {
         return _commitAndResolvePvp(attackerOwner, attackerId, defenderId, _randPvpAttackerArrest());
     }
@@ -401,12 +467,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
         return keccak256(abi.encodePacked(leaf2, leaf1));
     }
 
-    function onERC721Received(
-        address,
-        address,
-        uint256,
-        bytes calldata
-    ) external pure override returns (bytes4) {
+    function onERC721Received(address, address, uint256, bytes calldata) external pure override returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;
     }
 }
