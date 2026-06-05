@@ -9,3 +9,6 @@ source .env && cast send 0x026fE01BC06Bc56e52cdB77BF0Aba6c119d32583 "reveal()" -
 source .env && cast send 0x026fE01BC06Bc56e52cdB77BF0Aba6c119d32583 \
     "setTraitForToken(uint256,uint8,uint8)" 1 2 18 \
     --rpc-url $ABSTRACT_TESTNET_RPC --account dealersKeystore 
+
+
+ cast send 0x8dC006a61012F1a6f3EAd24eEfaf0e634d0635f4 "authorizeContract(address,bool)" 0xacEB129b6b2928dE29FD21b09D508cEc03D64ffA true --rpc-url https://api.testnet.abs.xyz --account dealersKeystore

@@ -35,6 +35,7 @@ For Solidity scripts the network is detected from `block.chainid` via the `--rpc
 16. setMintStatus(3) on NFT                               (enable public mint)
 17. VerifyConfig.s.sol                                    (read-only sanity check)
 18. verify-source.sh                                      (optional: block explorer)
+19. (optional) DeployHeists + SetupHeists                 (heist module add-on — see §15)
 ```
 
 ---
@@ -326,6 +327,97 @@ source .env && ./script/verify-source.sh              # all contracts
 source .env && ./script/verify-source.sh game          # game contracts only
 source .env && ./script/verify-source.sh renderers     # renderers only
 ```
+
+---
+
+## 15. Heist Module (optional add-on)
+
+Self-contained module — **not** part of `DeployAll`. The initial rollout ships only `DealersHeists`
+(daily push-your-luck supply/cash runs + optional ETH jackpot). The community bank-heist event
+(`DealersBankHeist`) is deferred and deployed later via §15.3; until then the 80% bank-fee share
+keeps accruing to the address `PaymentHandler` was deployed with (`BANK_VAULT` — a treasury/multisig).
+
+> **`BANK_VAULT` must be able to receive ETH.** `PaymentHandler._processFee` pushes the bank share
+> via `.call` and reverts the whole fee tx if it fails — so the address must be an EOA or a Safe,
+> never a contract without a payable `receive`.
+
+### Prerequisites
+
+Core game already deployed (`core`, `nft`, `randomness`, `paymentHandler`, `drugRegistry` in the
+deployments JSON; `pve` + `pvp` are additionally needed for the later bank-heist step). Add to `.env`:
+
+```bash
+# External Pyth Entropy contract for the target chain (network-prefixed; mainnet requires the MAINNET_ form).
+TESTNET_PYTH_ENTROPY=0x...
+MAINNET_PYTH_ENTROPY=0x...
+# Optional — bank-heist prep-window length in seconds (default 604800 = 7 days). Only used by §15.3.
+BANK_HEIST_PREP_DURATION=604800
+```
+
+Get the Pyth Entropy address from Pyth's Abstract deployment docs — it is **not** hardcoded.
+
+### 15.1 Deploy + wire DealersHeists
+
+```bash
+source .env && forge script script/deploy/DeployHeists.s.sol:DeployHeists --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG"
+```
+
+Deploys `DealersHeists`, saves it to the deployments JSON, and wires it idempotently. `bankVault` is left untouched (bank-fee share keeps flowing to the launch treasury).
+
+| Wiring | Purpose |
+|--------|---------|
+| `Core.authorizeContract` → Heists | mutates core state |
+| `PaymentHandler.authorizeContract` → Heists | Heists pays the ETH add-on fee |
+| `Randomness.authorizeResolver` → Heists | commit/reveal randomness |
+| `Actions.authorizeJailer` + `Heists.setActions` → Heists | arrest-on-bust (only if Actions deployed) |
+
+### 15.2 Configure DealersHeists
+
+```bash
+source .env && forge script script/setup/SetupHeists.s.sol:SetupHeists --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG"
+```
+
+Sets the 3 difficulty tiers (REQUIRED — `startHeist` reverts until set), the stage tables, and the tuned jackpot config. Sim-tuned values (see `test/simulation/HeistEconomySimulation.t.sol` + `heist_tuning.py`):
+
+| Difficulty | Rep gate | $CASH stake |
+|-----------|----------|-------------|
+| D0 Street Score | 600 (Soldier) | 600 |
+| D1 Warehouse Job | 1,500 (Capo) | 2,500 |
+| D2 Cartel Heist | 5,500 (Underboss) | 12,000 |
+
+Jackpot triggers `3/5/8/10/13%` (≈32% player ETH return riding to stage 5; reserve self-funds at the 40% cut).
+
+The daily heists are live after this step. The bank heist remains undeployed.
+
+### 15.3 Add the community bank heist (later)
+
+Run only when launching the recurring event. Requires `DealersHeists` already deployed. This deploys
+`DealersBankHeist`, authorizes it on Core, **repoints `PaymentHandler.bankVault` from the treasury to
+the event vault**, and ships it **paused**.
+
+```bash
+source .env && forge script script/deploy/DeployBankHeist.s.sol:DeployBankHeist --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG"
+```
+
+Then, when ready to run the event:
+
+```bash
+# 1. (optional) Migrate ETH that accrued at the treasury bankVault into the new event vault — send to its receive().
+BANK_HEIST=$(jq -r .bankHeist script/data/deployments/testnet.json)
+# cast send $BANK_HEIST --value <amount> --rpc-url $ABSTRACT_TESTNET_RPC --account <treasury>
+
+# 2. Unpause to open entries.
+cast send $BANK_HEIST "unpause()" --rpc-url $ABSTRACT_TESTNET_RPC --account dealersKeystore
+```
+
+Keeper loop off-chain per cycle: `requestDraw` → `snapshotWeights` (paginated, repeat until `weightCursor == entryCount`) → wait for the Pyth seed → `settle`. Freezing weights before the seed arrives is what blocks post-close activity grinding.
+
+### Notes
+
+- **Re-runnable**: all three scripts are idempotent (check state before each setter).
+- **`bankVault` swap**: §15.3's `setBankVault` moves the 80% bank-fee share from the treasury to the event vault. ETH already accrued at the treasury stays there — migrate it separately.
+- **Storage-layout**: `DealersBankHeist` is deployed fresh in §15.3 — fine since it has no prior deployment.
+- **Not in `DeployAll` / `deploy-all.sh`** by design — deploy this module on its own cadence.
 
 ---
 

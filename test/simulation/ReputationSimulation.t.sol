@@ -20,7 +20,7 @@ contract ReputationSimulation is Test {
     uint256 constant STARTER_XTC = 5;
     uint256 constant STARTER_COCAINE = 1;
     uint256 constant STARTING_REP = 25;
-    uint256 constant MAX_REPUTATION = 6000;
+    uint256 constant MAX_REPUTATION = 75000;
     uint256 constant STASH_DIVISOR = 100;
     uint256 constant PVP_MIN_REPUTATION = 100;
     uint256 constant PVP_BASE_WIN_CHANCE = 50;
@@ -113,23 +113,23 @@ contract ReputationSimulation is Test {
     // =============================================================
 
     function _initConfig() private {
-        // Tiers from SetupTiers.s.sol (deployment source of truth)
-        tiers[0] = TierConfig({minRep: 0,    winBonus: 50, tieBonus: 25, lossPenalty: -2, repCap: 25});
-        tiers[1] = TierConfig({minRep: 50,   winBonus: 40, tieBonus: 20, lossPenalty: -3, repCap: 22});
-        tiers[2] = TierConfig({minRep: 150,  winBonus: 15, tieBonus: 8,  lossPenalty: -3, repCap: 18});
-        tiers[3] = TierConfig({minRep: 300,  winBonus: 9,  tieBonus: 3,  lossPenalty: -4, repCap: 17});
-        tiers[4] = TierConfig({minRep: 700,  winBonus: 8,  tieBonus: 3,  lossPenalty: -4, repCap: 21});
-        tiers[5] = TierConfig({minRep: 1250, winBonus: 7,  tieBonus: 3,  lossPenalty: -5, repCap: 24});
-        tiers[6] = TierConfig({minRep: 1900, winBonus: 6,  tieBonus: 2,  lossPenalty: -5, repCap: 25});
-        tiers[7] = TierConfig({minRep: 2600, winBonus: 5,  tieBonus: 2,  lossPenalty: -6, repCap: 28});
-        tiers[8] = TierConfig({minRep: 3500, winBonus: 4,  tieBonus: 2,  lossPenalty: -6, repCap: 30});
-        tiers[9] = TierConfig({minRep: 5000, winBonus: 3,  tieBonus: 1,  lossPenalty: -7, repCap: 24});
+        // Tiers from SetupTiers.s.sol (deployment source of truth — convex 2.2x ladder)
+        tiers[0] = TierConfig({minRep: 0,     winBonus: 60, tieBonus: 25, lossPenalty: -2, repCap: 35});
+        tiers[1] = TierConfig({minRep: 100,   winBonus: 35, tieBonus: 18, lossPenalty: -3, repCap: 25});
+        tiers[2] = TierConfig({minRep: 250,   winBonus: 20, tieBonus: 10, lossPenalty: -3, repCap: 22});
+        tiers[3] = TierConfig({minRep: 600,   winBonus: 12, tieBonus: 5,  lossPenalty: -4, repCap: 22});
+        tiers[4] = TierConfig({minRep: 1500,  winBonus: 9,  tieBonus: 4,  lossPenalty: -5, repCap: 24});
+        tiers[5] = TierConfig({minRep: 3000,  winBonus: 7,  tieBonus: 3,  lossPenalty: -5, repCap: 26});
+        tiers[6] = TierConfig({minRep: 5500,  winBonus: 6,  tieBonus: 2,  lossPenalty: -6, repCap: 28});
+        tiers[7] = TierConfig({minRep: 10000, winBonus: 5,  tieBonus: 2,  lossPenalty: -6, repCap: 30});
+        tiers[8] = TierConfig({minRep: 22000, winBonus: 4,  tieBonus: 1,  lossPenalty: -7, repCap: 32});
+        tiers[9] = TierConfig({minRep: 50000, winBonus: 2,  tieBonus: 1,  lossPenalty: -8, repCap: 4});
 
-        // Boosts from COMMANDS.md (post-deployment setBoostTier values)
+        // Boosts from SetupBoosts.s.sol (Kingpin +6/1.25x, Godfather 2.25x/1.35x)
         boosts[1] = BoostConfig({priceWei: 0.0025 ether, durationDays: 3,  drugMultiplier: 125, repMultiplier: 110, cashMultiplier: 125, extraAttempts: 2});
         boosts[2] = BoostConfig({priceWei: 0.005 ether,  durationDays: 7,  drugMultiplier: 150, repMultiplier: 115, cashMultiplier: 150, extraAttempts: 3});
-        boosts[3] = BoostConfig({priceWei: 0.01 ether,   durationDays: 14, drugMultiplier: 175, repMultiplier: 120, cashMultiplier: 175, extraAttempts: 5});
-        boosts[4] = BoostConfig({priceWei: 0.023 ether,  durationDays: 30, drugMultiplier: 200, repMultiplier: 125, cashMultiplier: 200, extraAttempts: 7});
+        boosts[3] = BoostConfig({priceWei: 0.01 ether,   durationDays: 14, drugMultiplier: 175, repMultiplier: 125, cashMultiplier: 175, extraAttempts: 6});
+        boosts[4] = BoostConfig({priceWei: 0.023 ether,  durationDays: 30, drugMultiplier: 225, repMultiplier: 135, cashMultiplier: 225, extraAttempts: 7});
 
         // Drug base cash values (drugId 1-11) from SetupDrugs.s.sol
         drugBaseCashValues[1]  = 75;   // Goods
@@ -146,11 +146,11 @@ contract ReputationSimulation is Test {
 
         // Area min reputation
         areaMinRep[1] = 0;    // Manhattan
-        areaMinRep[2] = 150;  // Amsterdam
+        areaMinRep[2] = 100;  // Amsterdam
         areaMinRep[3] = 250;  // Colombia
-        areaMinRep[4] = 500;  // Hong Kong
-        areaMinRep[5] = 1000; // Seoul
-        areaMinRep[6] = 1500; // Tokyo
+        areaMinRep[4] = 600;  // Hong Kong
+        areaMinRep[5] = 1500; // Seoul
+        areaMinRep[6] = 3000; // Tokyo
 
         // Area drug configs from SetupAreas.s.sol
         // Manhattan: Weed 1/1, XTC 12/10, Cocaine 120/100
@@ -168,10 +168,10 @@ contract ReputationSimulation is Test {
         areaDrugs[3][1] = AreaDrug({drugId: 6, buyPrice: 60,  sellPrice: 50});
         areaDrugs[3][2] = AreaDrug({drugId: 8, buyPrice: 90,  sellPrice: 75});
 
-        // Hong Kong: Opioids 18/15, Meth 28/22, Heroin 140/110
-        areaDrugs[4][0] = AreaDrug({drugId: 9,  buyPrice: 18,  sellPrice: 15});
-        areaDrugs[4][1] = AreaDrug({drugId: 10, buyPrice: 28,  sellPrice: 22});
-        areaDrugs[4][2] = AreaDrug({drugId: 8,  buyPrice: 140, sellPrice: 110});
+        // Hong Kong: Opioids 22/18, Meth 30/25, Heroin 175/160
+        areaDrugs[4][0] = AreaDrug({drugId: 9,  buyPrice: 22,  sellPrice: 18});
+        areaDrugs[4][1] = AreaDrug({drugId: 10, buyPrice: 30,  sellPrice: 25});
+        areaDrugs[4][2] = AreaDrug({drugId: 8,  buyPrice: 175, sellPrice: 160});
 
         // Seoul: Opioids 8/7, Meth 14/12, Fentanyl 90/75
         areaDrugs[5][0] = AreaDrug({drugId: 9,  buyPrice: 8,  sellPrice: 7});

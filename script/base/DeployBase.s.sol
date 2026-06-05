@@ -209,6 +209,8 @@ abstract contract DeployBase is Script {
     address public rendererHtml;
     address public multicall;
     address public chatFactory;
+    address public heists;
+    address public bankHeist;
 
     // Config values
     string public gzipFilename;
@@ -300,6 +302,8 @@ abstract contract DeployBase is Script {
             rendererHtml = _jsonAddrOr(json, ".rendererHtml", "RENDERER_HTML");
             multicall = _jsonAddrOr(json, ".multicall", "DEALER_MULTICALL");
             chatFactory = _jsonAddrOr(json, ".chatFactory", "CHAT_FACTORY");
+            heists = _jsonAddrOr(json, ".heists", "DEALERS_HEISTS");
+            bankHeist = _jsonAddrOr(json, ".bankHeist", "DEALERS_BANK_HEIST");
             nftCtor = _jsonAddrOr(json, ".nftCtor", "NFT_CTOR");
             try vm.parseJsonString(json, ".gzipFilename") returns (string memory val) {
                 gzipFilename = val;
@@ -320,6 +324,8 @@ abstract contract DeployBase is Script {
             rendererHtml = vm.envOr("RENDERER_HTML", address(0));
             multicall = vm.envOr("DEALER_MULTICALL", address(0));
             chatFactory = vm.envOr("CHAT_FACTORY", address(0));
+            heists = vm.envOr("DEALERS_HEISTS", address(0));
+            bankHeist = vm.envOr("DEALERS_BANK_HEIST", address(0));
             nftCtor = vm.envOr("NFT_CTOR", address(0));
         }
 
@@ -393,6 +399,8 @@ abstract contract DeployBase is Script {
             vm.serializeString(obj, "gzipFilename", gzipFilename);
         }
         vm.serializeAddress(obj, "chatFactory", chatFactory);
+        vm.serializeAddress(obj, "heists", heists);
+        vm.serializeAddress(obj, "bankHeist", bankHeist);
         string memory json = vm.serializeAddress(obj, "nftCtor", nftCtor);
 
         string memory path = _getDeploymentPath();
@@ -418,6 +426,8 @@ abstract contract DeployBase is Script {
             if (rendererHtml == address(0)) rendererHtml = _jsonAddr(json, ".rendererHtml");
             if (multicall == address(0)) multicall = _jsonAddr(json, ".multicall");
             if (chatFactory == address(0)) chatFactory = _jsonAddr(json, ".chatFactory");
+            if (heists == address(0)) heists = _jsonAddr(json, ".heists");
+            if (bankHeist == address(0)) bankHeist = _jsonAddr(json, ".bankHeist");
             if (nftCtor == address(0)) nftCtor = _jsonAddr(json, ".nftCtor");
         } catch {}
     }

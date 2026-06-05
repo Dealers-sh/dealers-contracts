@@ -102,7 +102,6 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
     error InvalidTier();
     error TierNotActive();
     error InsufficientPayment();
-    error NotDealerOwner();
     error DealerNotInitialized();
     error InvalidAddress();
     error TransferFailed();
