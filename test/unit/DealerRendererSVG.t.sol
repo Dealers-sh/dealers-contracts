@@ -126,7 +126,7 @@ contract DealerRendererSVGTest is Test {
     function test_batchSetTraits_revertsInvalidTokenIdTooHigh() public {
         uint256[] memory ids = new uint256[](1);
         bytes32[] memory packed = new bytes32[](1);
-        ids[0] = 8889;
+        ids[0] = renderer.MAX_SUPPLY() + 1;
         packed[0] = bytes32(uint256(1));
 
         vm.expectRevert(DealerRendererSVG.InvalidTokenId.selector);
@@ -266,11 +266,13 @@ contract DealerRendererSVGTest is Test {
     }
 
     function test_getCharacterType_revertsInvalidTokenId() public {
+        uint256 tooHigh = renderer.MAX_SUPPLY() + 1;
+
         vm.expectRevert(DealerRendererSVG.InvalidTokenId.selector);
         renderer.getCharacterType(0);
 
         vm.expectRevert(DealerRendererSVG.InvalidTokenId.selector);
-        renderer.getCharacterType(8889);
+        renderer.getCharacterType(tooHigh);
     }
 
     // =============================================================
