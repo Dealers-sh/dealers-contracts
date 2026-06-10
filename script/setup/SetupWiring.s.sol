@@ -28,7 +28,7 @@ import "../base/DeployBase.s.sol";
  * Usage:
  *   source .env && forge script script/SetupWiring.s.sol:SetupWiring \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "RendererSVG"
+ *     --skip "RendererSVG" --skip "UploadTraits"
  */
 contract SetupWiring is DeployBase {
     function run() external {

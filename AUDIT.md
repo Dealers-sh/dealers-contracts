@@ -15,26 +15,31 @@ On-chain PvE/PvP mafia strategy game on **Abstract Chain** (zkSync-based L2, cha
 
 ## In scope
 
-Deployed game contracts that hold state and/or value.
+Deployed game contracts that hold ETH and/or are reachable by session keys. This is the set whose
+compromise loses funds or corrupts shared game state.
 
 | Contract | Purpose |
 |---|---|
 | `DealersCore` | Central game-state hub; `onlyAuthorized` gate for all state mutation |
-| `DealersNFT` | ERC721 dealers with on-chain metadata + embedded gameplay UI |
 | `DealersPVE` | Player-vs-Environment hustle game |
 | `DealersPVP` | Same-area player-vs-player battles |
-| `DealersBoosts` | Time-limited boost tiers (drug/rep/cash multipliers, extra attempts) |
-| `DealersActions` | Player actions (movement, jail/bail, safe house, arrests) |
-| `DealersClaims` | Achievement + admin reward claims |
-| `DealersHeists` | Daily push-your-luck heist runs + optional ETH jackpot (Pyth) |
-| `DealersMulticall` | Read-only aggregator (view) |
+| `DealersBoosts` | Time-limited boost tiers (drug/rep/cash multipliers, extra attempts); payable |
+| `DealersActions` | Player actions (movement, jail/bail, safe house, arrests); payable |
+| `DealersHeists` | Daily push-your-luck heist runs + optional ETH jackpot (Pyth); holds ETH reserve |
 | `DealersPaymentHandler` | Centralized ETH custody + fee distribution |
 | `DealersRandomness` | In-house commit-reveal randomness |
-| `DealersAreaRegistry` | Area + drug-pricing registry |
-| `DealersDrugRegistry` | Global drug registry |
 
 Interfaces for the above (`IDealers*`) and the Pyth consumer interfaces (`src/utils/pyth/`) are in
 scope as part of the contracts that use them.
+
+> **nSLOC counting.** Please confirm the counting tool used for the quote and whether pure interface
+> declarations count toward the budget — the `IDealers*` files are declarations only, and the Pyth
+> interfaces (`src/utils/pyth/`) are vendored third-party code.
+
+> **Frontend preview views.** UX-only view helpers (`canPlay`, `previewHustle`, `canAttack`,
+> `calculateWinChance`, `getPotentialTargets`, boost tier listings) live in `DealersMulticall`
+> (out of primary scope). They mirror module logic for display but are never consulted by any
+> state-changing path; the modules re-validate everything at commit time.
 
 ## ⭐ Priority — session-key attack surface (mainnet)
 
@@ -71,6 +76,9 @@ across the commit/resolve pairs).
 > A session key signs for the dealer owner. `purchaseBoost` and `startHeist` move ETH (capped per the
 > table); `cashOut`/`claimJackpot` pull value **to the NFT owner**, not the key. Confirm no whitelisted
 > selector lets a rogue key redirect funds, exceed the per-use cap, or grief another player's run.
+>
+> `DealersClaims` and `DealersChatFactory` appear in this table but sit in the lower-priority bucket:
+> neither holds or moves ETH, so a rogue session key is limited to in-game effects there.
 
 ## Out of scope — concept (NOT deployed)
 
@@ -80,8 +88,18 @@ across the commit/resolve pairs).
 
 ## Lower priority / scope to confirm
 
-View/pure or peripheral; no value custody. Confirm inclusion with the audit firm.
+Peripheral or no ETH custody; worst case is in-game economy damage, not fund loss. Quote separately
+if budget allows.
 
+- **`DealersClaims`** — achievement + admin reward claims. Session-key whitelisted (see table above)
+  but holds **no ETH**; payouts are in-game cash/drugs/rep only. A bug inflates the game economy,
+  it cannot drain funds.
+- **`DealersNFT`** — built on vendored [SeaDrop 1.0](https://github.com/ProjectOpenSea/seadrop)
+  (audited by OpenSea); custom surface is mostly view-only metadata rendering. Mint payments flow
+  through SeaDrop, not this contract.
+- **`DealersMulticall`** — read-only aggregator + frontend preview helpers; zero custody, no state.
+- **`DealersAreaRegistry` / `DealersDrugRegistry`** — owner-set configuration (areas, drug pricing);
+  covered by the trusted-owner assumption.
 - **Renderers / storage:** `DealerRendererSVG`, `DealerRendererHTML`, `File` — deterministic on-chain art + FileStore I/O.
 - **Social:** `DealersChatFactory`, `DealersChatRoom`, `DealersAreaChatGate` — on-chain chat, gated by dealer area.
 

@@ -276,7 +276,7 @@ contract DealersBoostsTest is BaseTest {
     function test_getActiveTiers_filtersInactive() public {
         boosts.setTierActive(GRINDER_TIER, false);
 
-        (DealersBoosts.BoostTier[] memory tiers, uint256[] memory tierIds) = boosts.getActiveTiers();
+        (DealersBoosts.BoostTier[] memory tiers, uint256[] memory tierIds) = multicall.getActiveTiers();
 
         assertEq(tiers.length, 3);
         assertEq(tierIds.length, 3);
@@ -286,20 +286,20 @@ contract DealersBoostsTest is BaseTest {
     }
 
     function test_checkBoostStatus_returnsExpiry() public {
-        (bool hasBoostBefore, uint64 expiryBefore) = boosts.checkBoostStatus(dealer1);
+        (bool hasBoostBefore, uint64 expiryBefore) = multicall.checkBoostStatus(dealer1);
         assertFalse(hasBoostBefore);
         assertEq(expiryBefore, 0);
 
         vm.prank(player1);
         boosts.purchaseBoost{value: GRINDER_PRICE}(dealer1, GRINDER_TIER);
 
-        (bool hasBoostAfter, uint64 expiryAfter) = boosts.checkBoostStatus(dealer1);
+        (bool hasBoostAfter, uint64 expiryAfter) = multicall.checkBoostStatus(dealer1);
         assertTrue(hasBoostAfter);
         assertEq(expiryAfter, uint64(block.timestamp + DURATION_3_DAYS));
 
         vm.warp(block.timestamp + DURATION_3_DAYS + 1);
 
-        (bool hasBoostExpired,) = boosts.checkBoostStatus(dealer1);
+        (bool hasBoostExpired,) = multicall.checkBoostStatus(dealer1);
         assertFalse(hasBoostExpired);
     }
 

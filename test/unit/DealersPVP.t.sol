@@ -164,7 +164,7 @@ contract DealersPVPTest is BaseTest {
     function test_calculateWinChance_base50() public {
         _setupDealersForPVP();
 
-        uint256 winChance = pvp.calculateWinChance(attackerToken, defenderToken);
+        uint256 winChance = multicall.calculateWinChance(attackerToken, defenderToken);
 
         assertEq(winChance, 50, "Base win chance should be 50%");
     }
@@ -173,7 +173,7 @@ contract DealersPVPTest is BaseTest {
         _setupDealersForPVP();
         _setDealerStats(attackerToken, 10, 0);
 
-        uint256 winChance = pvp.calculateWinChance(attackerToken, defenderToken);
+        uint256 winChance = multicall.calculateWinChance(attackerToken, defenderToken);
 
         assertEq(winChance, 60, "Threat bonus should increase win chance");
     }
@@ -182,7 +182,7 @@ contract DealersPVPTest is BaseTest {
         _setupDealersForPVP();
         _setDealerStats(defenderToken, 0, 15);
 
-        uint256 winChance = pvp.calculateWinChance(attackerToken, defenderToken);
+        uint256 winChance = multicall.calculateWinChance(attackerToken, defenderToken);
 
         assertEq(winChance, 35, "Defender armor should reduce attacker win chance");
     }
@@ -192,7 +192,7 @@ contract DealersPVPTest is BaseTest {
         _setDealerStats(defenderToken, 0, 25);
         _setDealerStats(attackerToken, 0, 0);
 
-        uint256 winChance = pvp.calculateWinChance(attackerToken, defenderToken);
+        uint256 winChance = multicall.calculateWinChance(attackerToken, defenderToken);
 
         assertEq(winChance, 25, "Win chance should not go below 25%");
     }
@@ -202,7 +202,7 @@ contract DealersPVPTest is BaseTest {
         _setDealerStats(attackerToken, 25, 0);
         _setDealerStats(defenderToken, 0, 0);
 
-        uint256 winChance = pvp.calculateWinChance(attackerToken, defenderToken);
+        uint256 winChance = multicall.calculateWinChance(attackerToken, defenderToken);
 
         assertEq(winChance, 75, "Win chance should not exceed 75%");
     }
@@ -686,7 +686,7 @@ contract DealersPVPTest is BaseTest {
         _setReputation(attackerToken, 1000);
         _setReputation(defenderToken, 2000);
 
-        (bool canFight, uint8 reason) = pvp.canAttack(attackerToken, defenderToken);
+        (bool canFight, uint8 reason) = multicall.canAttack(attackerToken, defenderToken);
         assertFalse(canFight);
         assertEq(reason, 11);
     }
@@ -697,7 +697,7 @@ contract DealersPVPTest is BaseTest {
         _setReputation(attackerToken, 50);
         _setReputation(defenderToken, 50);
 
-        (bool canFight, uint8 reason) = pvp.canAttack(attackerToken, defenderToken);
+        (bool canFight, uint8 reason) = multicall.canAttack(attackerToken, defenderToken);
         assertFalse(canFight);
         assertEq(reason, 12);
     }
@@ -740,7 +740,7 @@ contract DealersPVPTest is BaseTest {
         _setReputation(attackerToken, 1000);
         _setReputation(defenderToken, 2000);
 
-        (bool canFight, uint8 reason) = pvp.canAttack(attackerToken, defenderToken);
+        (bool canFight, uint8 reason) = multicall.canAttack(attackerToken, defenderToken);
         assertFalse(canFight, "Should not be able to attack out of rep range");
         assertEq(reason, 11, "Reason should be 11 (out of rep range)");
     }
@@ -751,7 +751,7 @@ contract DealersPVPTest is BaseTest {
         _setReputation(attackerToken, 1000);
         _setReputation(defenderToken, 1200);
 
-        (bool canFight,) = pvp.canAttack(attackerToken, defenderToken);
+        (bool canFight,) = multicall.canAttack(attackerToken, defenderToken);
         assertTrue(canFight, "Should be able to attack within rep range");
     }
 
@@ -762,22 +762,22 @@ contract DealersPVPTest is BaseTest {
 
         // Exactly at upper boundary: 1000 + 25% = 1250
         _setReputation(defenderToken, 1250);
-        (bool canFight,) = pvp.canAttack(attackerToken, defenderToken);
+        (bool canFight,) = multicall.canAttack(attackerToken, defenderToken);
         assertTrue(canFight, "Exactly at upper boundary should succeed");
 
         // One above upper boundary
         _setReputation(defenderToken, 1251);
-        (canFight,) = pvp.canAttack(attackerToken, defenderToken);
+        (canFight,) = multicall.canAttack(attackerToken, defenderToken);
         assertFalse(canFight, "One above upper boundary should fail");
 
         // Exactly at lower boundary: 1000 - 25% = 750
         _setReputation(defenderToken, 750);
-        (canFight,) = pvp.canAttack(attackerToken, defenderToken);
+        (canFight,) = multicall.canAttack(attackerToken, defenderToken);
         assertTrue(canFight, "Exactly at lower boundary should succeed");
 
         // One below lower boundary
         _setReputation(defenderToken, 749);
-        (canFight,) = pvp.canAttack(attackerToken, defenderToken);
+        (canFight,) = multicall.canAttack(attackerToken, defenderToken);
         assertFalse(canFight, "One below lower boundary should fail");
     }
 
@@ -796,7 +796,7 @@ contract DealersPVPTest is BaseTest {
 
         _setReputation(defenderToken, 900);
 
-        (IDealersPVP.PVPTarget[] memory targets,) = pvp.getPotentialTargets(attackerToken, 0, 100);
+        (DealersMulticall.PVPTarget[] memory targets,) = multicall.getPotentialTargets(attackerToken, 0, 100);
 
         bool foundInRange = false;
         bool foundDefender = false;
@@ -831,7 +831,7 @@ contract DealersPVPTest is BaseTest {
         _setReputation(attackerToken, 1000);
         _setReputation(defenderToken, 2000);
 
-        (bool canFight,) = pvp.canAttack(attackerToken, defenderToken);
+        (bool canFight,) = multicall.canAttack(attackerToken, defenderToken);
         assertFalse(canFight, "Should fail with default 25% range");
 
         vm.prank(owner);
@@ -853,7 +853,7 @@ contract DealersPVPTest is BaseTest {
             })
         );
 
-        (canFight,) = pvp.canAttack(attackerToken, defenderToken);
+        (canFight,) = multicall.canAttack(attackerToken, defenderToken);
         assertTrue(canFight, "Should succeed with 100% range");
     }
 

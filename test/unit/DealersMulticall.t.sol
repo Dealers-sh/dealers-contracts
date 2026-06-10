@@ -6,14 +6,10 @@ import "../../src/core/DealersMulticall.sol";
 import "../../src/utils/IDrugRegistry.sol";
 
 contract DealersMulticallTest is BaseTest {
-    DealersMulticall public multicall;
     uint256 internal tokenId1;
 
     function setUp() public override {
         super.setUp();
-        multicall = new DealersMulticall(
-            address(core), address(pve), address(pvp), address(areaRegistry), address(drugRegistry)
-        );
         tokenId1 = _mintAndInitialize(player1);
     }
 

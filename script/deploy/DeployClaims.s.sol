@@ -12,7 +12,7 @@ import "../base/DeployBase.s.sol";
  * Usage:
  *   source .env && forge script script/deploy/DeployClaims.s.sol:DeployClaims \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "RendererSVG"
+ *     --skip "RendererSVG" --skip "UploadTraits"
  */
 contract DeployClaims is DeployBase {
     function run() external {

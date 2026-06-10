@@ -8,7 +8,7 @@ import "../base/DeployBase.s.sol";
  * @dev Usage:
  *   source .env && forge script script/setup/SetupBoosts.s.sol:SetupBoosts \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "RendererSVG"
+ *     --skip "RendererSVG" --skip "UploadTraits"
  *
  *   Grinder + Hustler unchanged. Kingpin: +6 attempts (was +5), 1.25x rep (was 1.20).
  *   Godfather: 2.25x drug/cash (was 2.0), 1.35x rep (was 1.25).

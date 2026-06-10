@@ -8,7 +8,7 @@ import "../base/DeployBase.s.sol";
  * @dev Usage:
  *   source .env && forge script script/setup/SetupDrugs.s.sol:SetupDrugs \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "RendererSVG"
+ *     --skip "RendererSVG" --skip "UploadTraits"
  *
  *   Requires DRUG_REGISTRY env var.
  */

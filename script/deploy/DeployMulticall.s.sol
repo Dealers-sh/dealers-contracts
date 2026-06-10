@@ -6,12 +6,12 @@ import "../base/DeployBase.s.sol";
 /**
  * @title DeployMulticall
  * @dev Constructor deps: DEALERS_CORE, DEALERS_PVE, DEALERS_PVP, AREA_REGISTRY, DRUG_REGISTRY
- *      No post-deploy wiring needed (read-only contract).
+ *      Post-deploy wiring: setBoosts (boost preview helpers; skipped if DEALERS_BOOSTS unset).
  *
  * Usage:
  *   source .env && forge script script/deploy/DeployMulticall.s.sol:DeployMulticall \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "RendererSVG"
+ *     --skip "RendererSVG" --skip "UploadTraits"
  */
 contract DeployMulticall is DeployBase {
     function run() external {
@@ -29,6 +29,9 @@ contract DeployMulticall is DeployBase {
                 abi.encode(core, pve, pvp, areaRegistry, drugRegistry)
             )
         );
+        if (boosts != address(0)) {
+            IMulticallContract(multicall).setBoosts(boosts);
+        }
         vm.stopBroadcast();
 
         _saveAddresses();

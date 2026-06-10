@@ -8,7 +8,7 @@ import "../base/DeployBase.s.sol";
  * @dev Usage:
  *   source .env && forge script script/setup/SetupHeists.s.sol:SetupHeists \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "RendererSVG"
+ *     --skip "RendererSVG" --skip "UploadTraits"
  *
  *   Requires DEALERS_HEISTS (deployment JSON `.heists` or env). This script is CONFIG ONLY —
  *   authorization (DealersCore.authorizeContract, DealersPaymentHandler.authorizeContract, and

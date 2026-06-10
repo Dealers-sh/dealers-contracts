@@ -16,7 +16,7 @@ interface INFTSetRenderer {
  *
  * Usage:
  *   forge script script/deploy/DeployHtmlRenderer.s.sol:DeployHtmlRenderer \
- *       --zksync --skip "RendererSVG" \
+ *       --zksync --skip "RendererSVG" --skip "UploadTraits" \
  *       --rpc-url https://api.testnet.abs.xyz \
  *       --account dealersKeystore \
  *       --broadcast

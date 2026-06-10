@@ -143,13 +143,13 @@ contract PVPBattleFlowsTest is BaseTest {
     }
 
     function test_pvpFlow_winChanceCalculation() public {
-        uint256 baseChance = pvp.calculateWinChance(attackerToken, defenderToken);
+        uint256 baseChance = multicall.calculateWinChance(attackerToken, defenderToken);
         assertEq(baseChance, 50, "Base win chance should be 50%");
 
         vm.prank(owner);
         core.setDealerStats(attackerToken, 25, 0);
 
-        uint256 highThreatChance = pvp.calculateWinChance(attackerToken, defenderToken);
+        uint256 highThreatChance = multicall.calculateWinChance(attackerToken, defenderToken);
         assertEq(highThreatChance, 75, "Max win chance should be 75%");
 
         vm.prank(owner);
@@ -157,7 +157,7 @@ contract PVPBattleFlowsTest is BaseTest {
         vm.prank(owner);
         core.setDealerStats(defenderToken, 0, 25);
 
-        uint256 highArmorChance = pvp.calculateWinChance(attackerToken, defenderToken);
+        uint256 highArmorChance = multicall.calculateWinChance(attackerToken, defenderToken);
         assertEq(highArmorChance, 25, "Min win chance should be 25%");
     }
 

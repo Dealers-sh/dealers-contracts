@@ -491,51 +491,6 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         return dealerPveStats[tokenId];
     }
 
-    /**
-     * @notice Check whether a dealer can play a hustle round
-     * @param tokenId The dealer NFT token ID
-     * @return isPlayable True if the dealer can play
-     * @return reason 0 = playable, 1 = not initialized, 2 = jailed, 3 = safe house, 4 = no attempts
-     */
-    function canPlay(uint256 tokenId) external view returns (bool isPlayable, uint8 reason) {
-        IDealersCore.GameState memory state = dealersCore.getGameState(tokenId);
-        if (!state.isInitialized) return (false, 1);
-        if (state.isJailed) return (false, 2);
-        if (state.isInSafeHouse) return (false, 3);
-        if (state.dailyAttemptsRemaining == 0) return (false, 4);
-        return (true, 0);
-    }
-
-    /**
-     * @notice Preview reputation and cash outcomes for a potential hustle
-     * @param tokenId The dealer NFT token ID
-     * @param drugId The drug to preview
-     * @param amount Quantity to preview
-     * @return winRep Reputation gained on win
-     * @return tieRep Reputation gained on tie
-     * @return lossRep Reputation lost on loss (negative)
-     * @return cashValueOnSell Cash earned if selling this amount
-     * @return cashCostOnBuy Cash spent if buying this amount
-     */
-    function previewHustle(uint256 tokenId, uint256 drugId, uint256 amount)
-        external
-        view
-        returns (int16 winRep, int16 tieRep, int16 lossRep, uint256 cashValueOnSell, uint256 cashCostOnBuy)
-    {
-        IDealersCore.GameState memory state = dealersCore.getGameState(tokenId);
-
-        winRep = state.repWinBonus;
-        tieRep = state.repTieBonus;
-        lossRep = state.repLossPenalty;
-
-        (uint256 buyPrice, uint256 sellPrice, bool found) = _getDrugPricing(state.currentArea, drugId);
-
-        if (found) {
-            cashValueOnSell = amount * sellPrice;
-            cashCostOnBuy = amount * buyPrice;
-        }
-    }
-
     // =============================================================
     //                        ADMIN FUNCTIONS
     // =============================================================

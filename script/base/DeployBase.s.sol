@@ -195,9 +195,11 @@ interface IMulticallContract {
     function setPVP(address _pvp) external;
     function setAreaRegistry(address _areaRegistry) external;
     function setDrugRegistry(address _drugRegistry) external;
+    function setBoosts(address _boosts) external;
     function core() external view returns (address);
     function pve() external view returns (address);
     function pvp() external view returns (address);
+    function boosts() external view returns (address);
     function areaRegistry() external view returns (address);
     function drugRegistry() external view returns (address);
 }

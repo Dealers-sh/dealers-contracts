@@ -70,7 +70,7 @@ interface IAreaPricing {
  * Usage:
  *   source .env && forge script script/testnet/SetupTestnetPricing.s.sol:SetupTestnetPricing \
  *     --rpc-url $ABSTRACT_TESTNET_RPC --account dealersKeystore --broadcast --zksync \
- *     --skip "RendererSVG"
+ *     --skip "RendererSVG" --skip "UploadTraits"
  */
 contract SetupTestnetPricing is DeployBase {
     uint256 constant FACTOR = 10;

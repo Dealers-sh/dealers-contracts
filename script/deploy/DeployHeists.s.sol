@@ -26,7 +26,7 @@ import "../base/DeployBase.s.sol";
  *
  * Usage:
  *   source .env && forge script script/deploy/DeployHeists.s.sol:DeployHeists \
- *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG"
+ *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG" --skip "UploadTraits"
  *
  *   Requires (besides the core addresses): TESTNET_PYTH_ENTROPY / MAINNET_PYTH_ENTROPY.
  *   Next: run SetupHeists.s.sol to configure difficulties + tuned tables.

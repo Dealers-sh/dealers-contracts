@@ -13,6 +13,7 @@ import "../../src/utils/DealersPaymentHandler.sol";
 import "../../src/utils/DealersRandomness.sol";
 import "../../src/utils/IDealersRandomness.sol";
 import "../../src/core/DealersActions.sol";
+import "../../src/core/DealersMulticall.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 contract DealersPVETest is Test, IERC721Receiver {
@@ -24,6 +25,7 @@ contract DealersPVETest is Test, IERC721Receiver {
     DealersNFT public nft;
     DealersPVE public pve;
     DealersActions public actions;
+    DealersMulticall public multicall;
     DealersDrugRegistry public drugRegistry;
     DealersAreaRegistry public areaRegistry;
     DealersPaymentHandler public paymentHandler;
@@ -87,6 +89,11 @@ contract DealersPVETest is Test, IERC721Receiver {
         nft.setDealersCore(address(core));
         pve.setRandomness(address(randomness));
         pve.setActions(address(actions));
+
+        // No PVP module in this suite — canPlay/previewHustle never consult it
+        multicall = new DealersMulticall(
+            address(core), address(pve), makeAddr("pvpStub"), address(areaRegistry), address(drugRegistry)
+        );
 
         core.authorizeContract(address(nft), true);
         core.authorizeContract(address(pve), true);
@@ -932,19 +939,19 @@ contract DealersPVETest is Test, IERC721Receiver {
 
     function test_canPlay_returnsCorrectReasons() public {
         // Dealer starts in Manhattan now
-        (bool canPlay, uint8 reason) = pve.canPlay(DEALER_ID_1);
+        (bool canPlay, uint8 reason) = multicall.canPlay(DEALER_ID_1);
         assertTrue(canPlay && reason == 0, "In Manhattan with attempts should be playable");
 
         // Move to safe house to test safe house restriction
         vm.prank(player1);
         actions.travel{value: 0}(DEALER_ID_1, AREA_SAFE_HOUSE);
-        (canPlay, reason) = pve.canPlay(DEALER_ID_1);
+        (canPlay, reason) = multicall.canPlay(DEALER_ID_1);
         assertTrue(!canPlay && reason == 3, "In safe house should return reason 3");
 
         // Move back to Manhattan then send to jail
         _moveDealerToArea(DEALER_ID_1, AREA_MANHATTAN);
         _sendDealerToJail(DEALER_ID_1);
-        (canPlay, reason) = pve.canPlay(DEALER_ID_1);
+        (canPlay, reason) = multicall.canPlay(DEALER_ID_1);
         assertTrue(!canPlay && reason == 2, "In jail should return reason 2");
     }
 
@@ -954,7 +961,7 @@ contract DealersPVETest is Test, IERC721Receiver {
         uint256 amount = 10;
 
         (int16 winRep, int16 tieRep, int16 lossRep, uint256 cashValueOnSell, uint256 cashCostOnBuy) =
-            pve.previewHustle(DEALER_ID_1, DRUG_WEED, amount);
+            multicall.previewHustle(DEALER_ID_1, DRUG_WEED, amount);
 
         assertEq(winRep, 10, "Win rep for Street Dealer tier");
         assertEq(tieRep, 5, "Tie rep for Street Dealer tier");

@@ -29,38 +29,17 @@ interface IDealersPVP {
         uint256 repRangeThreshold;
     }
 
-    struct PVPTarget {
-        uint256 tokenId;
-        uint256 reputation;
-        uint8 threat;
-        uint8 armor;
-        uint8 attemptsRemaining;
-        uint256 winChance;
-        uint256 lossChance;
-        bool canAttackNow;
-        uint256 infamy;
-    }
-
     // =============================================================
     //                      VIEW FUNCTIONS
     // =============================================================
 
     function getDealerPvpStats(uint256 tokenId) external view returns (PvpStats memory);
 
-    function calculateWinChance(uint256 attackerId, uint256 defenderId) external view returns (uint256);
-
-    function canAttack(uint256 attackerId, uint256 defenderId) external view returns (bool canFight, uint8 reason);
-
     function attacksReceivedToday(uint256 tokenId) external view returns (uint256);
 
     function lastAttackDay(uint256 tokenId) external view returns (uint256);
 
     function config() external view returns (PVPConfig memory);
-
-    function getPotentialTargets(uint256 attackerId, uint256 offset, uint256 limit)
-        external
-        view
-        returns (PVPTarget[] memory targets, uint256 totalInArea);
 
     /**
      * @notice Raw mapping getter — returns tuple (for Claims compatibility)

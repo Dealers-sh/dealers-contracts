@@ -12,7 +12,7 @@ import "../base/DeployBase.s.sol";
  * Usage:
  *   source .env && forge script script/verify/VerifyConfig.s.sol:VerifyConfig \
  *       --rpc-url https://api.testnet.abs.xyz \
- *       --skip "RendererSVG" --zksync
+ *       --skip "RendererSVG" --skip "UploadTraits" --zksync
  */
 interface IVerifyCore {
     function drugRegistry() external view returns (address);
@@ -103,6 +103,7 @@ interface IVerifyMulticall {
     function pvp() external view returns (address);
     function areaRegistry() external view returns (address);
     function drugRegistry() external view returns (address);
+    function boosts() external view returns (address);
     function owner() external view returns (address);
 }
 
@@ -407,6 +408,7 @@ contract VerifyConfig is DeployBase {
         _checkRef("    pvp", m.pvp(), pvp);
         _checkRef("    areaRegistry", m.areaRegistry(), areaRegistry);
         _checkRef("    drugRegistry", m.drugRegistry(), drugRegistry);
+        _checkRef("    boosts", m.boosts(), boosts);
 
         console.log("  Owner:", m.owner());
         console.log("");

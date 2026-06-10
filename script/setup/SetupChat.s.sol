@@ -15,7 +15,7 @@ import {DealersAreaChatGate} from "../../src/social/DealersAreaChatGate.sol";
  * Usage:
  *    source .env && forge script script/setup/SetupChat.s.sol:SetupChat \
  *      --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *      --skip "RendererSVG"
+ *      --skip "RendererSVG" --skip "UploadTraits"
  */
 contract SetupChat is DeployBase {
     function run() external {

@@ -12,6 +12,7 @@ import "../../src/core/IDealersPVE.sol";
 import "../../src/core/IDealersPVP.sol";
 import "../../src/core/DealersBoosts.sol";
 import "../../src/core/DealersActions.sol";
+import "../../src/core/DealersMulticall.sol";
 import "../../src/utils/DealersPaymentHandler.sol";
 import "../../src/utils/DealersDrugRegistry.sol";
 import "../../src/utils/DealersAreaRegistry.sol";
@@ -29,6 +30,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
     DealersPVP public pvp;
     DealersBoosts public boosts;
     DealersActions public actions;
+    DealersMulticall public multicall;
 
     address public owner;
     address public player1;
@@ -91,6 +93,11 @@ abstract contract BaseTest is Test, IERC721Receiver {
         pvp.setRandomness(address(randomness));
         pvp.setDrugRegistry(address(drugRegistry));
         pvp.setActions(address(actions));
+
+        multicall = new DealersMulticall(
+            address(core), address(pve), address(pvp), address(areaRegistry), address(drugRegistry)
+        );
+        multicall.setBoosts(address(boosts));
 
         vm.stopPrank();
     }

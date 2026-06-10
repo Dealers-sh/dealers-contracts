@@ -10,6 +10,7 @@ import {IDealersPVE} from "../../src/core/IDealersPVE.sol";
 import {IDealersPVP} from "../../src/core/IDealersPVP.sol";
 import {DealersBoosts} from "../../src/core/DealersBoosts.sol";
 import {DealersActions} from "../../src/core/DealersActions.sol";
+import {DealersMulticall} from "../../src/core/DealersMulticall.sol";
 import {DealersDrugRegistry} from "../../src/utils/DealersDrugRegistry.sol";
 import {IDrugRegistry} from "../../src/utils/IDrugRegistry.sol";
 import {DealersAreaRegistry} from "../../src/utils/DealersAreaRegistry.sol";
@@ -38,6 +39,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
     DealersPVP public pvp;
     DealersBoosts public boosts;
     DealersActions public actions;
+    DealersMulticall public multicall;
     DealersDrugRegistry public drugRegistry;
     DealersAreaRegistry public areaRegistry;
     DealersPaymentHandler public paymentHandler;
@@ -111,6 +113,11 @@ abstract contract BaseTest is Test, IERC721Receiver {
         pvp.setRandomness(address(randomness));
         pvp.setDrugRegistry(address(drugRegistry));
         pvp.setActions(address(actions));
+
+        multicall = new DealersMulticall(
+            address(core), address(pve), address(pvp), address(areaRegistry), address(drugRegistry)
+        );
+        multicall.setBoosts(address(boosts));
     }
 
     function _setupDrugsAndAreas() internal {

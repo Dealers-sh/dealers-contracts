@@ -40,13 +40,6 @@ interface IDealersPVE {
 
     function getDealerPveStats(uint256 tokenId) external view returns (PveStats memory);
 
-    function canPlay(uint256 tokenId) external view returns (bool isPlayable, uint8 reason);
-
-    function previewHustle(uint256 tokenId, uint256 drugId, uint256 amount)
-        external
-        view
-        returns (int16 winRep, int16 tieRep, int16 lossRep, uint256 cashValueOnSell, uint256 cashCostOnBuy);
-
     /**
      * @notice Raw mapping getter — returns tuple (for Claims compatibility)
      */
