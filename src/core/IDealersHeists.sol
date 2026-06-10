@@ -41,11 +41,13 @@ interface IDealersHeists {
     }
 
     /**
-     * @dev Per-stage jackpot tuning. minMultBps > 10000 guarantees a payout above stake.
+     * @dev Per-stage jackpot tuning. The payout is rolled uniformly in [minMultBps, maxMultBps]
+     *      as bps of the ETH add-on; bands below 10000 pay a partial refund ("compensation"),
+     *      above 10000 pay a multiple. minMultBps must be non-zero.
      */
     struct JackpotStage {
-        uint16 triggerPct; // 0-100, chance the jackpot triggers on a winning stage
-        uint32 minMultBps; // value floor as bps of the ETH add-on (>10000)
+        uint16 triggerPct; // 0-100, chance the jackpot triggers on a cleared stage
+        uint32 minMultBps; // value floor as bps of the ETH add-on (non-zero)
         uint32 maxMultBps; // value ceiling as bps of the ETH add-on
     }
 

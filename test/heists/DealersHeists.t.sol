@@ -257,17 +257,20 @@ contract DealersHeistsTest is HeistsBaseTest {
         assertEq(bankVault.balance, bankBefore + (feePortion * 8000 / 10000), "bank fee forwarded");
     }
 
-    function test_jackpot_triggersPaysAboveStakeAndClaims() public {
+    function test_jackpot_triggersPaysCompensationAndClaims() public {
         heists.fundReserve{value: 1 ether}();
         uint256 id = _start(IDealersHeists.HeistFamily.CASH, DIFF_SMALL, true);
 
-        _playStage(player1, id, RAND_WIN_JP); // stage 1 win + jackpot trigger
+        _playStage(player1, id, RAND_WIN_JP); // stage 1 win + compensation trigger
 
         uint64 pseq = mockEntropy.nextSeq() - 1;
         mockEntropy.fire(pseq, bytes32(uint256(123456789)));
 
         uint256 owed = heists.jackpotOwed(tokenId);
-        assertGt(owed, heists.ethAddOn(), "jackpot exceeds stake");
+        uint256 addOn = heists.ethAddOn();
+        assertLt(owed, addOn, "compensation pays back under the add-on");
+        assertGe(owed, addOn * 7000 / 10000, "at least the 0.7x floor");
+        assertLe(owed, addOn * 9000 / 10000, "at most the 0.9x ceiling");
 
         uint256 balBefore = player1.balance;
         vm.prank(player1);
@@ -277,7 +280,7 @@ contract DealersHeistsTest is HeistsBaseTest {
     }
 
     function test_jackpot_skippedWhenReserveTooLow() public {
-        // No fundReserve: one add-on only seeds ~0.0004 ETH, far below stage-1 max payout.
+        // No fundReserve: one add-on only seeds ~0.0004 ETH, below the 0.0009 ETH max payout.
         uint256 id = _start(IDealersHeists.HeistFamily.CASH, DIFF_SMALL, true);
         uint64 seqBefore = mockEntropy.nextSeq();
         _playStage(player1, id, RAND_WIN_JP);

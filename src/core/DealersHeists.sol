@@ -23,9 +23,11 @@ import {IEntropyV2} from "../utils/pyth/IEntropyV2.sol";
  * @dev Solo five-stage push-your-luck runs. Each run pays its difficulty's $CASH stake
  *      (which sizes the drug/$CASH pot) and costs one daily attempt. Win/loss per stage
  *      uses the in-house commit-reveal randomness. An optional 0.001 ETH add-on makes a
- *      run jackpot-eligible: each winning stage rolls for the jackpot until the first one
- *      fires (at most one per run), and Pyth Entropy decides the value (always above the
- *      ETH stake).
+ *      run jackpot-eligible: each cleared stage rolls for the jackpot until the first one
+ *      fires (at most one per run), and Pyth Entropy decides the value within the stage's
+ *      configured band. Surfaced to players as a "compensation" — the shipped config pays a
+ *      partial refund (0.7-0.9x the add-on) frequently rather than a rare multiple, but the
+ *      band is config-driven (minMultBps may sit above or below the add-on).
  *
  *      Standalone module — integrates with existing contracts only through their public
  *      interfaces and the authorized-contract registration pattern. No existing source edits.
@@ -159,11 +161,13 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
         stageRepReward = [uint16(0), 2, 4, 7, 12]; // prep gives none; deeper = more (PVP-ish, << PVE)
         supplyMix =
             [[uint8(100), 0, 0], [uint8(70), 30, 0], [uint8(40), 60, 0], [uint8(10), 50, 40], [uint8(0), 0, 100]];
-        jackpotConfig[0] = JackpotStage({triggerPct: 1, minMultBps: 12000, maxMultBps: 30000});
-        jackpotConfig[1] = JackpotStage({triggerPct: 2, minMultBps: 15000, maxMultBps: 45000});
-        jackpotConfig[2] = JackpotStage({triggerPct: 3, minMultBps: 20000, maxMultBps: 70000});
-        jackpotConfig[3] = JackpotStage({triggerPct: 4, minMultBps: 30000, maxMultBps: 120000});
-        jackpotConfig[4] = JackpotStage({triggerPct: 5, minMultBps: 50000, maxMultBps: 200000});
+        // Compensation model: a frequent partial-refund (0.7-0.9x the add-on), not a rare windfall.
+        // 25% per cleared stage keeps the per-run fire rate ~1-in-3; the 40% reserve cut self-funds it.
+        jackpotConfig[0] = JackpotStage({triggerPct: 25, minMultBps: 7000, maxMultBps: 9000});
+        jackpotConfig[1] = JackpotStage({triggerPct: 25, minMultBps: 7000, maxMultBps: 9000});
+        jackpotConfig[2] = JackpotStage({triggerPct: 25, minMultBps: 7000, maxMultBps: 9000});
+        jackpotConfig[3] = JackpotStage({triggerPct: 25, minMultBps: 7000, maxMultBps: 9000});
+        jackpotConfig[4] = JackpotStage({triggerPct: 25, minMultBps: 7000, maxMultBps: 9000});
     }
 
     // =============================================================
@@ -749,7 +753,7 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
 
     function setJackpotConfig(JackpotStage[STAGES] calldata cfg) external onlyOwner {
         for (uint256 i = 0; i < STAGES;) {
-            if (cfg[i].triggerPct > 100 || cfg[i].minMultBps <= BPS || cfg[i].maxMultBps < cfg[i].minMultBps) {
+            if (cfg[i].triggerPct > 100 || cfg[i].minMultBps == 0 || cfg[i].maxMultBps < cfg[i].minMultBps) {
                 revert InvalidConfig();
             }
             jackpotConfig[i] = cfg[i];

@@ -31,8 +31,8 @@ interface IHeistsAdmin {
     }
 
     struct JackpotStage {
-        uint16 triggerPct; // 0-100, chance the jackpot triggers on a winning stage
-        uint32 minMultBps; // value floor as bps of the ETH add-on (> 10000)
+        uint16 triggerPct; // 0-100, chance the jackpot triggers on a cleared stage
+        uint32 minMultBps; // value floor as bps of the ETH add-on (non-zero; <10000 = partial refund)
         uint32 maxMultBps; // value ceiling as bps of the ETH add-on
     }
 
@@ -105,17 +105,19 @@ contract SetupHeists is DeployBase {
         h.setSupplyMix(mix);
 
         // -------------------------------------------------------------------
-        // 5) Jackpot table — TUNED (generous preset). Triggers ~2.5x the ship defaults [1,2,3,4,5]
-        //    -> ~32% player ETH return riding to stage 5 / ~20% cashing at stage 3 (up from 12/7%),
-        //    while the 40% reserve cut still nets +~80e-6 ETH/bet (self-funding, no skips).
-        //    Multipliers unchanged; minMultBps > 10000 guarantees a win pays above the add-on.
+        // 5) Jackpot table — COMPENSATION model (surfaced to players as a partial refund, not a
+        //    jackpot). Flat 25% trigger per cleared stage -> fires in ~31% (cash@3) / ~33% (ride@5)
+        //    of eligible runs, paying back 0.7-0.9x the add-on. The 40% reserve cut nets +~128e-6
+        //    ETH/bet after the ~24e-6 Pyth fee, so it self-funds with margin (depletes only above
+        //    ~40% trigger). Escrow per fire is just 0.9x the add-on (vs 20x before) — no top-stage
+        //    skips, cheap to seed.
         // -------------------------------------------------------------------
         IHeistsAdmin.JackpotStage[5] memory jc;
-        jc[0] = IHeistsAdmin.JackpotStage({triggerPct: 3, minMultBps: 12000, maxMultBps: 30000});
-        jc[1] = IHeistsAdmin.JackpotStage({triggerPct: 5, minMultBps: 15000, maxMultBps: 45000});
-        jc[2] = IHeistsAdmin.JackpotStage({triggerPct: 8, minMultBps: 20000, maxMultBps: 70000});
-        jc[3] = IHeistsAdmin.JackpotStage({triggerPct: 10, minMultBps: 30000, maxMultBps: 120000});
-        jc[4] = IHeistsAdmin.JackpotStage({triggerPct: 13, minMultBps: 50000, maxMultBps: 200000});
+        jc[0] = IHeistsAdmin.JackpotStage({triggerPct: 25, minMultBps: 7000, maxMultBps: 9000});
+        jc[1] = IHeistsAdmin.JackpotStage({triggerPct: 25, minMultBps: 7000, maxMultBps: 9000});
+        jc[2] = IHeistsAdmin.JackpotStage({triggerPct: 25, minMultBps: 7000, maxMultBps: 9000});
+        jc[3] = IHeistsAdmin.JackpotStage({triggerPct: 25, minMultBps: 7000, maxMultBps: 9000});
+        jc[4] = IHeistsAdmin.JackpotStage({triggerPct: 25, minMultBps: 7000, maxMultBps: 9000});
         h.setJackpotConfig(jc);
 
         // -------------------------------------------------------------------
@@ -133,6 +135,6 @@ contract SetupHeists is DeployBase {
         console.log("  D0 Street Score : gate 600  stake 600");
         console.log("  D1 Warehouse Job: gate 1500 stake 2500");
         console.log("  D2 Cartel Heist : gate 5500 stake 12000");
-        console.log("  Jackpot triggers 3/5/8/10/13%% (reserve cut 40%%, self-funding)");
+        console.log("  Compensation 25%% trigger, 0.7-0.9x add-on (reserve cut 40%%, self-funding)");
     }
 }

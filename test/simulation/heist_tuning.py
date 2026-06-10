@@ -20,6 +20,8 @@ POT_MIN = [10000, 18000, 30000, 52000, 100000]   # bps of stake
 POT_MAX = [14000, 28000, 46000, 78000, 160000]
 REP_REWARD = [0, 2, 4, 7, 12]
 
+# Legacy multiplier-jackpot tables — kept only to drive the historical sweeps in [4]/[5].
+# The shipped economy is now the compensation model in [7] (sub-1x partial refund).
 JACK_TRIGGER = [1, 2, 3, 4, 5]                    # percent
 JACK_MIN = [12000, 15000, 20000, 30000, 50000]    # bps of add-on
 JACK_MAX = [30000, 45000, 70000, 120000, 200000]
@@ -216,5 +218,38 @@ for area, drugs in AREA.items():
     rare = [(b, s) for _, r, b, s in drugs if r == 2]
     ratio = sum(s for _, s in rare) / sum(b for b, _ in rare)
     print(f"    {area:10s}: rare sell/base {ratio:4.2f}x  common drug: {'yes' if has_common else 'NO -> common% leaks to cash'}")
+
+# 7) Compensation model (SHIPPED) — frequent partial refund instead of a rare multiple.
+#    Surfaced to players as a "compensation", not a jackpot. Fires on a cleared stage off the
+#    stage reveal; the amount stays Pyth-VRF-backed in a tight [0.7,0.9]x band. Solvency must
+#    cover payout + the per-fire Pyth fee from the 40% reserve cut.
+print("\n[7] Compensation model (shipped: flat 25% trigger, 0.7-0.9x add-on)")
+PYTH_FEE_ETH = 0.000024006155          # Abstract live entropy fee, paid per fire, non-refundable
+ADDON_ETH = 0.001
+FEE_FRAC = PYTH_FEE_ETH / ADDON_ETH    # ~2.40% of the add-on
+COMP_PAY = 0.80                        # avg of the 0.7-0.9 band
+RESERVE_CUT = 0.40
+
+def comp_fire_prob(trig_pct, target_idx):
+    """P(compensation fires at least once) for a run resolving clean through stage 0..target_idx.
+       Fires at most once; trigger rolled only on a CLEAN resolution."""
+    r = reach(target_idx)
+    p_not, p_fire = 1.0, 0.0
+    t = trig_pct / 100
+    for i in range(target_idx + 1):
+        p_fire += r[i] * CLEAN[i] * t * p_not
+        p_not *= (1 - CLEAN[i] * t)
+    return p_fire
+
+print(f"    Pyth fee {FEE_FRAC*100:.2f}% of add-on -> effective cost/fire {(COMP_PAY+FEE_FRAC)*100:.1f}%; "
+      f"depletes above ~{RESERVE_CUT/(COMP_PAY+FEE_FRAC)*100:.0f}% per-run fire")
+print("    trig%   fire% cash@3  fire% ride@5   reserve net/bet")
+for t in (20, 25, 30, 40):
+    pf3 = comp_fire_prob(t, 2)
+    pf5 = comp_fire_prob(t, 4)
+    net = (RESERVE_CUT - pf5 * (COMP_PAY + FEE_FRAC)) * ADDON_ETH
+    mark = " <- shipped" if t == 25 else ""
+    print(f"    {t:3d}%      {pf3*100:5.1f}%        {pf5*100:5.1f}%        "
+          f"{net*1e6:+7.1f}e-6 ETH  [{'SOLVENT' if net > 0 else 'DEPLETES'}]{mark}")
 
 print("\n" + "=" * 78)

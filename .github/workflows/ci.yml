@@ -43,8 +43,10 @@ jobs:
       - name: Build (zkSync)
         run: forge build --zksync --skip "RendererSVG" --skip "UploadTraits"
 
+      # test/simulation/* are economic-tuning models (100k-iteration Monte-Carlo, console reporters,
+      # not pass/fail correctness gates) — excluded from CI. Run locally with the foundry.toml gas_limit.
       - name: Test (zkSync)
-        run: forge test --zksync --skip "RendererSVG" --skip "UploadTraits"
+        run: forge test --zksync --skip "RendererSVG" --skip "UploadTraits" --no-match-path "test/simulation/*"
 
       # --- SVG renderer: EVM bytecode (EXTCODECOPY via SSTORE2/FileStore) ---
       - name: Build (EVM renderer)

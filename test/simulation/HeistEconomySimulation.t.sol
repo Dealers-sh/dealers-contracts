@@ -37,17 +37,18 @@ contract HeistEconomySimulation is Test {
     uint8[3][5] supplyMix =
         [[uint8(100), 0, 0], [uint8(70), 30, 0], [uint8(40), 60, 0], [uint8(10), 50, 40], [uint8(0), 0, 100]];
 
-    uint16[5] jackpotTriggerPct = [1, 2, 3, 4, 5];
-    uint32[5] jackpotMinMultBps = [12000, 15000, 20000, 30000, 50000];
-    uint32[5] jackpotMaxMultBps = [30000, 45000, 70000, 120000, 200000];
+    // Compensation model: flat 25% trigger, 0.7-0.9x add-on partial refund (mirrors SetupHeists).
+    uint16[5] jackpotTriggerPct = [25, 25, 25, 25, 25];
+    uint32[5] jackpotMinMultBps = [7000, 7000, 7000, 7000, 7000];
+    uint32[5] jackpotMaxMultBps = [9000, 9000, 9000, 9000, 9000];
 
     uint256 constant ETH_ADD_ON = 0.001 ether;
     uint16 constant JACKPOT_RESERVE_BPS = 4000;
     uint8 constant MIN_CASH_STAGE = 2;
     uint16 constant BUST_REP_PENALTY = 3;
 
-    // Pyth entropy fee per jackpot request (paid out of reserve). Estimate; tune if real fee known.
-    uint256 constant ENTROPY_FEE = 0;
+    // Pyth entropy fee per jackpot request (paid out of reserve, non-refundable) — Abstract live fee.
+    uint256 constant ENTROPY_FEE = 0.000024006155 ether;
 
     // =============================================================
     //                    PROPOSED DIFFICULTY CONFIGS
@@ -197,6 +198,7 @@ contract HeistEconomySimulation is Test {
         private
         returns (uint256 grossPot, uint8 endStage, uint8 outcome, uint256 ethWon)
     {
+        bool jackpotFired; // mirrors DailyHeist.jackpotFired — at most one fire per run
         for (uint8 stage = 1; stage <= STAGES; stage++) {
             uint256 rand = _rand();
             uint256 roll = rand % 100;
@@ -205,10 +207,11 @@ contract HeistEconomySimulation is Test {
 
             if (roll < cleanOdds) {
                 if (
-                    ethJackpot
+                    ethJackpot && !jackpotFired
                         && (rand >> 16) % 10000 < (uint256(jackpotTriggerPct[stage - 1]) * jackpotTriggerScaleBps) / 100
                 ) {
                     ethWon += _rollJackpotValue(stage);
+                    jackpotFired = true;
                 }
                 if (stage >= STAGES || stage >= targetStage) {
                     return (stagePot, stage, 0, ethWon);
@@ -413,18 +416,23 @@ contract HeistEconomySimulation is Test {
         private
         returns (uint256 won, uint256 fired, uint256 skipped)
     {
+        bool jackpotFired; // mirrors DailyHeist.jackpotFired — a real fire latches; a reserve-skip does not
         for (uint8 stage = 1; stage <= STAGES; stage++) {
             uint256 rand = _rand();
             uint256 roll = rand % 100;
             uint256 cleanOdds = stageWinOdds[stage - 1];
 
             if (roll < cleanOdds) {
-                if ((rand >> 16) % 10000 < (uint256(jackpotTriggerPct[stage - 1]) * jackpotTriggerScaleBps) / 100) {
+                if (
+                    !jackpotFired
+                        && (rand >> 16) % 10000 < (uint256(jackpotTriggerPct[stage - 1]) * jackpotTriggerScaleBps) / 100
+                ) {
                     uint256 maxVal = (ETH_ADD_ON * jackpotMaxMultBps[stage - 1]) / BPS;
                     if (reserve >= maxVal + ENTROPY_FEE) {
                         won += _rollJackpotValue(stage);
                         reserve -= (maxVal + ENTROPY_FEE); // escrow; unused returns but irrelevant to player EV
                         fired++;
+                        jackpotFired = true;
                     } else {
                         skipped++;
                     }
