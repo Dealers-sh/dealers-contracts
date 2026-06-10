@@ -14,9 +14,9 @@ import "../base/DeployBase.s.sol";
  *                    DEALERS_CLAIMS (set these to skip deployment of already-deployed contracts)
  *
  * Usage:
-    source .env && forge script script/deploy/DeployAll.s.sol:DeployAll \
-    --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
-    --skip "RendererSVG" --skip "UploadTraits"
+ *     source .env && forge script script/deploy/DeployAll.s.sol:DeployAll \
+ *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
+ *     --skip "RendererSVG" --skip "UploadTraits"
  */
 contract DeployAll is DeployBase {
     bool internal skipNFT;
