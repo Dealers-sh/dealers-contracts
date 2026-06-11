@@ -17,7 +17,7 @@ import "../base/DeployBase.s.sol";
  *   Difficulty configs are REQUIRED: the contract ships with difficultyConfigs empty, so
  *   startHeist reverts (InvalidDifficulty) until set. The remaining tables are re-asserted to
  *   make this script the durable source of truth (stage odds / pot multipliers / supply mix
- *   match the constructor defaults; the jackpot table is the TUNED generous preset).
+ *   match the constructor defaults; the jackpot table is the TUNED escalating-hybrid preset).
  *
  *   Values derived from the economy sim (test/simulation/HeistEconomySimulation.t.sol +
  *   heist_tuning.py) to fit ECONOMY_DESIGN 5.1 cash bands and keep the ETH jackpot reserve
@@ -105,27 +105,36 @@ contract SetupHeists is DeployBase {
         h.setSupplyMix(mix);
 
         // -------------------------------------------------------------------
-        // 5) Jackpot table — COMPENSATION model (surfaced to players as a partial refund, not a
-        //    jackpot). Flat 25% trigger per cleared stage -> fires in ~31% (cash@3) / ~33% (ride@5)
-        //    of eligible runs, paying back 0.7-0.9x the add-on. The 40% reserve cut nets +~128e-6
-        //    ETH/bet after the ~24e-6 Pyth fee, so it self-funds with margin (depletes only above
-        //    ~40% trigger). Escrow per fire is just 0.9x the add-on (vs 20x before) — no top-stage
-        //    skips, cheap to seed.
+        // 5) Jackpot table — ESCALATING HYBRID model (60% reserve cut). Every cleared stage
+        //    rolls with an INCREASING payout band: stages 1-2 are consolation-ish (can pay
+        //    under the add-on), stage 3+ is ALWAYS a net win (min >= 1x), stage 5 reaches
+        //    1.5-20x. One fire per run latches — an early fire ends the chase, so surviving
+        //    deep unfired is what earns the big band. Triggers are front-loaded (hot stage 1)
+        //    so shallow cash@3 play consumes its reserve cut too, keeping the reserve LEAN
+        //    instead of accumulating off conservative players.
+        //    Sim-validated (heist_tuning.py [8] + test_staked_jackpot Monte Carlo, exact match):
+        //    ~41% of staked runs win ETH; player return 48% (cash@3) to 56% (ride@5) of the
+        //    add-on; ~1-in-350 ride@5 runs rolls >=10x. Reserve nets +~28e-6 ETH/bet after Pyth
+        //    fees at MAX exposure (all riders), +~6 ETH per 100k games on a realistic strategy
+        //    mix. Escrow per fire = stage ceiling (0.02 ETH at stage 5); an underfunded reserve
+        //    SKIPS the fire but keeps the run eligible, so seed the reserve with >= ~0.05 ETH
+        //    (fundReserve) before launch.
         // -------------------------------------------------------------------
         IHeistsAdmin.JackpotStage[5] memory jc;
-        jc[0] = IHeistsAdmin.JackpotStage({triggerPct: 25, minMultBps: 7000, maxMultBps: 9000});
-        jc[1] = IHeistsAdmin.JackpotStage({triggerPct: 25, minMultBps: 7000, maxMultBps: 9000});
-        jc[2] = IHeistsAdmin.JackpotStage({triggerPct: 25, minMultBps: 7000, maxMultBps: 9000});
-        jc[3] = IHeistsAdmin.JackpotStage({triggerPct: 25, minMultBps: 7000, maxMultBps: 9000});
-        jc[4] = IHeistsAdmin.JackpotStage({triggerPct: 25, minMultBps: 7000, maxMultBps: 9000});
+        jc[0] = IHeistsAdmin.JackpotStage({triggerPct: 40, minMultBps: 7000, maxMultBps: 10000});
+        jc[1] = IHeistsAdmin.JackpotStage({triggerPct: 34, minMultBps: 9000, maxMultBps: 23000});
+        jc[2] = IHeistsAdmin.JackpotStage({triggerPct: 30, minMultBps: 10000, maxMultBps: 55000});
+        jc[3] = IHeistsAdmin.JackpotStage({triggerPct: 32, minMultBps: 12000, maxMultBps: 120000});
+        jc[4] = IHeistsAdmin.JackpotStage({triggerPct: 40, minMultBps: 15000, maxMultBps: 200000});
         h.setJackpotConfig(jc);
 
         // -------------------------------------------------------------------
-        // 6) Scalars (= constructor defaults; re-asserted). ETH add-on 0.001, 40% to reserve,
+        // 6) Scalars. ETH add-on 0.001; 60% to reserve (up from the 40% constructor default —
+        //    funds the hybrid jackpot table above; bank/dev keep the remaining 32%/8%);
         //    earliest voluntary cash-out at stage 2, small bust rep penalty.
         // -------------------------------------------------------------------
         h.setEthAddOn(0.001 ether);
-        h.setJackpotReserveBps(4000);
+        h.setJackpotReserveBps(6000);
         h.setMinCashStage(2);
         h.setBustRepPenalty(3);
 
@@ -135,6 +144,6 @@ contract SetupHeists is DeployBase {
         console.log("  D0 Street Score : gate 600  stake 600");
         console.log("  D1 Warehouse Job: gate 1500 stake 2500");
         console.log("  D2 Cartel Heist : gate 5500 stake 12000");
-        console.log("  Compensation 25%% trigger, 0.7-0.9x add-on (reserve cut 40%%, self-funding)");
+        console.log("  Jackpot triggers 40/34/30/32/40%%, bands 0.7-1x up to 1.5-20x (reserve cut 60%%)");
     }
 }

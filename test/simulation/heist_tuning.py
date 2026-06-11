@@ -252,4 +252,85 @@ for t in (20, 25, 30, 40):
     print(f"    {t:3d}%      {pf3*100:5.1f}%        {pf5*100:5.1f}%        "
           f"{net*1e6:+7.1f}e-6 ETH  [{'SOLVENT' if net > 0 else 'DEPLETES'}]{mark}")
 
+# 8) ESCALATING HYBRID model — consolation floor + per-stage escalating moonshot.
+#    Design intent: every cleared stage rolls the jackpot with an INCREASING payout band;
+#    stages 1-2 are consolation-ish (can pay under the add-on), stage 3+ is always a net win
+#    (min >= 1x), stage 5 reaches 1.5-20x. The contract rolls value UNIFORMLY in [min,max],
+#    so a wide band's mean is its midpoint — the "usually small / rarely 20x" feel comes from
+#    the STAGE ladder (one fire per run: an early fire latches the slot; surviving deep
+#    unfired earns the big band). Triggers are FRONT-LOADED so shallow cash@3 play consumes
+#    its reserve cut too, keeping the reserve lean instead of accumulating off conservative
+#    players. Solvency: the reserve cut must cover expected payout + Pyth fee per fire (worst
+#    case = ride@5, max exposure). Escrow per fire = maxMult x add-on, skipped (not lost) if
+#    the reserve can't cover it -> seed requirement is just the deepest ceiling (0.02 ETH).
+print("\n[8] ESCALATING HYBRID — consolation floor, escalating bands, front-loaded triggers")
+
+def hybrid_eval(trig, mn, mx, target_idx, cut):
+    """Exact EV with fire-once semantics. Returns (fire_prob, ev_frac_of_addon,
+       p_big = P(roll >= 10x), reserve_net_eth). Validated against the Solidity
+       Monte Carlo (test_staked_jackpot) to <0.5% — reach[i] already conditions on
+       prior stages being clean, so no-prior-fire is just prod(1 - t_j)."""
+    r = reach(target_idx)
+    p_nofire, p_fire, ev, p_big = 1.0, 0.0, 0.0, 0.0
+    for i in range(target_idx + 1):
+        t = trig[i] / 100
+        pf = r[i] * CLEAN[i] * t * p_nofire
+        avg = (mn[i] + mx[i]) / 2 / 10000
+        p_fire += pf
+        ev += pf * avg
+        if mx[i] >= 100000:
+            p_big += pf * (mx[i] - 100000) / (mx[i] - mn[i])  # P(roll >= 10x) within band
+        p_nofire *= (1 - t)
+    net = (cut - ev - p_fire * FEE_FRAC) * ADDON_ETH
+    return p_fire, ev, p_big, net
+
+# (trigger%, minMultBps, maxMultBps, reserve cut)
+PRESETS = {
+    "flat compensation (old)": ([25, 25, 25, 25, 25],
+                                [7000, 7000, 7000, 7000, 7000],
+                                [9000, 9000, 9000, 9000, 9000], 0.40),
+    "old generous (pre-flat)": ([3, 5, 8, 10, 13],
+                                [12000, 15000, 20000, 30000, 50000],
+                                [30000, 45000, 70000, 120000, 200000], 0.40),
+    "hybrid @40% cut":         ([14, 16, 18, 20, 25],
+                                [7000, 7000, 8000, 8000, 9000],
+                                [9000, 15000, 40000, 120000, 200000], 0.40),
+    "hot, thin margin @60%":   ([40, 35, 30, 30, 35],
+                                [7000, 9000, 10000, 12000, 15000],
+                                [11000, 24000, 58000, 125000, 200000], 0.60),
+    "CHOSEN (SetupHeists)":    ([40, 34, 30, 32, 40],
+                                [7000, 9000, 10000, 12000, 15000],
+                                [10000, 23000, 55000, 120000, 200000], 0.60),
+}
+
+print("    preset                    fire%@5  ret@3  ret@5  P(>=10x)/run  reserve net/bet")
+for name, (trig, mn, mx, cut) in PRESETS.items():
+    pf5, ev5, pbig5, net5 = hybrid_eval(trig, mn, mx, 4, cut)
+    _, ev3, _, _ = hybrid_eval(trig, mn, mx, 2, cut)
+    print(f"    {name:25s} {pf5*100:5.1f}%  {ev3*100:5.1f}%  {ev5*100:5.1f}%   "
+          f"{pbig5*100:6.3f}%     {net5*1e6:+7.1f}e-6 ETH  [{'SOLVENT' if net5 > 0 else 'DEPLETES'}]")
+
+print("\n    Blended reserve accrual (strategy mix 40% cash@3 / 25% cash@4 / 35% ride@5):")
+for name, (trig, mn, mx, cut) in PRESETS.items():
+    _, _, _, n3 = hybrid_eval(trig, mn, mx, 2, cut)
+    _, _, _, n4 = hybrid_eval(trig, mn, mx, 3, cut)
+    _, _, _, n5 = hybrid_eval(trig, mn, mx, 4, cut)
+    blend = 0.40 * n3 + 0.25 * n4 + 0.35 * n5
+    print(f"    {name:25s} {blend*1e6:+6.1f}e-6/bet  ({blend*100000:+.2f} ETH per 100k games)")
+
+print("\n    Per-stage detail (P(fire first here | ride@5), avg pay):")
+for name, (trig, mn, mx, cut) in PRESETS.items():
+    pf5, ev5, pbig5, net5 = hybrid_eval(trig, mn, mx, 4, cut)
+    if net5 <= 0 or "(old" in name or "pre-flat" in name:
+        continue
+    r = reach(4)
+    p_nofire = 1.0
+    parts = []
+    for i in range(5):
+        t = trig[i] / 100
+        pf = r[i] * CLEAN[i] * t * p_nofire
+        parts.append(f"s{i+1} {pf*100:4.1f}%@{(mn[i]+mx[i])/2/10000:5.2f}x[{mn[i]/10000:.1f}-{mx[i]/10000:.0f}]")
+        p_nofire *= (1 - t)
+    print(f"    {name:25s} " + "  ".join(parts))
+
 print("\n" + "=" * 78)

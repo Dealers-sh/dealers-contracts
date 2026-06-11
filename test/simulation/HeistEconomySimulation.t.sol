@@ -38,12 +38,12 @@ contract HeistEconomySimulation is Test {
         [[uint8(100), 0, 0], [uint8(70), 30, 0], [uint8(40), 60, 0], [uint8(10), 50, 40], [uint8(0), 0, 100]];
 
     // Compensation model: flat 25% trigger, 0.7-0.9x add-on partial refund (mirrors SetupHeists).
-    uint16[5] jackpotTriggerPct = [25, 25, 25, 25, 25];
-    uint32[5] jackpotMinMultBps = [7000, 7000, 7000, 7000, 7000];
-    uint32[5] jackpotMaxMultBps = [9000, 9000, 9000, 9000, 9000];
+    uint16[5] jackpotTriggerPct = [40, 34, 30, 32, 40];
+    uint32[5] jackpotMinMultBps = [7000, 9000, 10000, 12000, 15000];
+    uint32[5] jackpotMaxMultBps = [10000, 23000, 55000, 120000, 200000];
 
     uint256 constant ETH_ADD_ON = 0.001 ether;
-    uint16 constant JACKPOT_RESERVE_BPS = 4000;
+    uint16 constant JACKPOT_RESERVE_BPS = 6000;
     uint8 constant MIN_CASH_STAGE = 2;
     uint16 constant BUST_REP_PENALTY = 3;
 
@@ -408,7 +408,7 @@ contract HeistEconomySimulation is Test {
         }
 
         console.log("");
-        console.log("  Per-add-on split: 40%% reserve / 48%% bank vault / 12%% dev");
+        console.log("  Per-add-on split: 60%% reserve / 32%% bank vault / 8%% dev");
         console.log("  (handler bankFeePercent 8000 on the 60%% routed to it)");
     }
 
