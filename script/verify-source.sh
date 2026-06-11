@@ -71,6 +71,7 @@ esac
 DEV_WALLET="$(_resolve_env DEV_WALLET "$ENV_PREFIX")"
 BANK_VAULT="$(_resolve_env BANK_VAULT "$ENV_PREFIX")"
 ROYALTY_RECEIVER="$(_resolve_env ROYALTY_RECEIVER "$ENV_PREFIX")"
+PYTH_ENTROPY="$(_resolve_env PYTH_ENTROPY "$ENV_PREFIX")"
 
 if [ ! -f "$DEPLOY_JSON" ]; then
     echo "FATAL: $DEPLOY_JSON not found." >&2
@@ -108,6 +109,7 @@ DEALERS_PVP="${DEALERS_PVP:-$(_addr pvp)}"
 DEALERS_CLAIMS="${DEALERS_CLAIMS:-$(_addr claims)}"
 DEALERS_ACTIONS="${DEALERS_ACTIONS:-$(_addr actions)}"
 DEALERS_MULTICALL="${DEALERS_MULTICALL:-$(_addr multicall)}"
+DEALERS_HEISTS="${DEALERS_HEISTS:-$(_addr heists)}"
 CHAT_FACTORY="${CHAT_FACTORY:-$(_addr chatFactory)}"
 RENDERER_SVG="${RENDERER_SVG:-$(_addr rendererSvg)}"
 RENDERER_HTML="${RENDERER_HTML:-$(_addr rendererHtml)}"
@@ -343,6 +345,14 @@ verify_multicall() {
         "src/core/DealersMulticall.sol:DealersMulticall" "$args" "true"
 }
 
+verify_heists() {
+    # DeployHeists wires the REAL NFT (not nftCtor) — it requires DEALERS_NFT at deploy time.
+    local args=$(cast abi-encode "constructor(address,address,address,address,address,address)" \
+        "$DEALERS_CORE" "$DEALERS_NFT" "$RANDOMNESS" "$PAYMENT_HANDLER" "$DRUG_REGISTRY" "$PYTH_ENTROPY")
+    verify_contract "$DEALERS_HEISTS" \
+        "src/core/DealersHeists.sol:DealersHeists" "$args" "true"
+}
+
 verify_chat_factory() {
     local args=$(cast abi-encode "constructor(address)" "$NFT_FOR_CTOR")
     verify_contract "$CHAT_FACTORY" \
@@ -371,7 +381,7 @@ echo "  Deploy:   $DEPLOY_JSON"
 echo "=============================================="
 echo ""
 
-ALL_GAME=(drug_registry area_registry core payment_handler randomness nft boosts pve pvp claims actions multicall chat_factory)
+ALL_GAME=(drug_registry area_registry core payment_handler randomness nft boosts pve pvp claims actions multicall heists chat_factory)
 ALL_RENDERERS=(renderer_svg renderer_html)
 
 if [ $# -eq 0 ]; then
@@ -395,6 +405,7 @@ else
             claim*|CL*)  targets+=(claims) ;;
             action*|AC*) targets+=(actions) ;;
             multi*|MC*)  targets+=(multicall) ;;
+            heist*|HE*)  targets+=(heists) ;;
             chat*|CF*)   targets+=(chat_factory) ;;
             svg)         targets+=(renderer_svg) ;;
             html)        targets+=(renderer_html) ;;
@@ -420,6 +431,7 @@ for target in "${targets[@]}"; do
         claims)          verify_claims ;;
         actions)         verify_actions ;;
         multicall)       verify_multicall ;;
+        heists)          verify_heists ;;
         chat_factory)    verify_chat_factory ;;
         renderer_svg)    verify_renderer_svg ;;
         renderer_html)   verify_renderer_html ;;

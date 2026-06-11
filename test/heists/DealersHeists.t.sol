@@ -363,4 +363,96 @@ contract DealersHeistsTest is HeistsBaseTest {
         vm.expectRevert(DealersHeists.ContractPaused.selector);
         heists.startHeist(tokenId, IDealersHeists.HeistFamily.CASH, DIFF_SMALL, false);
     }
+
+    // ---------------------------------------------------------------- lifetime stats
+
+    function test_stats_countCleanStagesAndCashOut() public {
+        uint256 id = _start(IDealersHeists.HeistFamily.CASH, DIFF_SMALL, false);
+        _playStage(player1, id, RAND_WIN_NO_JP);
+        _playStage(player1, id, RAND_WIN_NO_JP);
+        vm.prank(player1);
+        heists.cashOut(id);
+
+        IDealersHeists.HeistStats memory s = heists.getDealerHeistStats(tokenId);
+        assertEq(s.stagesCleared, 2, "two clean stages");
+        assertEq(s.cashOuts, 1, "one cashout");
+        assertEq(s.setbacks, 0);
+        assertEq(s.busts, 0);
+        assertEq(s.jackpotsWon, 0);
+    }
+
+    function test_stats_fullPushCountsFinalStageAndAutoCashOut() public {
+        uint256 id = _start(IDealersHeists.HeistFamily.CASH, DIFF_SMALL, false);
+        for (uint256 i = 0; i < 5; i++) {
+            _playStage(player1, id, RAND_WIN_NO_JP);
+        }
+
+        IDealersHeists.HeistStats memory s = heists.getDealerHeistStats(tokenId);
+        assertEq(s.stagesCleared, 5, "final stage counts as cleared");
+        assertEq(s.cashOuts, 1, "stage-5 auto-pay counts as cashout");
+    }
+
+    function test_stats_countSetback() public {
+        uint256 id = _start(IDealersHeists.HeistFamily.CASH, DIFF_SMALL, false);
+        _playStage(player1, id, RAND_WIN_NO_JP);
+        _playStage(player1, id, RAND_SETBACK);
+
+        IDealersHeists.HeistStats memory s = heists.getDealerHeistStats(tokenId);
+        assertEq(s.stagesCleared, 1, "only the clean stage counts");
+        assertEq(s.setbacks, 1, "setback counted");
+        assertEq(s.cashOuts, 0, "a partial-pot ending is not a cashout");
+    }
+
+    function test_stats_countBust_includingExpiry() public {
+        uint256 id = _start(IDealersHeists.HeistFamily.CASH, DIFF_SMALL, false);
+        _playStage(player1, id, RAND_LOSS);
+        assertEq(heists.getDealerHeistStats(tokenId).busts, 1, "roll bust counted");
+
+        uint256 id2 = _start(IDealersHeists.HeistFamily.CASH, DIFF_SMALL, false);
+        vm.prank(player1);
+        heists.commitStage(id2);
+        uint64 seq = heists.getHeist(id2).commitSeq;
+        _advanceToExpired();
+        heists.resolveStage(seq);
+        assertEq(heists.getDealerHeistStats(tokenId).busts, 2, "expiry bust counted");
+    }
+
+    function test_stats_countForceFinalizeAsCashOut() public {
+        uint256 id = _start(IDealersHeists.HeistFamily.CASH, DIFF_SMALL, false);
+        _playStage(player1, id, RAND_WIN_NO_JP);
+        vm.warp(block.timestamp + 24 hours + 1);
+        vm.prank(player2);
+        heists.forceFinalize(id);
+
+        assertEq(heists.getDealerHeistStats(tokenId).cashOuts, 1, "force-finalize pays the pot");
+    }
+
+    function test_stats_countJackpotWon() public {
+        heists.fundReserve{value: 1 ether}();
+        uint256 id = _start(IDealersHeists.HeistFamily.CASH, DIFF_SMALL, true);
+        _playStage(player1, id, RAND_WIN_JP);
+        assertEq(heists.getDealerHeistStats(tokenId).jackpotsWon, 0, "not counted until the Pyth callback");
+
+        uint64 pseq = mockEntropy.nextSeq() - 1;
+        mockEntropy.fire(pseq, bytes32(uint256(123456789)));
+        assertEq(heists.getDealerHeistStats(tokenId).jackpotsWon, 1, "counted when the callback credits");
+    }
+
+    function test_stats_accumulateAcrossRuns() public {
+        uint256 id = _start(IDealersHeists.HeistFamily.CASH, DIFF_SMALL, false);
+        _playStage(player1, id, RAND_LOSS); // run 1: bust at stage 1
+
+        uint256 id2 = _start(IDealersHeists.HeistFamily.CASH, DIFF_SMALL, false);
+        _playStage(player1, id2, RAND_WIN_NO_JP);
+        _playStage(player1, id2, RAND_WIN_NO_JP);
+        vm.prank(player1);
+        heists.cashOut(id2); // run 2: two stages + cashout
+
+        IDealersHeists.HeistStats memory s = heists.getDealerHeistStats(tokenId);
+        assertEq(s.busts, 1);
+        assertEq(s.stagesCleared, 2);
+        assertEq(s.cashOuts, 1);
+        assertEq(s.runs, 2, "both runs counted");
+        assertEq(heists.heistRuns(tokenId), 2, "compat view mirrors stats");
+    }
 }

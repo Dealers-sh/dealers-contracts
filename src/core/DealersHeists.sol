@@ -76,7 +76,7 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
     // --- heists ---
     mapping(uint256 heistId => DailyHeist) public dailyHeists;
     mapping(uint256 tokenId => uint256 heistId) public activeHeist;
-    mapping(uint256 tokenId => uint32) public heistRuns;
+    mapping(uint256 tokenId => HeistStats) public dealerHeistStats;
     mapping(uint64 seq => uint256 heistId) public heistOfSeq;
     uint256 public nextHeistId = 1;
 
@@ -260,7 +260,7 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
         });
         activeHeist[tokenId] = heistId;
         unchecked {
-            heistRuns[tokenId]++;
+            dealerHeistStats[tokenId].runs++;
         }
 
         emit HeistStarted(heistId, tokenId, msg.sender, family, difficulty, ethJackpot, cfg.cashEntry);
@@ -346,6 +346,9 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
             // CLEAN — pot grows; jackpot eligible; advance (or auto-pay on the final stage).
             h.currentPot = uint96(stagePot);
             h.lastActionTime = uint64(block.timestamp);
+            unchecked {
+                dealerHeistStats[h.tokenId].stagesCleared++;
+            }
 
             if (h.ethJackpot && !h.jackpotFired) {
                 JackpotStage memory jc = jackpotConfig[stage - 1];
@@ -459,6 +462,9 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
         jackpotReserve += (uint256(p.maxValue) - value); // return the unused escrow
         jackpotOwed[p.tokenId] += value;
         totalJackpotOwed += value;
+        unchecked {
+            dealerHeistStats[p.tokenId].jackpotsWon++;
+        }
 
         emit JackpotWon(sequence, p.tokenId, value);
     }
@@ -510,6 +516,9 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
         h.status = HeistStatus.BUSTED;
         h.lastActionTime = uint64(block.timestamp);
         delete activeHeist[tokenId];
+        unchecked {
+            dealerHeistStats[tokenId].busts++;
+        }
 
         if (allowArrest && address(actions) != address(0) && core.rollJailCheck(tokenId, (rand >> 64) & 0xFFFF)) {
             actions.arrest(tokenId, (rand >> 96) & 0xFFFF);
@@ -535,6 +544,9 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
         h.status = HeistStatus.SETBACK;
         h.lastActionTime = uint64(block.timestamp);
         delete activeHeist[tokenId];
+        unchecked {
+            dealerHeistStats[tokenId].setbacks++;
+        }
         uint256 cashPaid = _payout(h);
         IDealersCore.GameOutcome memory o;
         o.incrementHeat = true;
@@ -544,12 +556,16 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
     }
 
     function _finalizePayout(uint256 heistId, DailyHeist storage h) private {
+        uint256 tokenId = h.tokenId;
         uint256 cashPaid = _payout(h);
-        _grantRep(h.tokenId, stageRepReward[h.currentStage - 1]);
+        _grantRep(tokenId, stageRepReward[h.currentStage - 1]);
         h.status = HeistStatus.CASHED_OUT;
-        delete activeHeist[h.tokenId];
-        emit HeistCashedOut(heistId, h.tokenId, h.currentPot);
-        emit HeistPaid(heistId, h.tokenId, h.family, cashPaid);
+        delete activeHeist[tokenId];
+        unchecked {
+            dealerHeistStats[tokenId].cashOuts++;
+        }
+        emit HeistCashedOut(heistId, tokenId, h.currentPot);
+        emit HeistPaid(heistId, tokenId, h.family, cashPaid);
     }
 
     /**
@@ -654,6 +670,20 @@ contract DealersHeists is IDealersHeists, IEntropyConsumer, ReentrancyGuard, Own
 
     function getHeist(uint256 heistId) external view returns (DailyHeist memory) {
         return dailyHeists[heistId];
+    }
+
+    /**
+     * @notice Lifetime heist counters for a dealer (runs, cleared stages, cashouts, setbacks, busts, jackpots).
+     */
+    function getDealerHeistStats(uint256 tokenId) external view returns (HeistStats memory) {
+        return dealerHeistStats[tokenId];
+    }
+
+    /**
+     * @notice Lifetime run count — thin view over {dealerHeistStats} (kept for the bank heist's activity weighting).
+     */
+    function heistRuns(uint256 tokenId) external view returns (uint32) {
+        return dealerHeistStats[tokenId].runs;
     }
 
     /**

@@ -7,8 +7,8 @@ import "../base/DeployBase.s.sol";
  * @title SetupClaims - Configure all achievements
  * @dev Usage:
  *   source .env && forge script script/setup/SetupClaims.s.sol:SetupClaims \
- *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
- *     --skip "RendererSVG" --skip "UploadTraits"
+ *       --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
+ *       --skip "RendererSVG" --skip "UploadTraits"
  */
 contract SetupClaims is DeployBase {
     uint8 constant PVE_WINS = 1;
@@ -24,6 +24,12 @@ contract SetupClaims is DeployBase {
     uint8 constant PVE_DEAL_CHOICES = 11;
     uint8 constant PVE_THREATEN_CHOICES = 12;
     uint8 constant PVE_BAIL_CHOICES = 13;
+    uint8 constant HEIST_RUNS = 14;
+    uint8 constant HEIST_STAGES_CLEARED = 15;
+    uint8 constant HEIST_CASHOUTS = 16;
+    uint8 constant HEIST_SETBACKS = 17;
+    uint8 constant HEIST_BUSTS = 18;
+    uint8 constant HEIST_JACKPOTS_WON = 19;
 
     uint8 constant REWARD_REP = 0;
     uint8 constant REWARD_CASH = 1;
@@ -171,9 +177,42 @@ contract SetupClaims is DeployBase {
         c.setAchievement(43, _achievement(DRUG_BALANCE, HEROIN, 1000, REWARD_CASH, 0, 25000)); // Mule Master
         c.setAchievement(44, _achievement(DRUG_BALANCE, COCAINE, 1000, REWARD_CASH, 0, 25000)); // White Powder Pro
 
+        // =================================================================
+        //         HEIST ACHIEVEMENTS (IDs 45-51)
+        //         Calibrated to difficulty gates: small (rep 0, 500 stake),
+        //         big (rep 300, 2.5k stake), huge (rep 1250, 10k stake).
+        //         Claims must be wired to Heists (setHeists) or these revert.
+        // =================================================================
+
+        if (heists != address(0)) {
+            // setAchievement fails closed on unwired heists — wire it here so SetupClaims
+            // works standalone on a fresh Claims deploy (idempotent, same as SetupWiring).
+            if (c.heistsContract() != heists) {
+                c.setHeists(heists);
+                console.log("Claims -> Heists wired:", heists);
+            }
+
+            // Early (small heists, anyone): first run refunds the small stake; first
+            // clean getaway pays rep like First Blood (#8).
+            c.setAchievement(45, _achievement(HEIST_RUNS, 0, 1, REWARD_CASH, 0, 500)); // First Score
+            c.setAchievement(46, _achievement(HEIST_CASHOUTS, 0, 1, REWARD_REP, 0, 25)); // Getaway Driver
+            c.setAchievement(47, _achievement(HEIST_STAGES_CLEARED, 0, 25, REWARD_CASH, 0, 5000)); // Deep Run
+
+            // Mid (Dealer -> Capo, big heists): real grind, mirrors 25k mid-tier scale.
+            // Busts/setbacks pay consolation like Hard Knocks (#4/#37) so risk-takers aren't punished twice.
+            c.setAchievement(48, _achievement(HEIST_CASHOUTS, 0, 25, REWARD_CASH, 0, 25000)); // Professional Crew
+            c.setAchievement(49, _achievement(HEIST_BUSTS, 0, 10, REWARD_CASH, 0, 10000)); // Busted, Not Broken
+            c.setAchievement(50, _achievement(HEIST_SETBACKS, 0, 10, REWARD_CASH, 0, 5000)); // Close Call
+
+            // Jackpot (requires the ETH add-on): rare-ish flavor reward, matches #23/#41 scale.
+            c.setAchievement(51, _achievement(HEIST_JACKPOTS_WON, 0, 1, REWARD_DRUG, CONTRABAND, 3)); // Lucky Roll
+        } else {
+            console.log("Heists not deployed -- skipping heist achievements (45-51); rerun once wired.");
+        }
+
         vm.stopBroadcast();
 
-        console.log("45 achievements configured:");
+        console.log("52 achievements configured:");
         console.log("  Early game (0-11):");
         console.log("    #0:  PVE_TOTAL    >= 1     -> 250 CASH");
         console.log("    #1:  PVE_TOTAL    >= 10    -> 1k CASH");
@@ -226,6 +265,14 @@ contract SetupClaims is DeployBase {
         console.log("    #42: PVP_WINS     >= 50    -> 1 Jewels");
         console.log("    #43: Heroin       >= 1,000 -> 25k CASH");
         console.log("    #44: Cocaine      >= 1,000 -> 25k CASH");
+        console.log("  Heists (45-51):");
+        console.log("    #45: HEIST_RUNS      >= 1  -> 500 CASH (refunds the small stake)");
+        console.log("    #46: HEIST_CASHOUTS  >= 1  -> 25 REP");
+        console.log("    #47: HEIST_STAGES    >= 25 -> 5k CASH");
+        console.log("    #48: HEIST_CASHOUTS  >= 25 -> 25k CASH");
+        console.log("    #49: HEIST_BUSTS     >= 10 -> 10k CASH");
+        console.log("    #50: HEIST_SETBACKS  >= 10 -> 5k CASH");
+        console.log("    #51: HEIST_JACKPOTS  >= 1  -> 3 Contraband");
     }
 
     function _achievement(

@@ -23,6 +23,7 @@ import "../base/DeployBase.s.sol";
  *        PaymentHandler.authorizeContract: Heists   (calls processMarketplaceFee for the ETH add-on)
  *        Randomness.authorizeResolver:     Heists   (commit/reveal)
  *        Actions.authorizeJailer + Heists.setActions: Heists  (arrest-on-bust, if Actions deployed)
+ *        Claims.setHeists:                 Heists   (heist achievement conditions, if Claims deployed)
  *
  * Usage:
  *   source .env && forge script script/deploy/DeployHeists.s.sol:DeployHeists \
@@ -95,6 +96,17 @@ contract DeployHeists is DeployBase {
             console.log("  Randomness -> Heists: AUTHORIZED");
         } else {
             console.log("  Randomness -> Heists: ok");
+        }
+
+        // Optional heist achievements via Claims.
+        if (claims != address(0)) {
+            IClaimsContract cl = IClaimsContract(claims);
+            if (cl.heistsContract() != heists) {
+                cl.setHeists(heists);
+                console.log("  Claims -> Heists: SET");
+            } else {
+                console.log("  Claims -> Heists: ok");
+            }
         }
 
         // Optional arrest-on-bust integration.

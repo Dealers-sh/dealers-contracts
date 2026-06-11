@@ -169,10 +169,12 @@ interface IClaimsContract {
     function setDealersNFT(address _nft) external;
     function setPVE(address _pve) external;
     function setPVP(address _pvp) external;
+    function setHeists(address _heists) external;
     function dealersCore() external view returns (address);
     function dealersNFT() external view returns (address);
     function pveContract() external view returns (address);
     function pvpContract() external view returns (address);
+    function heistsContract() external view returns (address);
     function nextAchievementId() external view returns (uint256);
 }
 

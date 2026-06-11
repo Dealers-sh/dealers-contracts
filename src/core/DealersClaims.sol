@@ -6,6 +6,7 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
 import "./IDealersCore.sol";
 import {IDealersPVE} from "./IDealersPVE.sol";
 import {IDealersPVP} from "./IDealersPVP.sol";
+import {IDealersHeists} from "./IDealersHeists.sol";
 import "../utils/IERC721Minimal.sol";
 
 /**
@@ -15,7 +16,7 @@ import "../utils/IERC721Minimal.sol";
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ▄█ █▀█
  *
  * @dev Two claim paths:
- *      1. On-chain achievements: contract reads PVE/PVP/Core stats, verifies threshold
+ *      1. On-chain achievements: contract reads PVE/PVP/Heists/Core stats, verifies threshold
  *      2. Admin grants: owner distributes rewards for off-chain events via script
  * @author Berny0x
  */
@@ -45,7 +46,13 @@ contract DealersClaims is ReentrancyGuard, Ownable {
         DRUG_BALANCE, // 10 - uses conditionValue as drugId
         PVE_DEAL_CHOICES, // 11
         PVE_THREATEN_CHOICES, // 12
-        PVE_BAIL_CHOICES // 13
+        PVE_BAIL_CHOICES, // 13
+        HEIST_RUNS, // 14
+        HEIST_STAGES_CLEARED, // 15
+        HEIST_CASHOUTS, // 16
+        HEIST_SETBACKS, // 17
+        HEIST_BUSTS, // 18
+        HEIST_JACKPOTS_WON // 19
 
     }
 
@@ -86,6 +93,7 @@ contract DealersClaims is ReentrancyGuard, Ownable {
     IERC721Minimal public dealersNFT;
     IDealersPVE public pveContract;
     IDealersPVP public pvpContract;
+    IDealersHeists public heistsContract; // optional: heist conditions revert at set time until wired
 
     mapping(uint256 => Achievement) public achievements;
     uint256 public nextAchievementId;
@@ -293,7 +301,25 @@ contract DealersClaims is ReentrancyGuard, Ownable {
         if (conditionType == uint8(ConditionType.PVE_DEAL_CHOICES)) return cached.dealChoices;
         if (conditionType == uint8(ConditionType.PVE_THREATEN_CHOICES)) return cached.threatenChoices;
         if (conditionType == uint8(ConditionType.PVE_BAIL_CHOICES)) return cached.bailChoices;
+        // Heist stats are read lazily (not via CachedStats) so non-heist claims pay no extra calls
+        // and Claims keeps working with heistsContract unset. setAchievement blocks heist conditions
+        // until the contract is wired, so this can assume a live reference.
+        if (_isHeistCondition(conditionType)) {
+            (uint32 runs, uint32 stagesCleared, uint32 cashOuts, uint32 setbacks, uint32 busts, uint32 jackpotsWon) =
+                heistsContract.dealerHeistStats(tokenId);
+            if (conditionType == uint8(ConditionType.HEIST_RUNS)) return runs;
+            if (conditionType == uint8(ConditionType.HEIST_STAGES_CLEARED)) return stagesCleared;
+            if (conditionType == uint8(ConditionType.HEIST_CASHOUTS)) return cashOuts;
+            if (conditionType == uint8(ConditionType.HEIST_SETBACKS)) return setbacks;
+            if (conditionType == uint8(ConditionType.HEIST_BUSTS)) return busts;
+            return jackpotsWon;
+        }
         revert InvalidConditionForAchievement();
+    }
+
+    function _isHeistCondition(uint8 conditionType) internal pure returns (bool) {
+        return
+            conditionType >= uint8(ConditionType.HEIST_RUNS) && conditionType <= uint8(ConditionType.HEIST_JACKPOTS_WON);
     }
 
     function _grantReward(uint256 tokenId, uint8 rewardType, uint256 rewardId, uint256 amount) internal {
@@ -315,9 +341,11 @@ contract DealersClaims is ReentrancyGuard, Ownable {
     // =============================================================
 
     function setAchievement(uint256 achievementId, Achievement calldata achievement) external onlyOwner {
+        // Heist conditions fail closed until the heists contract is wired.
         if (
             achievement.conditionType == uint8(ConditionType.NONE)
-                || achievement.conditionType > uint8(ConditionType.PVE_BAIL_CHOICES)
+                || achievement.conditionType > uint8(ConditionType.HEIST_JACKPOTS_WON)
+                || (_isHeistCondition(achievement.conditionType) && address(heistsContract) == address(0))
         ) {
             revert InvalidAchievementConfig();
         }
@@ -375,5 +403,10 @@ contract DealersClaims is ReentrancyGuard, Ownable {
     function setPVP(address _pvp) external onlyOwner {
         if (_pvp == address(0)) revert InvalidAddress();
         pvpContract = IDealersPVP(_pvp);
+    }
+
+    function setHeists(address _heists) external onlyOwner {
+        if (_heists == address(0)) revert InvalidAddress();
+        heistsContract = IDealersHeists(_heists);
     }
 }

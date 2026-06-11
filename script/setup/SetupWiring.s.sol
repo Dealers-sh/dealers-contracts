@@ -16,7 +16,7 @@ import "../base/DeployBase.s.sol";
  *     AreaRegistry ← core
  *     PVP ← drugRegistry, randomness, actions
  *     PVE ← randomness, actions
- *     Claims ← core, nft, pve, pvp (optional)
+ *     Claims ← core, nft, pve, pvp, heists (optional)
  *     Actions ← paymentHandler, randomness (optional)
  *
  *   AUTHORIZATIONS:
@@ -213,6 +213,9 @@ contract SetupWiring is DeployBase {
             _setIfNeeded(claimsContract.dealersNFT(), nft, "Claims -> NFT", claimsContract.setDealersNFT);
             _setIfNeeded(address(claimsContract.pveContract()), pve, "Claims -> PVE", claimsContract.setPVE);
             _setIfNeeded(address(claimsContract.pvpContract()), pvp, "Claims -> PVP", claimsContract.setPVP);
+            if (heists != address(0)) {
+                _setIfNeeded(claimsContract.heistsContract(), heists, "Claims -> Heists", claimsContract.setHeists);
+            }
         }
 
         if (actions != address(0)) {

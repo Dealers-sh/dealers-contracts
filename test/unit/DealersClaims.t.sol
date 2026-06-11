@@ -9,6 +9,7 @@ import "../../src/core/DealersPVE.sol";
 import "../../src/core/DealersPVP.sol";
 import "../../src/core/IDealersPVE.sol";
 import "../../src/core/IDealersPVP.sol";
+import {IDealersHeists} from "../../src/core/IDealersHeists.sol";
 import "../../src/nft/DealersNFT.sol";
 import "../../src/utils/DealersDrugRegistry.sol";
 import "../../src/utils/DealersAreaRegistry.sol";
@@ -44,6 +45,27 @@ contract MockPVP {
     }
 }
 
+contract MockHeists {
+    mapping(uint256 => IDealersHeists.HeistStats) private _stats;
+
+    function setStats(
+        uint256 tokenId,
+        uint32 runs,
+        uint32 stagesCleared,
+        uint32 cashOuts,
+        uint32 setbacks,
+        uint32 busts,
+        uint32 jackpotsWon
+    ) external {
+        _stats[tokenId] = IDealersHeists.HeistStats(runs, stagesCleared, cashOuts, setbacks, busts, jackpotsWon);
+    }
+
+    function dealerHeistStats(uint256 tokenId) external view returns (uint32, uint32, uint32, uint32, uint32, uint32) {
+        IDealersHeists.HeistStats storage s = _stats[tokenId];
+        return (s.runs, s.stagesCleared, s.cashOuts, s.setbacks, s.busts, s.jackpotsWon);
+    }
+}
+
 contract DealersClaimsTest is Test, IERC721Receiver {
     function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;
@@ -58,6 +80,7 @@ contract DealersClaimsTest is Test, IERC721Receiver {
     DealersRandomness public randomness;
     MockPVE public mockPVE;
     MockPVP public mockPVP;
+    MockHeists public mockHeists;
 
     address public player1;
     address public player2;
@@ -80,6 +103,7 @@ contract DealersClaimsTest is Test, IERC721Receiver {
         randomness = new DealersRandomness();
         mockPVE = new MockPVE();
         mockPVP = new MockPVP();
+        mockHeists = new MockHeists();
 
         core = new DealersCore();
         nft = new DealersNFT(makeAddr("royalty"));
@@ -367,6 +391,65 @@ contract DealersClaimsTest is Test, IERC721Receiver {
     function test_setAchievement_revertInvalidRewardType() public {
         vm.expectRevert(DealersClaims.InvalidAchievementConfig.selector);
         _setAchievement(0, 1, 0, 5, 99, 0, 100);
+    }
+
+    // =========================================================================
+    //                       HEIST ACHIEVEMENTS
+    // =========================================================================
+
+    function test_setAchievement_heistConditionFailsClosedUntilWired() public {
+        vm.expectRevert(DealersClaims.InvalidAchievementConfig.selector);
+        _setAchievement(0, uint8(DealersClaims.ConditionType.HEIST_CASHOUTS), 0, 5, 1, 0, 100);
+
+        claims.setHeists(address(mockHeists));
+        _setAchievement(0, uint8(DealersClaims.ConditionType.HEIST_CASHOUTS), 0, 5, 1, 0, 100);
+    }
+
+    function test_claimAchievement_heistCashOuts() public {
+        claims.setHeists(address(mockHeists));
+        _setAchievement(0, uint8(DealersClaims.ConditionType.HEIST_CASHOUTS), 0, 5, 1, 0, 100); // 5 cashouts → 100 cash
+        mockHeists.setStats(DEALER_1, 13, 12, 5, 0, 1, 0);
+
+        uint256 cashBefore = core.getCashBalance(DEALER_1);
+        vm.prank(player1);
+        claims.claimAchievement(DEALER_1, 0);
+
+        assertEq(core.getCashBalance(DEALER_1), cashBefore + 100);
+        assertTrue(claims.hasClaimedAchievement(0, DEALER_1));
+    }
+
+    function test_claimAchievement_heistRuns() public {
+        claims.setHeists(address(mockHeists));
+        _setAchievement(0, uint8(DealersClaims.ConditionType.HEIST_RUNS), 0, 10, 0, 0, 50); // 10 runs → 50 rep
+        mockHeists.setStats(DEALER_1, 10, 0, 0, 0, 0, 0);
+
+        uint256 repBefore = core.getGameState(DEALER_1).totalReputation;
+        vm.prank(player1);
+        claims.claimAchievement(DEALER_1, 0);
+
+        assertEq(core.getGameState(DEALER_1).totalReputation, repBefore + 50);
+    }
+
+    function test_claimAchievement_heistJackpotsWon() public {
+        claims.setHeists(address(mockHeists));
+        _setAchievement(0, uint8(DealersClaims.ConditionType.HEIST_JACKPOTS_WON), 0, 1, 1, 0, 500); // 1 jackpot → 500 cash
+        mockHeists.setStats(DEALER_1, 4, 3, 1, 0, 0, 1);
+
+        uint256 cashBefore = core.getCashBalance(DEALER_1);
+        vm.prank(player1);
+        claims.claimAchievement(DEALER_1, 0);
+
+        assertEq(core.getCashBalance(DEALER_1), cashBefore + 500);
+    }
+
+    function test_claimAchievement_heistBelowThresholdReverts() public {
+        claims.setHeists(address(mockHeists));
+        _setAchievement(0, uint8(DealersClaims.ConditionType.HEIST_BUSTS), 0, 3, 1, 0, 100);
+        mockHeists.setStats(DEALER_1, 2, 0, 0, 0, 2, 0);
+
+        vm.prank(player1);
+        vm.expectRevert(DealersClaims.ThresholdNotMet.selector);
+        claims.claimAchievement(DEALER_1, 0);
     }
 
     // =========================================================================

@@ -66,6 +66,20 @@ interface IDealersHeists {
         uint256 tokenId;
     }
 
+    /**
+     * @dev Lifetime per-dealer counters, packed in one slot. Read by Claims for heist achievements.
+     *      cashOuts counts every full-pot finalize (voluntary, final-stage auto-pay, force-finalize);
+     *      setbacks are partial-pot endings and are NOT cashOuts.
+     */
+    struct HeistStats {
+        uint32 runs;
+        uint32 stagesCleared;
+        uint32 cashOuts;
+        uint32 setbacks;
+        uint32 busts;
+        uint32 jackpotsWon;
+    }
+
     // =============================================================
     //                            EVENTS
     // =============================================================
@@ -121,6 +135,19 @@ interface IDealersHeists {
      * @return The run's DailyHeist record
      */
     function getHeist(uint256 heistId) external view returns (DailyHeist memory);
+
+    /**
+     * @notice Lifetime heist counters for a dealer.
+     */
+    function getDealerHeistStats(uint256 tokenId) external view returns (HeistStats memory);
+
+    /**
+     * @notice Raw mapping getter — returns tuple (for Claims compatibility)
+     */
+    function dealerHeistStats(uint256 tokenId)
+        external
+        view
+        returns (uint32 runs, uint32 stagesCleared, uint32 cashOuts, uint32 setbacks, uint32 busts, uint32 jackpotsWon);
 
     // =============================================================
     //                    STATE-MODIFYING FUNCTIONS

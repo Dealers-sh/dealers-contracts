@@ -332,6 +332,9 @@ contract DeployAll is DeployBase {
             if (!skipNFT) _setIfDifferent(claimsC.dealersNFT(), nft, claimsC.setDealersNFT);
             _setIfDifferent(address(claimsC.pveContract()), pve, claimsC.setPVE);
             _setIfDifferent(address(claimsC.pvpContract()), pvp, claimsC.setPVP);
+            if (heists != address(0)) {
+                _setIfDifferent(claimsC.heistsContract(), heists, claimsC.setHeists);
+            }
         }
 
         if (actions != address(0)) {

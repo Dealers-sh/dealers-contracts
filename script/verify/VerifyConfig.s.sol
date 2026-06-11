@@ -48,6 +48,7 @@ interface IVerifyPaymentHandler {
 interface IVerifyAreaRegistry {
     function coreContract() external view returns (address);
     function drugRegistry() external view returns (address);
+    function getTotalAreas() external view returns (uint8);
     function owner() external view returns (address);
 }
 
@@ -74,6 +75,20 @@ interface IVerifyBoosts {
     function dealersCore() external view returns (address);
     function dealersNFT() external view returns (address);
     function paymentHandler() external view returns (address);
+    function totalTiers() external view returns (uint256);
+    function boostTiers(uint256 tierId)
+        external
+        view
+        returns (
+            uint256 price,
+            uint64 duration,
+            uint8 drugMultiplier,
+            uint8 repMultiplier,
+            uint8 extraAttempts,
+            bool freeAreaMovement,
+            uint8 cashMultiplier,
+            bool isActive
+        );
     function owner() external view returns (address);
 }
 
@@ -89,6 +104,8 @@ interface IVerifyClaims {
     function dealersNFT() external view returns (address);
     function pveContract() external view returns (address);
     function pvpContract() external view returns (address);
+    function heistsContract() external view returns (address);
+    function nextAchievementId() external view returns (uint256);
     function owner() external view returns (address);
 }
 
@@ -104,6 +121,38 @@ interface IVerifyMulticall {
     function areaRegistry() external view returns (address);
     function drugRegistry() external view returns (address);
     function boosts() external view returns (address);
+    function owner() external view returns (address);
+}
+
+interface IVerifyHeists {
+    function core() external view returns (address);
+    function nftContract() external view returns (address);
+    function randomness() external view returns (address);
+    function paymentHandler() external view returns (address);
+    function drugRegistry() external view returns (address);
+    function entropy() external view returns (address);
+    function actions() external view returns (address);
+    function paused() external view returns (bool);
+    function backedEth() external view returns (uint256);
+    function ethAddOn() external view returns (uint96);
+    function jackpotReserve() external view returns (uint256);
+    function difficultyConfigs(uint8 difficulty)
+        external
+        view
+        returns (uint256 repGate, uint96 cashEntry, bool active);
+    function jackpotConfig(uint256 stage)
+        external
+        view
+        returns (uint16 triggerPct, uint32 minMultBps, uint32 maxMultBps);
+    function owner() external view returns (address);
+}
+
+interface IVerifyEntropyFee {
+    function getFeeV2() external view returns (uint128);
+}
+
+interface IVerifyChatFactory {
+    function nftContract() external view returns (address);
     function owner() external view returns (address);
 }
 
@@ -131,6 +180,8 @@ contract VerifyConfig is DeployBase {
         _verifyClaims();
         _verifyRandomness();
         _verifyMulticall();
+        _verifyHeists();
+        _verifyChatFactory();
 
         _printSummary();
     }
@@ -160,6 +211,16 @@ contract VerifyConfig is DeployBase {
         _checkAuth("    Boosts", c.authorizedContracts(boosts), boosts);
         _checkAuth("    NFT", c.authorizedContracts(nft), nft);
         if (actions != address(0)) _checkAuth("    Actions", c.authorizedContracts(actions), actions);
+        if (claims != address(0)) _checkAuth("    Claims", c.authorizedContracts(claims), claims);
+        if (heists != address(0)) _checkAuth("    Heists", c.authorizedContracts(heists), heists);
+
+        console.log("  Setup:");
+        (bool tiersSet,) = core.staticcall(abi.encodeWithSignature("reputationTiers(uint256)", 0));
+        if (tiersSet) {
+            console.log("    reputationTiers: configured [OK]");
+        } else {
+            console.log("    reputationTiers: EMPTY [NEEDS CONFIG] (run SetupTiers)");
+        }
 
         console.log("  Owner:", c.owner());
         console.log("");
@@ -204,7 +265,9 @@ contract VerifyConfig is DeployBase {
         IVerifyDrugRegistry dr = IVerifyDrugRegistry(drugRegistry);
 
         console.log("  Status:");
-        console.log("    totalDrugs:", dr.getTotalDrugs());
+        uint256 totalDrugs = dr.getTotalDrugs();
+        console.log("    totalDrugs:", totalDrugs);
+        if (totalDrugs == 0) console.log("    drugs: EMPTY [NEEDS CONFIG] (run SetupDrugs)");
 
         console.log("  Owner:", dr.owner());
         console.log("");
@@ -223,13 +286,14 @@ contract VerifyConfig is DeployBase {
         IVerifyPaymentHandler ph = IVerifyPaymentHandler(paymentHandler);
 
         console.log("  Config:");
-        console.log("    devWallet:", ph.devWallet());
-        console.log("    bankVault:", ph.bankVault());
+        _checkRef("    devWallet", ph.devWallet(), devWallet);
+        _checkRef("    bankVault", ph.bankVault(), bankVault);
 
         console.log("  Authorizations:");
         _checkAuth("    Core", ph.authorizedContracts(core), core);
         _checkAuth("    Boosts", ph.authorizedContracts(boosts), boosts);
         if (actions != address(0)) _checkAuth("    Actions", ph.authorizedContracts(actions), actions);
+        if (heists != address(0)) _checkAuth("    Heists", ph.authorizedContracts(heists), heists);
 
         console.log("  Owner:", ph.owner());
         console.log("");
@@ -250,6 +314,11 @@ contract VerifyConfig is DeployBase {
         console.log("  References:");
         _checkRef("    coreContract", ar.coreContract(), core);
         _checkRef("    drugRegistry", ar.drugRegistry(), drugRegistry);
+
+        console.log("  Status:");
+        uint8 totalAreas = ar.getTotalAreas();
+        console.log("    totalAreas:", totalAreas);
+        if (totalAreas == 0) console.log("    areas: EMPTY [NEEDS CONFIG] (run SetupAreas)");
 
         console.log("  Owner:", ar.owner());
         console.log("");
@@ -319,6 +388,22 @@ contract VerifyConfig is DeployBase {
         _checkRef("    dealersNFT", b.dealersNFT(), nft);
         _checkRef("    paymentHandler", b.paymentHandler(), paymentHandler);
 
+        console.log("  Setup:");
+        uint256 totalTiers = b.totalTiers();
+        uint256 activeTiers;
+        bool unpricedActiveTier;
+        for (uint256 i = 1; i <= totalTiers; i++) {
+            (uint256 price,,,,,,, bool isActive) = b.boostTiers(i);
+            if (isActive) {
+                activeTiers++;
+                if (price == 0) unpricedActiveTier = true;
+            }
+        }
+        console.log("    totalTiers:", totalTiers);
+        console.log("    activeTiers:", activeTiers);
+        if (activeTiers == 0) console.log("    tiers: NONE ACTIVE [NEEDS CONFIG] (run SetupBoosts)");
+        if (unpricedActiveTier) console.log("    tiers: ACTIVE TIER WITH ZERO PRICE [MISMATCH]");
+
         console.log("  Owner:", b.owner());
         console.log("");
     }
@@ -342,6 +427,7 @@ contract VerifyConfig is DeployBase {
         console.log("  Jailer Authorizations:");
         if (pve != address(0)) _checkAuth("    PVE", a.authorizedJailers(pve), pve);
         if (pvp != address(0)) _checkAuth("    PVP", a.authorizedJailers(pvp), pvp);
+        if (heists != address(0)) _checkAuth("    Heists", a.authorizedJailers(heists), heists);
 
         console.log("  Owner:", a.owner());
         console.log("");
@@ -364,6 +450,17 @@ contract VerifyConfig is DeployBase {
         _checkRef("    dealersNFT", c.dealersNFT(), nft);
         _checkRef("    pveContract", c.pveContract(), pve);
         _checkRef("    pvpContract", c.pvpContract(), pvp);
+        // Tolerant call: pre-heists Claims deployments lack this getter; flag instead of reverting the report.
+        try c.heistsContract() returns (address h) {
+            _checkRef("    heistsContract", h, heists);
+        } catch {
+            console.log("    heistsContract: GETTER MISSING [OUTDATED DEPLOYMENT]");
+        }
+
+        console.log("  Setup:");
+        uint256 achievementCount = c.nextAchievementId();
+        console.log("    achievements:", achievementCount);
+        if (achievementCount == 0) console.log("    achievements: EMPTY [NEEDS CONFIG] (run SetupClaims)");
 
         console.log("  Owner:", c.owner());
         console.log("");
@@ -385,6 +482,7 @@ contract VerifyConfig is DeployBase {
         _checkAuth("    PVE", r.isAuthorizedResolver(pve), pve);
         _checkAuth("    PVP", r.isAuthorizedResolver(pvp), pvp);
         if (actions != address(0)) _checkAuth("    Actions", r.isAuthorizedResolver(actions), actions);
+        if (heists != address(0)) _checkAuth("    Heists", r.isAuthorizedResolver(heists), heists);
 
         console.log("  Owner:", r.owner());
         console.log("");
@@ -411,6 +509,110 @@ contract VerifyConfig is DeployBase {
         _checkRef("    boosts", m.boosts(), boosts);
 
         console.log("  Owner:", m.owner());
+        console.log("");
+    }
+
+    function _verifyHeists() internal view {
+        console.log("DEALERS_HEISTS:", heists);
+        console.log("--------------------------------------------------------------------------------");
+
+        if (heists == address(0)) {
+            console.log("  [SKIP] Address not set in environment");
+            console.log("");
+            return;
+        }
+
+        IVerifyHeists h = IVerifyHeists(heists);
+
+        console.log("  References:");
+        _checkRef("    core", h.core(), core);
+        _checkRef("    nftContract", h.nftContract(), nft);
+        _checkRef("    randomness", h.randomness(), randomness);
+        _checkRef("    paymentHandler", h.paymentHandler(), paymentHandler);
+        _checkRef("    drugRegistry", h.drugRegistry(), drugRegistry);
+        _checkRef("    actions", h.actions(), actions);
+        _checkRef("    entropy", h.entropy(), _envEntropyTolerant());
+
+        console.log("  Setup:");
+        uint256 activeDifficulties;
+        for (uint8 i = 0; i < 3; i++) {
+            (,, bool active) = h.difficultyConfigs(i);
+            if (active) activeDifficulties++;
+        }
+        console.log("    activeDifficulties:", activeDifficulties);
+        if (activeDifficulties == 0) console.log("    difficulties: NONE ACTIVE [NEEDS CONFIG] (run SetupHeists)");
+
+        console.log("  Status:");
+        console.log("    paused:", h.paused());
+        uint256 backed = h.backedEth();
+        console.log("    backedEth:", backed);
+        console.log("    balance:", heists.balance);
+        if (heists.balance < backed) {
+            console.log("    SOLVENCY [MISMATCH] balance below backedEth");
+        } else {
+            console.log("    solvency [OK]");
+        }
+        _checkJackpotReadiness(h);
+
+        console.log("  Owner:", h.owner());
+        console.log("");
+    }
+
+    /**
+     * @dev A jackpot only fires when the free reserve covers the stage's max payout plus the Pyth
+     *      fee (_fireJackpot skips otherwise) — so an unfunded reserve means add-on buyers silently
+     *      never roll. Checks the reserve against the most expensive stage.
+     */
+    function _checkJackpotReadiness(IVerifyHeists h) internal view {
+        uint32 maxMultBps;
+        for (uint256 i = 0; i < 5; i++) {
+            (,, uint32 stageMax) = h.jackpotConfig(i);
+            if (stageMax > maxMultBps) maxMultBps = stageMax;
+        }
+        uint256 maxJackpot = (uint256(h.ethAddOn()) * maxMultBps) / 10000;
+
+        uint256 pythFee;
+        try IVerifyEntropyFee(h.entropy()).getFeeV2() returns (uint128 fee) {
+            pythFee = fee;
+        } catch {
+            console.log("    pythFee: UNREADABLE [MISMATCH] (entropy address wrong?)");
+        }
+
+        uint256 reserve = h.jackpotReserve();
+        console.log("    jackpotReserve:", reserve);
+        console.log("    maxJackpot+fee:", maxJackpot + pythFee);
+        if (reserve < maxJackpot + pythFee) {
+            console.log("    jackpot funding: RESERVE TOO LOW [NEEDS CONFIG] (jackpots will skip; fundReserve)");
+        } else {
+            console.log("    jackpot funding [OK]");
+        }
+    }
+
+    /**
+     * @dev Env lookup mirroring _envAddrForNetwork but tolerant of unset vars — a verify
+     *      script should report "(expected not set)", never revert.
+     */
+    function _envEntropyTolerant() internal view returns (address) {
+        if (block.chainid == 2741) return vm.envOr("MAINNET_PYTH_ENTROPY", address(0));
+        return vm.envOr("TESTNET_PYTH_ENTROPY", vm.envOr("PYTH_ENTROPY", address(0)));
+    }
+
+    function _verifyChatFactory() internal view {
+        console.log("CHAT_FACTORY:", chatFactory);
+        console.log("--------------------------------------------------------------------------------");
+
+        if (chatFactory == address(0)) {
+            console.log("  [SKIP] Address not set in environment");
+            console.log("");
+            return;
+        }
+
+        IVerifyChatFactory cf = IVerifyChatFactory(chatFactory);
+
+        console.log("  References:");
+        _checkRef("    nftContract", cf.nftContract(), nft);
+
+        console.log("  Owner:", cf.owner());
         console.log("");
     }
 
