@@ -5,6 +5,10 @@
 /zkout
 /docs
 
+# Local economy-tuning models (python; the Forge sims in test/simulation/*.t.sol stay tracked)
+/test/simulation/*.py
+/test/simulation/__pycache__/
+
 # Trait content: large (~2MB) and reproducible from the trait generator
 /script/data/traits.json
 # Gzipped JS payload: built from the frontend, reproducible

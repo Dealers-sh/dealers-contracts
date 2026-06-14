@@ -68,9 +68,12 @@ contract SetupHeists is DeployBase {
         //      D1 Warehouse Job: gate Capo     (Seoul)
         //      D2 Cartel Heist : gate Underboss (Dubai); serves Underboss -> Godfather
         // -------------------------------------------------------------------
+        // Stakes raised (D1 2500 -> 4000, D2 12000 -> 25000) alongside the trimmed boost
+        // cash multipliers (SetupBoosts) so heists stay the best cash-per-attempt at every
+        // rank vs max-stake PVE hustles (economy_sim.py HT3).
         h.setDifficultyConfig(0, IHeistsAdmin.DifficultyConfig({repGate: 600, cashEntry: 600, active: true}));
-        h.setDifficultyConfig(1, IHeistsAdmin.DifficultyConfig({repGate: 1500, cashEntry: 2500, active: true}));
-        h.setDifficultyConfig(2, IHeistsAdmin.DifficultyConfig({repGate: 5500, cashEntry: 12000, active: true}));
+        h.setDifficultyConfig(1, IHeistsAdmin.DifficultyConfig({repGate: 1500, cashEntry: 4000, active: true}));
+        h.setDifficultyConfig(2, IHeistsAdmin.DifficultyConfig({repGate: 5500, cashEntry: 25000, active: true}));
 
         // -------------------------------------------------------------------
         // 2) Stage odds (= constructor defaults; re-asserted as source of truth).
@@ -83,14 +86,17 @@ contract SetupHeists is DeployBase {
         );
 
         // -------------------------------------------------------------------
-        // 3) Pot multipliers + rep reward (= constructor defaults). Pot rolled in [min,max] bps of
-        //    stake per stage. NOT trimmed: trimming below ~70% turns heists -EV unboosted; the
-        //    faucet is controlled by stake size instead.
+        // 3) Pot multipliers + rep reward. Pot rolled in [min,max] bps of stake per stage
+        //    (= constructor defaults). NOT trimmed: trimming below ~70% turns heists -EV
+        //    unboosted; the faucet is controlled by stake size instead.
+        //    Rep rewards are 3x the constructor defaults (economy_sim.py): lets heist-leaning
+        //    players climb to Consigliere and unlock D1/D2 stakes, while PVE stays ~7x the
+        //    rep/attempt — heists remain the cash engine, not the rep farm.
         // -------------------------------------------------------------------
         h.setStageRewards(
             [uint32(10000), 18000, 30000, 52000, 100000], // pot min bps
             [uint32(14000), 28000, 46000, 78000, 160000], // pot max bps
-            [uint16(0), 2, 4, 7, 12] // rep granted on payout per stage
+            [uint16(0), 6, 12, 21, 36] // rep granted on payout per stage
         );
 
         // -------------------------------------------------------------------
@@ -142,8 +148,8 @@ contract SetupHeists is DeployBase {
 
         console.log("Heists configured:");
         console.log("  D0 Street Score : gate 600  stake 600");
-        console.log("  D1 Warehouse Job: gate 1500 stake 2500");
-        console.log("  D2 Cartel Heist : gate 5500 stake 12000");
+        console.log("  D1 Warehouse Job: gate 1500 stake 4000");
+        console.log("  D2 Cartel Heist : gate 5500 stake 25000");
         console.log("  Jackpot triggers 40/34/30/32/40%%, bands 0.7-1x up to 1.5-20x (reserve cut 60%%)");
     }
 }

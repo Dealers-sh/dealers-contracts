@@ -107,6 +107,11 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         _setupReputationTiers();
 
+        // Pin the legacy flat-divisor, unbounded-stake economics: these tests exercise game
+        // mechanics with stakes/expectations calibrated to divisor 50. The shipped defaults
+        // (slope 2500, headroom 10000) are covered by the stake-scaling tests below.
+        pve.setStakeScaling(0, 0);
+
         nft.reserveTo(1, player1);
         nft.reserveTo(1, player2);
     }
@@ -926,11 +931,11 @@ contract DealersPVETest is Test, IERC721Receiver {
 
         _setHeatLevel(DEALER_ID_1, 3);
 
-        assertEq(core.getGameState(DEALER_ID_1).jailChance, 15, "Heat 3 = 1.5% jail chance (15/1000)");
+        assertEq(core.getGameState(DEALER_ID_1).jailChance, 21, "Heat 3 = 2.1% jail chance (21/1000, 7 per heat)");
 
         _setHeatLevel(DEALER_ID_1, 2);
 
-        assertEq(core.getGameState(DEALER_ID_1).jailChance, 25, "Heat 5 = 2.5% jail chance (25/1000)");
+        assertEq(core.getGameState(DEALER_ID_1).jailChance, 35, "Heat 5 = 3.5% jail chance (35/1000, 7 per heat)");
     }
 
     // =============================================================
@@ -1026,6 +1031,88 @@ contract DealersPVETest is Test, IERC721Receiver {
     function test_setRandomness_revertZeroAddress() public {
         vm.expectRevert(DealersPVE.InvalidAddress.selector);
         pve.setRandomness(address(0));
+    }
+
+    // =============================================================
+    //                    STAKE SCALING (7 tests)
+    // =============================================================
+
+    function test_constructorDefaults_simCalibrated() public {
+        // setUp pins legacy economics on `pve`; assert the shipped defaults on a fresh deploy
+        DealersPVE fresh = new DealersPVE(address(core), address(nft), address(areaRegistry));
+        assertEq(fresh.tieChance(), 50, "tie odds");
+        assertEq(fresh.winChance(), 25, "win odds");
+        assertEq(fresh.stakeDivisorSlopeBps(), 2500, "divisor slope");
+        assertEq(fresh.stakeHeadroomBps(), 10000, "stake headroom");
+    }
+
+    function test_setStakeScaling_onlyOwner() public {
+        vm.prank(player1);
+        vm.expectRevert();
+        pve.setStakeScaling(2500, 10000);
+    }
+
+    function test_setStakeScaling_validation() public {
+        vm.expectRevert(DealersPVE.InvalidStakeScaling.selector);
+        pve.setStakeScaling(10001, 10000);
+
+        // headroom below 1x (other than 0 = disabled) would make the repCap unreachable
+        vm.expectRevert(DealersPVE.InvalidStakeScaling.selector);
+        pve.setStakeScaling(2500, 9999);
+
+        pve.setStakeScaling(10000, 0);
+        assertEq(pve.stakeDivisorSlopeBps(), 10000);
+        assertEq(pve.stakeHeadroomBps(), 0);
+
+        pve.setStakeScaling(2500, 10000);
+        assertEq(pve.stakeDivisorSlopeBps(), 2500);
+        assertEq(pve.stakeHeadroomBps(), 10000);
+    }
+
+    function test_commitGame_revertStakeTooLarge() public {
+        _setupDealerForPlay(DEALER_ID_1);
+        // slope 0 keeps divisor at 50; tier 0: repCap 20, tieBonus 5 -> max stake = 20*50/5 = 200
+        pve.setStakeScaling(0, 10000);
+
+        vm.prank(player1);
+        vm.expectRevert(DealersPVE.StakeTooLarge.selector);
+        pve.commitGame(DEALER_ID_1, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, 201);
+    }
+
+    function test_commitGame_maxStakeBoundaryAllowed() public {
+        _setupDealerForPlay(DEALER_ID_1);
+        pve.setStakeScaling(0, 10000);
+
+        vm.prank(player1);
+        uint64 seq = pve.commitGame(DEALER_ID_1, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, 200);
+        assertGt(seq, 0, "stake exactly at the cap-stake must be accepted");
+    }
+
+    function test_commitGame_unboundedWhenHeadroomZero() public {
+        _setupDealerForPlay(DEALER_ID_1);
+
+        vm.prank(player1);
+        uint64 seq = pve.commitGame(DEALER_ID_1, 0, IDealersPVE.HustleType.SELL, DRUG_WEED, 500);
+        assertGt(seq, 0, "headroom 0 must preserve legacy unbounded stakes");
+    }
+
+    function test_stakeScaling_scaledDivisorReducesRep() public {
+        _setupDealerForPlay(DEALER_ID_1);
+        // slope 10000 = +1 divisor per totalRep point. totalRep = 25 rep + stash bonus 7
+        // (starter 100 weed + 5 XTC + 1 cocaine = 250 value, + 500 weed = 750 -> 750/100)
+        // -> divisor = 50 + 32 = 82. BUY keeps the stash unchanged so the divisor is stable.
+        pve.setStakeScaling(10000, 0);
+
+        uint256 totalRep = core.getTotalReputation(DEALER_ID_1);
+        uint256 amount = 80; // stakeValue 80 (weed buy price 1)
+        uint256 expectedRep = (10 * amount) / (50 + totalRep); // win bonus 10, sub-cap
+
+        (, uint256 repBefore,,,,) = core.getDealerData(DEALER_ID_1);
+        _pveWin(player1, DEALER_ID_1, 0, IDealersPVE.HustleType.BUY, DRUG_WEED, amount);
+        (, uint256 repAfter,,,,) = core.getDealerData(DEALER_ID_1);
+
+        assertEq(repAfter - repBefore, expectedRep, "rep must use the rep-scaled divisor");
+        assertLt(repAfter - repBefore, (10 * amount) / 50, "must be below the flat-divisor result");
     }
 
     function test_pveStats_accumulateAcrossGames() public {

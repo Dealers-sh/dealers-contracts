@@ -208,8 +208,29 @@ contract DealersCore is IDealersCore, Ownable, ReentrancyGuard {
             breakoutSuccessChance: 50,
             jailDrugConfiscationPercent: 3,
             starterCash: 250,
-            jailChancePerHeat: 5
+            jailChancePerHeat: 7
         });
+
+        _initializeDefaultTiers();
+    }
+
+    /**
+     * @dev Sim-calibrated reputation ladder (docs/ECONOMY_BALANCE_SIM.md): big early caps put
+     *      a fresh wallet at 600 rep (heist unlock) in ~3 days F2P; mid/late caps land
+     *      Godfather-boost rep farmers at Godfather in ~108 days. Legend is a soft-bleed
+     *      prestige tier. setReputationTiers can replace the ladder at any time.
+     */
+    function _initializeDefaultTiers() private {
+        reputationTiers.push(ReputationTier(0, 120, 60, -3, 120, "Outsider"));
+        reputationTiers.push(ReputationTier(100, 90, 45, -4, 90, "Associate"));
+        reputationTiers.push(ReputationTier(250, 60, 30, -4, 60, "Dealer"));
+        reputationTiers.push(ReputationTier(600, 36, 18, -5, 40, "Soldier"));
+        reputationTiers.push(ReputationTier(1500, 28, 14, -6, 40, "Capo"));
+        reputationTiers.push(ReputationTier(3000, 22, 11, -6, 44, "Consigliere"));
+        reputationTiers.push(ReputationTier(5500, 18, 9, -7, 48, "Underboss"));
+        reputationTiers.push(ReputationTier(10000, 15, 7, -6, 52, "Don"));
+        reputationTiers.push(ReputationTier(22000, 12, 6, -8, 56, "Godfather"));
+        reputationTiers.push(ReputationTier(50000, 4, 2, -10, 8, "Legend"));
     }
 
     // =============================================================

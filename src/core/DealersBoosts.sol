@@ -170,11 +170,11 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
         boostTiers[1] = BoostTier({
             price: 0.0025 ether,
             duration: DURATION_3_DAYS,
-            drugMultiplier: 125, // 1.25x drugs
+            drugMultiplier: 110, // 1.10x drugs
             repMultiplier: 110, // 1.1x rep
             extraAttempts: 2, // 5 base + 2 = 7 max
             freeAreaMovement: false,
-            cashMultiplier: 125, // 1.25x cash
+            cashMultiplier: 110, // 1.10x cash
             isActive: true
         });
 
@@ -182,11 +182,11 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
         boostTiers[2] = BoostTier({
             price: 0.005 ether,
             duration: DURATION_7_DAYS,
-            drugMultiplier: 150, // 1.5x drugs
+            drugMultiplier: 115, // 1.15x drugs
             repMultiplier: 115, // 1.15x rep
             extraAttempts: 3, // 5 base + 3 = 8 max
             freeAreaMovement: false,
-            cashMultiplier: 150, // 1.5x cash
+            cashMultiplier: 115, // 1.15x cash
             isActive: true
         });
 
@@ -194,11 +194,11 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
         boostTiers[3] = BoostTier({
             price: 0.01 ether,
             duration: DURATION_14_DAYS,
-            drugMultiplier: 175, // 1.75x drugs
+            drugMultiplier: 120, // 1.20x drugs
             repMultiplier: 125, // 1.25x rep
             extraAttempts: 6, // 5 base + 6 = 11 max
             freeAreaMovement: true,
-            cashMultiplier: 175, // 1.75x cash
+            cashMultiplier: 120, // 1.20x cash
             isActive: true
         });
 
@@ -206,11 +206,11 @@ contract DealersBoosts is ReentrancyGuard, Ownable {
         boostTiers[4] = BoostTier({
             price: 0.023 ether,
             duration: DURATION_30_DAYS,
-            drugMultiplier: 225, // 2.25x drugs
+            drugMultiplier: 125, // 1.25x drugs
             repMultiplier: 135, // 1.35x rep
             extraAttempts: 7, // 5 base + 7 = 12 max
             freeAreaMovement: true,
-            cashMultiplier: 225, // 2.25x cash
+            cashMultiplier: 125, // 1.25x cash
             isActive: true
         });
 

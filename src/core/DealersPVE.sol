@@ -33,9 +33,17 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     IActionsArrest public actions;
 
     uint8 public tieChance = 50;
-    uint8 public winChance = 20;
+    uint8 public winChance = 25;
 
     uint256 public repStakeDivisor = 50;
+
+    /**
+     * @dev Rep-scaled stake economics (see {setStakeScaling}). Defaults are the
+     *      sim-calibrated values from docs/ECONOMY_BALANCE_SIM.md; 0/0 reproduces the
+     *      legacy flat-divisor, unbounded-stake behavior.
+     */
+    uint16 public stakeDivisorSlopeBps = 2500;
+    uint16 public stakeHeadroomBps = 10000;
 
     bool public paused;
 
@@ -106,6 +114,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     event Unpaused(address account);
     event OutcomeOddsUpdated(uint8 tieChance, uint8 winChance);
     event RepStakeDivisorUpdated(uint256 oldDivisor, uint256 newDivisor);
+    event StakeScalingUpdated(uint16 slopeBps, uint16 headroomBps);
 
     // =============================================================
     //                            ERRORS
@@ -126,6 +135,8 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
     error InvalidAddress();
     error InvalidOdds();
     error InvalidDivisor();
+    error InvalidStakeScaling();
+    error StakeTooLarge();
     error NoAttemptsRemaining();
     error DealerInBlackMarket();
     error RoundPending();
@@ -207,6 +218,8 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
 
         (uint256 buyPrice, uint256 sellPrice, bool found) = _getDrugPricing(state.currentArea, drugId);
         if (!found) revert DrugNotAvailableInArea();
+
+        _checkMaxStake(state, hustleType == HustleType.BUY ? amount * buyPrice : amount * sellPrice);
 
         IDealersCore.GameOutcome memory commitOutcome;
         commitOutcome.useAttempt = true;
@@ -443,6 +456,30 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         }
     }
 
+    /**
+     * @dev Divisor that scales rep per staked $CASH value, growing with total reputation:
+     *      divisor = repStakeDivisor + totalRep * stakeDivisorSlopeBps / 10000. Keeps the
+     *      stake needed to hit the tier repCap a meaningful share of a player's bankroll at
+     *      every rank instead of a flat ~100 $CASH (slope 0 = legacy flat divisor).
+     */
+    function _stakeDivisor(uint256 totalReputation) private view returns (uint256) {
+        return repStakeDivisor + (totalReputation * stakeDivisorSlopeBps) / 10000;
+    }
+
+    /**
+     * @dev Rejects stakes above {stakeHeadroomBps} x the tie-bonus cap-stake (the stake at
+     *      which an unboosted tie hits the tier repCap). Win/tie payouts scale linearly with
+     *      stake while repCap only clamps rep — without this bound, any boosted multiplier
+     *      makes max-stake hustles an unbounded $CASH/drug faucet. Disabled while headroom
+     *      is 0 or reputation tiers are unset.
+     */
+    function _checkMaxStake(IDealersCore.GameState memory state, uint256 stakeValue) private view {
+        if (stakeHeadroomBps == 0 || state.repTieBonus <= 0 || state.repCap <= 0) return;
+        uint256 maxStake = (uint256(uint16(state.repCap)) * _stakeDivisor(state.totalReputation) * stakeHeadroomBps)
+            / (uint256(uint16(state.repTieBonus)) * 10000);
+        if (stakeValue > maxStake) revert StakeTooLarge();
+    }
+
     function _calculateScaledRep(IDealersCore.GameState memory state, uint8 outcome, uint256 stakeValue)
         private
         view
@@ -453,7 +490,7 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         else if (outcome == 1) baseRep = state.repTieBonus;
         else baseRep = state.repLossPenalty;
 
-        int256 scaled = (int256(baseRep) * int256(stakeValue)) / int256(repStakeDivisor);
+        int256 scaled = (int256(baseRep) * int256(stakeValue)) / int256(_stakeDivisor(state.totalReputation));
 
         if (outcome <= 1) {
             scaled = (scaled * int256(uint256(state.repMultiplier))) / 100;
@@ -571,6 +608,24 @@ contract DealersPVE is IDealersPVE, ReentrancyGuard, Ownable {
         uint256 old = repStakeDivisor;
         repStakeDivisor = _divisor;
         emit RepStakeDivisorUpdated(old, _divisor);
+    }
+
+    /**
+     * @notice Set the rep-scaled stake economics: divisor growth and the commit stake ceiling.
+     * @param _slopeBps Divisor growth per point of total reputation, in bps
+     *        (divisor = repStakeDivisor + totalRep * slopeBps / 10000). 0 = flat legacy divisor.
+     * @param _headroomBps Max commit stake as bps of the tie-bonus cap-stake
+     *        (10000 = exactly the stake that maxes the tier repCap). 0 disables the ceiling.
+     * @dev Headroom below 10000 (other than 0) is rejected — it would make the tier repCap
+     *      unreachable for unboosted players. Slope is capped at 10000 (1 divisor point per
+     *      rep point) as a sanity bound.
+     */
+    function setStakeScaling(uint16 _slopeBps, uint16 _headroomBps) external onlyOwner {
+        if (_slopeBps > 10000) revert InvalidStakeScaling();
+        if (_headroomBps != 0 && _headroomBps < 10000) revert InvalidStakeScaling();
+        stakeDivisorSlopeBps = _slopeBps;
+        stakeHeadroomBps = _headroomBps;
+        emit StakeScalingUpdated(_slopeBps, _headroomBps);
     }
 
     /**

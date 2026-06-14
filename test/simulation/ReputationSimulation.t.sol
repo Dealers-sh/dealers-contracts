@@ -11,7 +11,7 @@ contract ReputationSimulation is Test {
     uint256 constant REP_STAKE_DIVISOR = 50;
     uint256 constant BASE_MAX_ATTEMPTS = 5;
     uint256 constant MAX_HEAT = 5;
-    uint256 constant JAIL_CHANCE_PER_HEAT = 5; // per 1000
+    uint256 constant JAIL_CHANCE_PER_HEAT = 7; // per 1000 (SetupRebalance)
     uint256 constant JAIL_REP_PENALTY_PERCENT = 10;
     uint256 constant JAIL_REP_PENALTY_CAP = 50;
     uint256 constant DRUG_CONFISCATION_PERCENT = 3;
@@ -36,9 +36,9 @@ contract ReputationSimulation is Test {
     uint256 constant NUM_AREAS = 6;
     uint256 constant NUM_DRUGS = 11;
 
-    // PVE outcome odds
+    // PVE outcome odds (SetupRebalance: 25/50/25)
     uint256 constant TIE_CHANCE = 50;
-    uint256 constant WIN_CHANCE = 20;
+    uint256 constant WIN_CHANCE = 25;
 
     // =============================================================
     //                          STRUCTS
@@ -113,49 +113,50 @@ contract ReputationSimulation is Test {
     // =============================================================
 
     function _initConfig() private {
-        // Tiers from SetupTiers.s.sol (deployment source of truth — convex 2.2x ladder)
-        tiers[0] = TierConfig({minRep: 0, winBonus: 60, tieBonus: 25, lossPenalty: -2, repCap: 35});
-        tiers[1] = TierConfig({minRep: 100, winBonus: 35, tieBonus: 18, lossPenalty: -3, repCap: 25});
-        tiers[2] = TierConfig({minRep: 250, winBonus: 20, tieBonus: 10, lossPenalty: -3, repCap: 22});
-        tiers[3] = TierConfig({minRep: 600, winBonus: 12, tieBonus: 5, lossPenalty: -4, repCap: 22});
-        tiers[4] = TierConfig({minRep: 1500, winBonus: 9, tieBonus: 4, lossPenalty: -5, repCap: 24});
-        tiers[5] = TierConfig({minRep: 3000, winBonus: 7, tieBonus: 3, lossPenalty: -5, repCap: 26});
-        tiers[6] = TierConfig({minRep: 5500, winBonus: 6, tieBonus: 2, lossPenalty: -6, repCap: 28});
-        tiers[7] = TierConfig({minRep: 10000, winBonus: 5, tieBonus: 2, lossPenalty: -6, repCap: 30});
-        tiers[8] = TierConfig({minRep: 22000, winBonus: 4, tieBonus: 1, lossPenalty: -7, repCap: 32});
-        tiers[9] = TierConfig({minRep: 50000, winBonus: 2, tieBonus: 1, lossPenalty: -8, repCap: 4});
+        // Tiers from SetupTiers.s.sol (deployment source of truth — sim-calibrated ladder,
+        // see docs/ECONOMY_BALANCE_SIM.md; the richer cross-mode model is economy_sim.py)
+        tiers[0] = TierConfig({minRep: 0, winBonus: 120, tieBonus: 60, lossPenalty: -3, repCap: 120});
+        tiers[1] = TierConfig({minRep: 100, winBonus: 90, tieBonus: 45, lossPenalty: -4, repCap: 90});
+        tiers[2] = TierConfig({minRep: 250, winBonus: 60, tieBonus: 30, lossPenalty: -4, repCap: 60});
+        tiers[3] = TierConfig({minRep: 600, winBonus: 36, tieBonus: 18, lossPenalty: -5, repCap: 40});
+        tiers[4] = TierConfig({minRep: 1500, winBonus: 28, tieBonus: 14, lossPenalty: -6, repCap: 40});
+        tiers[5] = TierConfig({minRep: 3000, winBonus: 22, tieBonus: 11, lossPenalty: -6, repCap: 44});
+        tiers[6] = TierConfig({minRep: 5500, winBonus: 18, tieBonus: 9, lossPenalty: -7, repCap: 48});
+        tiers[7] = TierConfig({minRep: 10000, winBonus: 15, tieBonus: 7, lossPenalty: -6, repCap: 52});
+        tiers[8] = TierConfig({minRep: 22000, winBonus: 12, tieBonus: 6, lossPenalty: -8, repCap: 56});
+        tiers[9] = TierConfig({minRep: 50000, winBonus: 4, tieBonus: 2, lossPenalty: -10, repCap: 8});
 
         // Boosts from SetupBoosts.s.sol (Kingpin +6/1.25x, Godfather 2.25x/1.35x)
         boosts[1] = BoostConfig({
             priceWei: 0.0025 ether,
             durationDays: 3,
-            drugMultiplier: 125,
+            drugMultiplier: 110,
             repMultiplier: 110,
-            cashMultiplier: 125,
+            cashMultiplier: 110,
             extraAttempts: 2
         });
         boosts[2] = BoostConfig({
             priceWei: 0.005 ether,
             durationDays: 7,
-            drugMultiplier: 150,
+            drugMultiplier: 115,
             repMultiplier: 115,
-            cashMultiplier: 150,
+            cashMultiplier: 115,
             extraAttempts: 3
         });
         boosts[3] = BoostConfig({
             priceWei: 0.01 ether,
             durationDays: 14,
-            drugMultiplier: 175,
+            drugMultiplier: 120,
             repMultiplier: 125,
-            cashMultiplier: 175,
+            cashMultiplier: 120,
             extraAttempts: 6
         });
         boosts[4] = BoostConfig({
             priceWei: 0.023 ether,
             durationDays: 30,
-            drugMultiplier: 225,
+            drugMultiplier: 125,
             repMultiplier: 135,
-            cashMultiplier: 225,
+            cashMultiplier: 125,
             extraAttempts: 7
         });
 

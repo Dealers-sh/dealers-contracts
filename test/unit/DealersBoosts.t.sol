@@ -44,10 +44,10 @@ contract DealersBoostsTest is BaseTest {
 
         assertEq(tier.price, GRINDER_PRICE);
         assertEq(tier.duration, DURATION_3_DAYS);
-        assertEq(tier.drugMultiplier, 125); // 1.25x
+        assertEq(tier.drugMultiplier, 110); // 1.10x
         assertEq(tier.repMultiplier, 110); // 1.1x
         assertEq(tier.extraAttempts, 2);
-        assertEq(tier.cashMultiplier, 125); // 1.25x
+        assertEq(tier.cashMultiplier, 110); // 1.10x
         assertFalse(tier.freeAreaMovement);
         assertTrue(tier.isActive);
     }
@@ -57,10 +57,10 @@ contract DealersBoostsTest is BaseTest {
 
         assertEq(tier.price, HUSTLER_PRICE);
         assertEq(tier.duration, DURATION_7_DAYS);
-        assertEq(tier.drugMultiplier, 150); // 1.5x
+        assertEq(tier.drugMultiplier, 115); // 1.15x
         assertEq(tier.repMultiplier, 115); // 1.15x
         assertEq(tier.extraAttempts, 3);
-        assertEq(tier.cashMultiplier, 150); // 1.5x
+        assertEq(tier.cashMultiplier, 115); // 1.15x
         assertFalse(tier.freeAreaMovement);
         assertTrue(tier.isActive);
     }
@@ -70,10 +70,10 @@ contract DealersBoostsTest is BaseTest {
 
         assertEq(tier.price, KINGPIN_PRICE);
         assertEq(tier.duration, 14 days); // Kingpin is 14 days
-        assertEq(tier.drugMultiplier, 175); // 1.75x
+        assertEq(tier.drugMultiplier, 120); // 1.20x
         assertEq(tier.repMultiplier, 125); // 1.25x
         assertEq(tier.extraAttempts, 6);
-        assertEq(tier.cashMultiplier, 175); // 1.75x
+        assertEq(tier.cashMultiplier, 120); // 1.20x
         assertTrue(tier.freeAreaMovement);
         assertTrue(tier.isActive);
     }
@@ -89,10 +89,10 @@ contract DealersBoostsTest is BaseTest {
         assertTrue(core.hasActiveBoost(dealer1));
 
         IDealersCore.BoostData memory boost = core.getBoost(dealer1);
-        assertEq(boost.drugMultiplier, 125); // 1.25x
+        assertEq(boost.drugMultiplier, 110); // 1.10x
         assertEq(boost.repMultiplier, 110); // 1.1x
         assertEq(boost.extraAttempts, 2);
-        assertEq(boost.cashMultiplier, 125); // 1.25x
+        assertEq(boost.cashMultiplier, 110); // 1.10x
         assertFalse(boost.freeAreaMovement);
         assertEq(boost.expiresAt, uint64(block.timestamp + DURATION_3_DAYS));
     }

@@ -162,7 +162,7 @@ contract DealersPVP is IDealersPVP, ReentrancyGuard, Ownable {
             maxWinChance: 75,
             maxAttacksPerDay: 3,
             drugStealPercent: 2,
-            cashStealPercent: 1,
+            cashStealPercent: 2,
             rarityWeightCommon: 75,
             rarityWeightUncommon: 20,
             rarityWeightRare: 5,

@@ -21,6 +21,21 @@ struct ReputationTier {
 // =============================================================================
 
 interface IDealersCore {
+    struct CoreConfig {
+        uint256 attemptResetFee;
+        uint256 bribeCopFee;
+        uint256 cashTopupPrice;
+        uint256 cashTopupAmount;
+        uint256 cashPurchaseThreshold;
+        uint8 jailRepPenaltyPercent;
+        uint256 jailRepPenaltyCap;
+        uint8 wantedPosterSuccessChance;
+        uint8 breakoutSuccessChance;
+        uint8 jailDrugConfiscationPercent;
+        uint256 starterCash;
+        uint16 jailChancePerHeat;
+    }
+
     function authorizeContract(address contractAddress, bool authorized) external;
     function setNFTContract(address _nftContract) external;
     function setPaymentHandler(address _paymentHandler) external;
@@ -28,6 +43,7 @@ interface IDealersCore {
     function setAreaRegistry(address _areaRegistry) external;
     function setReputationTiers(ReputationTier[] calldata _tiers) external;
     function setMaxReputation(uint256 newMax) external;
+    function setCoreConfig(CoreConfig calldata newConfig) external;
     function drugRegistry() external view returns (address);
     function areaRegistry() external view returns (address);
     function nftContract() external view returns (address);
@@ -84,12 +100,29 @@ interface IAreaRegistry {
 }
 
 interface IPVPContract {
+    struct PVPConfig {
+        uint256 minReputation;
+        uint8 baseWinChance;
+        uint8 minWinChance;
+        uint8 maxWinChance;
+        uint8 maxAttacksPerDay;
+        uint8 drugStealPercent;
+        uint8 cashStealPercent;
+        uint8 rarityWeightCommon;
+        uint8 rarityWeightUncommon;
+        uint8 rarityWeightRare;
+        uint8 repRangePercent;
+        uint8 defenderRepBonus;
+        uint256 repRangeThreshold;
+    }
+
     function setCore(address _core) external;
     function setNFTContract(address _nftContract) external;
     function setDrugRegistry(address _drugRegistry) external;
     function setAreaRegistry(address _areaRegistry) external;
     function setRandomness(address _randomness) external;
     function setActions(address _actions) external;
+    function setPVPConfig(PVPConfig calldata newConfig) external;
     function core() external view returns (address);
     function nftContract() external view returns (address);
     function drugRegistry() external view returns (address);
@@ -104,6 +137,8 @@ interface IPVEContract {
     function setAreaRegistry(address _areaRegistry) external;
     function setRandomness(address _randomness) external;
     function setActions(address _actions) external;
+    function setOutcomeOdds(uint8 _tieChance, uint8 _winChance) external;
+    function setStakeScaling(uint16 _slopeBps, uint16 _headroomBps) external;
     function dealersCore() external view returns (address);
     function dealersNFT() external view returns (address);
     function areaRegistry() external view returns (address);

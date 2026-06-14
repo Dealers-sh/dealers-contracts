@@ -457,9 +457,22 @@ Most impactful — every module references Core. After deploying a new Core:
 
 1. Run SetupWiring (re-wires all modules + re-authorizes)
 2. Run SetupTiers (reputation tiers are stored on Core)
+3. Run SetupRebalance (CoreConfig — jail chance — is stored on Core; also re-asserts PVE odds + PVP config)
 
 ```bash
 source .env && forge script script/setup/SetupTiers.s.sol:SetupTiers --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG" --skip "UploadTraits"
+source .env && forge script script/setup/SetupRebalance.s.sol:SetupRebalance --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG" --skip "UploadTraits"
+```
+
+### Applying the economy rebalance to an existing deployment
+
+The sim-calibrated economy (docs/ECONOMY_BALANCE_SIM.md) now ships in the CONSTRUCTOR DEFAULTS of Core (tiers + jail), PVE (odds + stake scaling), PVP (cash steal), Boosts (multipliers), and Heists (difficulties, stage rep, jackpot table, 60% reserve) — a fresh deploy via DeployAll (+ DeployHeists) needs NO economy setters; the setup scripts below are idempotent re-assertions / live-tuning tools. NOTE: the rebalance changed contract source (DealersPVE stake scaling at minimum) — a deployment older than that change needs contract redeploys + SetupWiring first; on old contracts SetupRebalance's `setStakeScaling` call reverts. To retune an already-deployed game, run:
+
+```bash
+source .env && forge script script/setup/SetupTiers.s.sol:SetupTiers --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG" --skip "UploadTraits"
+source .env && forge script script/setup/SetupRebalance.s.sol:SetupRebalance --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG" --skip "UploadTraits"
+source .env && forge script script/setup/SetupBoosts.s.sol:SetupBoosts --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG" --skip "UploadTraits"
+source .env && forge script script/setup/SetupHeists.s.sol:SetupHeists --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG" --skip "UploadTraits"
 ```
 
 ---

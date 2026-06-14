@@ -136,7 +136,7 @@ contract DealersHeistsTest is HeistsBaseTest {
         vm.prank(player1);
         heists.cashOut(id);
         // stage-2 rep reward = 2 (PVP-scale, far below PVE)
-        assertEq(core.getGameState(tokenId).reputation, repBefore + 2, "small rep on cash-out");
+        assertEq(core.getGameState(tokenId).reputation, repBefore + 6, "small rep on cash-out");
     }
 
     function test_bust_forfeitsStakeAddsHeatAndDocksRep() public {

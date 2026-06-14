@@ -10,8 +10,8 @@ import "forge-std/Test.sol";
  *      It mirrors the on-chain stage math from src/core/DealersHeists.sol and the deployed
  *      economy config (the setup scripts are the source of truth, NOT the older
  *      ReputationSimulation.t.sol whose tier/boost tables predate the convex-ladder rebalance):
- *        - tiers       <- script/setup/SetupTiers.s.sol   (convex 2.2x ladder)
- *        - boosts      <- script/setup/SetupBoosts.s.sol   (Kingpin +6/1.25x, Godfather 2.25x/1.35x)
+ *        - tiers       <- script/setup/SetupTiers.s.sol   (sim-calibrated ladder)
+ *        - boosts      <- script/setup/SetupBoosts.s.sol   (trimmed drug/cash mults 1.10-1.25x)
  *        - drugs/areas <- script/setup/SetupDrugs.s.sol + SetupAreas.s.sol
  *        - heist math  <- DealersHeists constructor defaults
  *
@@ -33,7 +33,7 @@ contract HeistEconomySimulation is Test {
     uint16[5] stageSetbackKeepBps = [5000, 4500, 4000, 3500, 3000];
     uint32[5] stagePotMinBps = [10000, 18000, 30000, 52000, 100000];
     uint32[5] stagePotMaxBps = [14000, 28000, 46000, 78000, 160000];
-    uint16[5] stageRepReward = [0, 2, 4, 7, 12];
+    uint16[5] stageRepReward = [0, 6, 12, 21, 36]; // 3x constructor defaults (SetupHeists)
     uint8[3][5] supplyMix =
         [[uint8(100), 0, 0], [uint8(70), 30, 0], [uint8(40), 60, 0], [uint8(10), 50, 40], [uint8(0), 0, 100]];
 
@@ -109,25 +109,25 @@ contract HeistEconomySimulation is Test {
     function setUp() public {
         // Tuned config (matches script/setup/SetupHeists.s.sol + heist_tuning.py)
         difficulties[0] = Difficulty({repGate: 600, cashEntry: 600, name: "Street Score   (D0)"});
-        difficulties[1] = Difficulty({repGate: 1500, cashEntry: 2500, name: "Warehouse Job  (D1)"});
-        difficulties[2] = Difficulty({repGate: 5500, cashEntry: 12000, name: "Cartel Heist   (D2)"});
+        difficulties[1] = Difficulty({repGate: 1500, cashEntry: 4000, name: "Warehouse Job  (D1)"});
+        difficulties[2] = Difficulty({repGate: 5500, cashEntry: 25000, name: "Cartel Heist   (D2)"});
 
-        tiers[0] = Tier(0, 60, 25, -2, 35, "Outsider");
-        tiers[1] = Tier(100, 35, 18, -3, 25, "Associate");
-        tiers[2] = Tier(250, 20, 10, -3, 22, "Dealer");
-        tiers[3] = Tier(600, 12, 5, -4, 22, "Soldier");
-        tiers[4] = Tier(1500, 9, 4, -5, 24, "Capo");
-        tiers[5] = Tier(3000, 7, 3, -5, 26, "Consigliere");
-        tiers[6] = Tier(5500, 6, 2, -6, 28, "Underboss");
-        tiers[7] = Tier(10000, 5, 2, -6, 30, "Don");
-        tiers[8] = Tier(22000, 4, 1, -7, 32, "Godfather");
-        tiers[9] = Tier(50000, 2, 1, -8, 4, "Legend");
+        tiers[0] = Tier(0, 120, 60, -3, 120, "Outsider");
+        tiers[1] = Tier(100, 90, 45, -4, 90, "Associate");
+        tiers[2] = Tier(250, 60, 30, -4, 60, "Dealer");
+        tiers[3] = Tier(600, 36, 18, -5, 40, "Soldier");
+        tiers[4] = Tier(1500, 28, 14, -6, 40, "Capo");
+        tiers[5] = Tier(3000, 22, 11, -6, 44, "Consigliere");
+        tiers[6] = Tier(5500, 18, 9, -7, 48, "Underboss");
+        tiers[7] = Tier(10000, 15, 7, -6, 52, "Don");
+        tiers[8] = Tier(22000, 12, 6, -8, 56, "Godfather");
+        tiers[9] = Tier(50000, 4, 2, -10, 8, "Legend");
 
         boostCfg[0] = Boost(100, 100, 100, 0, 0, 0, "No Boost ");
-        boostCfg[1] = Boost(125, 125, 110, 2, 0.0025 ether, 3, "Grinder  ");
-        boostCfg[2] = Boost(150, 150, 115, 3, 0.005 ether, 7, "Hustler  ");
-        boostCfg[3] = Boost(175, 175, 125, 6, 0.01 ether, 14, "Kingpin  ");
-        boostCfg[4] = Boost(225, 225, 135, 7, 0.023 ether, 30, "Godfather");
+        boostCfg[1] = Boost(110, 110, 110, 2, 0.0025 ether, 3, "Grinder  ");
+        boostCfg[2] = Boost(115, 115, 115, 3, 0.005 ether, 7, "Hustler  ");
+        boostCfg[3] = Boost(120, 120, 125, 6, 0.01 ether, 14, "Kingpin  ");
+        boostCfg[4] = Boost(125, 125, 135, 7, 0.023 ether, 30, "Godfather");
 
         // Base cash values (SetupDrugs)
         drugBaseValue[1] = 75;

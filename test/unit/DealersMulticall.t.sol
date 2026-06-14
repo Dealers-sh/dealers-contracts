@@ -71,8 +71,8 @@ contract DealersMulticallTest is BaseTest {
 
         assertTrue(state.boostActive);
         assertGt(state.boostExpiry, block.timestamp);
-        assertEq(state.drugMultiplier, 125);
-        assertEq(state.cashMultiplier, 125);
+        assertEq(state.drugMultiplier, 110);
+        assertEq(state.cashMultiplier, 110);
         assertEq(state.repMultiplier, 110);
         assertEq(state.maxAttempts, 7);
     }

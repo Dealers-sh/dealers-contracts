@@ -71,6 +71,9 @@ contract DeployAll is DeployBase {
         // 5. Retune Kingpin + Godfather boost perks (constructor sets defaults)
         _setupBoosts();
 
+        // 5b. Economy rebalance setters (PVE odds, jail chance, PVP cash steal)
+        _setupRebalance();
+
         // 6. Setup achievements
         _setupClaims();
 
@@ -457,93 +460,147 @@ contract DeployAll is DeployBase {
             return;
         } catch {}
 
-        console.log("Setting up 10-tier reputation system (convex 2.2x ladder)...");
+        console.log("Setting up 10-tier reputation system (sim-calibrated ladder)...");
 
+        // Mirrors SetupTiers.s.sol (single source of truth for rationale:
+        // docs/ECONOMY_BALANCE_SIM.md). Keep both in sync.
         ReputationTier[] memory tiers = new ReputationTier[](10);
         tiers[0] = ReputationTier({
             minReputation: 0,
-            winBonus: 60,
-            tieBonus: 25,
-            lossPenalty: -2,
-            repCap: 35,
+            winBonus: 120,
+            tieBonus: 60,
+            lossPenalty: -3,
+            repCap: 120,
             tierName: "Outsider"
         });
         tiers[1] = ReputationTier({
             minReputation: 100,
-            winBonus: 35,
-            tieBonus: 18,
-            lossPenalty: -3,
-            repCap: 25,
+            winBonus: 90,
+            tieBonus: 45,
+            lossPenalty: -4,
+            repCap: 90,
             tierName: "Associate"
         });
         tiers[2] = ReputationTier({
             minReputation: 250,
-            winBonus: 20,
-            tieBonus: 10,
-            lossPenalty: -3,
-            repCap: 22,
+            winBonus: 60,
+            tieBonus: 30,
+            lossPenalty: -4,
+            repCap: 60,
             tierName: "Dealer"
         });
         tiers[3] = ReputationTier({
             minReputation: 600,
-            winBonus: 12,
-            tieBonus: 5,
-            lossPenalty: -4,
-            repCap: 22,
+            winBonus: 36,
+            tieBonus: 18,
+            lossPenalty: -5,
+            repCap: 40,
             tierName: "Soldier"
         });
         tiers[4] = ReputationTier({
             minReputation: 1500,
-            winBonus: 9,
-            tieBonus: 4,
-            lossPenalty: -5,
-            repCap: 24,
+            winBonus: 28,
+            tieBonus: 14,
+            lossPenalty: -6,
+            repCap: 40,
             tierName: "Capo"
         });
         tiers[5] = ReputationTier({
             minReputation: 3000,
-            winBonus: 7,
-            tieBonus: 3,
-            lossPenalty: -5,
-            repCap: 26,
+            winBonus: 22,
+            tieBonus: 11,
+            lossPenalty: -6,
+            repCap: 44,
             tierName: "Consigliere"
         });
         tiers[6] = ReputationTier({
             minReputation: 5500,
-            winBonus: 6,
-            tieBonus: 2,
-            lossPenalty: -6,
-            repCap: 28,
+            winBonus: 18,
+            tieBonus: 9,
+            lossPenalty: -7,
+            repCap: 48,
             tierName: "Underboss"
         });
         tiers[7] = ReputationTier({
             minReputation: 10000,
-            winBonus: 5,
-            tieBonus: 2,
+            winBonus: 15,
+            tieBonus: 7,
             lossPenalty: -6,
-            repCap: 30,
+            repCap: 52,
             tierName: "Don"
         });
         tiers[8] = ReputationTier({
             minReputation: 22000,
-            winBonus: 4,
-            tieBonus: 1,
-            lossPenalty: -7,
-            repCap: 32,
+            winBonus: 12,
+            tieBonus: 6,
+            lossPenalty: -8,
+            repCap: 56,
             tierName: "Godfather"
         });
         tiers[9] = ReputationTier({
             minReputation: 50000,
-            winBonus: 2,
-            tieBonus: 1,
-            lossPenalty: -8,
-            repCap: 4,
+            winBonus: 4,
+            tieBonus: 2,
+            lossPenalty: -10,
+            repCap: 8,
             tierName: "Legend"
         });
 
         c.setReputationTiers(tiers);
         c.setMaxReputation(75000);
-        console.log("  10 tiers + MAX_REPUTATION=75000 (Legend is soft-bleed +2/+1/-8 repCap=4)");
+        console.log("  10 tiers + MAX_REPUTATION=75000 (Legend is soft-bleed +4/+2/-10 repCap=8)");
+        console.log("");
+    }
+
+    // =========================================================================
+    //                        ECONOMY REBALANCE
+    // =========================================================================
+
+    /**
+     * @dev Mirrors SetupRebalance.s.sol so fresh deploys carry the sim-calibrated economy
+     *      out-of-the-box (constructor defaults are stale). Keep both in sync.
+     */
+    function _setupRebalance() internal {
+        console.log("Applying economy rebalance (PVE odds 25/50/25, stake scaling, jail 0.7%%/heat, cash steal 2%%)...");
+
+        IPVEContract(pve).setOutcomeOdds(50, 25);
+        IPVEContract(pve).setStakeScaling(2500, 10000);
+
+        IDealersCore(core).setCoreConfig(
+            IDealersCore.CoreConfig({
+                attemptResetFee: 0.001 ether,
+                bribeCopFee: 0.001 ether,
+                cashTopupPrice: 0.001 ether,
+                cashTopupAmount: 100,
+                cashPurchaseThreshold: 10,
+                jailRepPenaltyPercent: 10,
+                jailRepPenaltyCap: 50,
+                wantedPosterSuccessChance: 50,
+                breakoutSuccessChance: 50,
+                jailDrugConfiscationPercent: 3,
+                starterCash: 250,
+                jailChancePerHeat: 7
+            })
+        );
+
+        IPVPContract(pvp).setPVPConfig(
+            IPVPContract.PVPConfig({
+                minReputation: 200,
+                baseWinChance: 50,
+                minWinChance: 25,
+                maxWinChance: 75,
+                maxAttacksPerDay: 3,
+                drugStealPercent: 2,
+                cashStealPercent: 2,
+                rarityWeightCommon: 75,
+                rarityWeightUncommon: 20,
+                rarityWeightRare: 5,
+                repRangePercent: 25,
+                defenderRepBonus: 2,
+                repRangeThreshold: 22000
+            })
+        );
+
         console.log("");
     }
 
@@ -551,42 +608,73 @@ contract DeployAll is DeployBase {
     //                           BOOSTS RETUNE
     // =========================================================================
 
+    /**
+     * @dev Mirrors SetupBoosts.s.sol: drug/cash multipliers trimmed to 1.10-1.25x so
+     *      max-stake hustles under the rep-scaled stake ceiling stay inside the 5.1 daily
+     *      cash bands. Keep both in sync.
+     */
     function _setupBoosts() internal {
         IBoostsAdmin b = IBoostsAdmin(boosts);
 
-        console.log("Retuning Kingpin + Godfather boost perks...");
+        console.log("Setting boost tiers (trimmed drug/cash multipliers)...");
 
-        // Kingpin (tier 3) - +6 attempts (was +5), 1.25x rep (was 1.20)
+        b.setBoostTier(
+            1,
+            IBoostsAdmin.BoostTier({
+                price: 0.0025 ether,
+                duration: 3 days,
+                drugMultiplier: 110,
+                repMultiplier: 110,
+                extraAttempts: 2,
+                freeAreaMovement: false,
+                cashMultiplier: 110,
+                isActive: true
+            })
+        );
+
+        b.setBoostTier(
+            2,
+            IBoostsAdmin.BoostTier({
+                price: 0.005 ether,
+                duration: 7 days,
+                drugMultiplier: 115,
+                repMultiplier: 115,
+                extraAttempts: 3,
+                freeAreaMovement: false,
+                cashMultiplier: 115,
+                isActive: true
+            })
+        );
+
         b.setBoostTier(
             3,
             IBoostsAdmin.BoostTier({
                 price: 0.01 ether,
                 duration: 14 days,
-                drugMultiplier: 175,
+                drugMultiplier: 120,
                 repMultiplier: 125,
                 extraAttempts: 6,
                 freeAreaMovement: true,
-                cashMultiplier: 175,
+                cashMultiplier: 120,
                 isActive: true
             })
         );
 
-        // Godfather (tier 4) - 2.25x drug/cash (was 2x), 1.35x rep (was 1.25)
         b.setBoostTier(
             4,
             IBoostsAdmin.BoostTier({
                 price: 0.023 ether,
                 duration: 30 days,
-                drugMultiplier: 225,
+                drugMultiplier: 125,
                 repMultiplier: 135,
                 extraAttempts: 7,
                 freeAreaMovement: true,
-                cashMultiplier: 225,
+                cashMultiplier: 125,
                 isActive: true
             })
         );
 
-        console.log("  Kingpin: +6 attempts, 1.25x rep | Godfather: 2.25x drug/cash, 1.35x rep");
+        console.log("  Drug/cash mult: 1.10/1.15/1.20/1.25x | rep mult + attempts unchanged");
         console.log("");
     }
 

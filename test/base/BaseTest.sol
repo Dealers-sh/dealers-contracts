@@ -90,6 +90,10 @@ abstract contract BaseTest is Test, IERC721Receiver {
 
         pve.setRandomness(address(randomness));
         pve.setActions(address(actions));
+        // Pin the legacy flat-divisor, unbounded-stake economics: these suites use
+        // stakes/expectations calibrated to divisor 50; shipped defaults are covered by
+        // the stake-scaling tests in test/unit/DealersPVE.t.sol.
+        pve.setStakeScaling(0, 0);
         pvp.setRandomness(address(randomness));
         pvp.setDrugRegistry(address(drugRegistry));
         pvp.setActions(address(actions));

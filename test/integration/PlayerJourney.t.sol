@@ -93,7 +93,7 @@ contract PlayerJourneyTest is BaseTest {
         assertTrue(core.hasActiveBoost(tokenId), "Should have active boost");
 
         IDealersCore.BoostData memory boost = core.getBoost(tokenId);
-        assertEq(boost.drugMultiplier, 125, "Drug multiplier should be 125 (1.25x)");
+        assertEq(boost.drugMultiplier, 110, "Drug multiplier should be 110 (1.10x)");
         assertEq(boost.repMultiplier, 110, "Rep multiplier should be 110 (1.1x)");
         assertEq(boost.extraAttempts, 2, "Extra attempts should be 2");
 
