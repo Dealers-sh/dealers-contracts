@@ -5,11 +5,14 @@ import "../base/DeployBase.s.sol";
 
 interface INFTReserve {
     function reserve(uint256 nftAmount) external;
+    function resolveMany(uint256[] calldata tokenIds) external;
+    function currentTokenId() external view returns (uint256);
 }
 
 interface ICoreAdmin {
     function updateReputation(uint256 tokenId, int256 change) external;
     function forceMove(uint256 tokenId, uint8 newAreaId) external;
+    function authorizeContract(address contractAddress, bool authorized) external;
 }
 
 contract SetupTestnetDealers is DeployBase {
@@ -31,12 +34,16 @@ contract SetupTestnetDealers is DeployBase {
 
         ICoreAdmin coreContract = ICoreAdmin(core);
 
+        // updateReputation / forceMove are onlyAuthorized — temporarily authorize the broadcasting
+        // owner EOA so this seed script can write dealer state directly, then revoke it below.
+        coreContract.authorizeContract(tx.origin, true);
+
         // Distribute dealers across the new convex 2.2x ladder.
         // STARTING_REPUTATION is 25, so reputation deltas land at:
         //   delta +175  -> 200 rep  (Dealer)
         //   delta +475  -> 500 rep  (Soldier)
         //   delta +1175 -> 1,200 rep (Capo)
-        // Area gates (Amsterdam 150, Colombia 250) are unchanged.
+        // Area gates (Amsterdam 150, Colombia 500) are unchanged.
 
         for (uint256 id = 2; id <= 31; id++) {
             coreContract.updateReputation(id, 175);
@@ -55,9 +62,44 @@ contract SetupTestnetDealers is DeployBase {
         }
         console.log("Set rep delta +1175 -> Capo (1,200) + Colombia for token IDs 47-51 (5 dealers)");
 
+        coreContract.authorizeContract(tx.origin, false);
+
         vm.stopBroadcast();
 
         console.log("Token IDs 32-41 left at default rep 25 (Outsider) in Manhattan (10 dealers)");
         console.log("Setup complete: 50 dealers seeded across Outsider/Dealer/Soldier/Capo + 3 areas");
+        console.log("");
+        console.log("Next: wait a few blocks, then reveal their art with --sig \"reveal()\"");
+    }
+
+    /**
+     * @notice Reveal the artwork of every minted dealer via resolveMany.
+     * @dev Run a few blocks AFTER run() — resolve requires block.number > revealBlock
+     *      (REVEAL_DELAY = 2), so a token cannot be revealed in the same block it was minted.
+     *      resolveMany skips any token that is already revealed or not yet revealable, so this is
+     *      idempotent: re-run it if some were still too early when called.
+     */
+    function reveal() external {
+        _loadAddresses();
+        _requireAddress(nft, "DEALERS_NFT");
+
+        uint256 next = INFTReserve(nft).currentTokenId();
+        if (next <= 1) {
+            console.log("No dealers minted yet - nothing to reveal");
+            return;
+        }
+
+        uint256 count = next - 1; // token IDs 1 .. next-1
+        uint256[] memory ids = new uint256[](count);
+        for (uint256 i; i < count; i++) {
+            ids[i] = i + 1;
+        }
+
+        vm.startBroadcast();
+        INFTReserve(nft).resolveMany(ids);
+        vm.stopBroadcast();
+
+        console.log("resolveMany attempted on token IDs 1 ..", count);
+        console.log("Re-run reveal() if any were skipped (still within REVEAL_DELAY when called).");
     }
 }

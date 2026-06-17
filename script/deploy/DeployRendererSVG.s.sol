@@ -28,12 +28,19 @@ contract DeployRendererSVG is DeployBase {
         console.log("   Deploying SVG Renderer (EVM Mode)");
         console.log("==============================================");
 
+        DealerRendererSVG svg;
         if (rendererSvg != address(0)) {
             console.log("Skipping DealerRendererSVG (already deployed):", rendererSvg);
+            svg = DealerRendererSVG(rendererSvg);
         } else {
-            DealerRendererSVG svg = new DealerRendererSVG();
+            svg = new DealerRendererSVG();
             rendererSvg = address(svg);
             console.log("DealerRendererSVG deployed at:", rendererSvg);
+        }
+
+        if (svg.dealersNFT() != nft) {
+            svg.setDealersNFT(nft);
+            console.log("Wired renderer -> NFT (tokenToPool source):", nft);
         }
 
         vm.stopBroadcast();

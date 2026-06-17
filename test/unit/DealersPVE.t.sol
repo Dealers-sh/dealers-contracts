@@ -290,7 +290,7 @@ contract DealersPVETest is Test, IERC721Receiver {
         sells[2] = 150;
         areaRegistry.batchConfigureAreaDrugs(2, ids, buys, sells);
 
-        areaRegistry.createArea("Colombia", 0.001 ether, 250, false, false);
+        areaRegistry.createArea("Colombia", 0.001 ether, 500, false, false);
         ids[0] = 4;
         ids[1] = 6;
         ids[2] = 8;
@@ -302,7 +302,7 @@ contract DealersPVETest is Test, IERC721Receiver {
         sells[2] = 75;
         areaRegistry.batchConfigureAreaDrugs(3, ids, buys, sells);
 
-        areaRegistry.createArea("Hong Kong", 0.001 ether, 500, false, false);
+        areaRegistry.createArea("Hong Kong", 0.001 ether, 800, false, false);
         ids[0] = 9;
         ids[1] = 10;
         ids[2] = 8;

@@ -8,16 +8,21 @@ import "../base/DeployBase.s.sol";
  * @dev Deploys in dependency order, skipping contracts that already have an address in .env.
  *      After deploying: drugs, areas, wiring, tiers, claims, chat rooms.
  *
- * Required env vars: DEV_WALLET, BANK_VAULT, ROYALTY_RECEIVER
+ * Required env vars: DEV_WALLET, BANK_VAULT, ROYALTY_RECEIVER, PYTH_ENTROPY (network-prefixed)
  * Optional env vars: DRUG_REGISTRY, AREA_REGISTRY, DEALERS_CORE, PAYMENT_HANDLER,
  *                    RANDOMNESS, DEALERS_NFT, DEALERS_BOOSTS, DEALERS_PVE, DEALERS_PVP,
- *                    DEALERS_CLAIMS (set these to skip deployment of already-deployed contracts)
+ *                    DEALERS_CLAIMS, DEALERS_HEISTS (set these to skip deployment of already-deployed contracts)
  *
  * Usage:
  *     source .env && forge script script/deploy/DeployAll.s.sol:DeployAll \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
  *     --skip "RendererSVG" --skip "UploadTraits"
  */
+interface IHeistsWiring {
+    function setActions(address _actions) external;
+    function actions() external view returns (address);
+}
+
 contract DeployAll is DeployBase {
     bool internal skipNFT;
 
@@ -250,6 +255,27 @@ contract DeployAll is DeployBase {
             console.log("DealersChatFactory: skipped (exists)");
         }
 
+        if (skipNFT) {
+            console.log("DealersHeists: skipped (game-only mode; needs real NFT)");
+        } else if (heists == address(0)) {
+            _requireAddress(core, "DEALERS_CORE");
+            _requireAddress(nft, "DEALERS_NFT");
+            _requireAddress(randomness, "RANDOMNESS");
+            _requireAddress(paymentHandler, "PAYMENT_HANDLER");
+            _requireAddress(drugRegistry, "DRUG_REGISTRY");
+            address entropy = _envAddrForNetwork("PYTH_ENTROPY");
+            _requireAddress(entropy, "PYTH_ENTROPY");
+            heists = _zkCreate(
+                abi.encodePacked(
+                    vm.getCode("DealersHeists.sol:DealersHeists"),
+                    abi.encode(core, nft, randomness, paymentHandler, drugRegistry, entropy)
+                )
+            );
+            console.log("DealersHeists deployed:", heists);
+        } else {
+            console.log("DealersHeists: skipped (exists)");
+        }
+
         console.log("");
     }
 
@@ -299,6 +325,19 @@ contract DeployAll is DeployBase {
             IActionsContract actionsAuth = IActionsContract(actions);
             if (!actionsAuth.authorizedJailers(pve)) actionsAuth.authorizeJailer(pve, true);
             if (!actionsAuth.authorizedJailers(pvp)) actionsAuth.authorizeJailer(pvp, true);
+        }
+
+        // Heists (daily heist module) auth + wiring. Claims.setHeists is handled in the Claims block.
+        if (heists != address(0)) {
+            _authorizeIfNeeded(c, heists);
+            if (!payHandler.authorizedContracts(heists)) payHandler.authorizeContract(heists, true);
+            if (!rng.isAuthorizedResolver(heists)) rng.authorizeResolver(heists, true);
+            if (actions != address(0)) {
+                if (IHeistsWiring(heists).actions() != actions) IHeistsWiring(heists).setActions(actions);
+                if (!IActionsContract(actions).authorizedJailers(heists)) {
+                    IActionsContract(actions).authorizeJailer(heists, true);
+                }
+            }
         }
 
         // Module references
@@ -416,11 +455,11 @@ contract DeployAll is DeployBase {
         reg.batchConfigureAreaDrugs(2, _d(4, 7, 8), _d(3, 15, 180), _d(2, 12, 150));
 
         // Colombia: Dealer entry, first paid area (0.001 ETH), also PVP unlock
-        reg.createArea("Colombia", 0.001 ether, 200, false, false);
+        reg.createArea("Colombia", 0.001 ether, 500, false, false);
         reg.batchConfigureAreaDrugs(3, _d(4, 6, 8), _d(1, 60, 90), _d(1, 50, 75));
 
         // Hong Kong: Soldier entry
-        reg.createArea("Hong Kong", 0.001 ether, 500, false, false);
+        reg.createArea("Hong Kong", 0.001 ether, 800, false, false);
         reg.batchConfigureAreaDrugs(4, _d(9, 10, 8), _d(18, 28, 140), _d(15, 22, 110));
 
         // Seoul: Capo entry
@@ -852,6 +891,7 @@ contract DeployAll is DeployBase {
         console.log("DEALERS_ACTIONS=", actions);
         console.log("DEALER_MULTICALL=", multicall);
         console.log("CHAT_FACTORY=", chatFactory);
+        if (!skipNFT) console.log("DEALERS_HEISTS=", heists);
         console.log("");
         if (skipNFT) {
             console.log("Game-only mode notes:");
@@ -866,13 +906,13 @@ contract DeployAll is DeployBase {
             console.log("  3. Deploy SVG renderer (EVM mode, no --zksync)");
             console.log("  4. Deploy HTML renderer (--zksync)");
             console.log("  5. Upload gzip JS + set gzip filename on HTML renderer");
-            console.log("  6. Enable minting: cast send $DEALERS_NFT \"setMintStatus(uint8)\" 3");
+            console.log("  6. Enable minting: cast send $DEALERS_NFT \"setMintOpen(bool)\" true");
         } else {
             console.log("Remaining:");
             console.log("  1. Deploy SVG renderer (EVM mode, no --zksync)");
             console.log("  2. Deploy HTML renderer (--zksync)");
             console.log("  3. Upload gzip JS + set gzip filename on HTML renderer");
-            console.log("  4. Enable minting: cast send $DEALERS_NFT \"setMintStatus(uint8)\" 3");
+            console.log("  4. Enable minting: cast send $DEALERS_NFT \"setMintOpen(bool)\" true");
         }
     }
 }
