@@ -7,7 +7,9 @@ pragma solidity ^0.8.28;
  * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀ █░█
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ▄█ █▀█
  *
- * @dev Interface for SVG generation and trait metadata for dealer NFTs
+ * @dev Interface for SVG generation and trait metadata for dealer NFTs. Artwork is
+ *      stored by pool index; the token-facing views resolve a tokenId to its pool index
+ *      via DealersNFT.tokenToPool.
  * @author Berny0x
  */
 interface IDealerRendererSVG {
@@ -25,8 +27,8 @@ interface IDealerRendererSVG {
     //                            EVENTS
     // =============================================================
 
-    event TraitsStored(uint256 indexed tokenId);
-    event TraitUpdated(uint256 indexed tokenId, uint8 indexed category, uint8 traitIndex);
+    event TraitsStored(uint256 indexed poolIndex);
+    event TraitUpdated(uint256 indexed poolIndex, uint8 indexed category, uint8 traitIndex);
 
     // =============================================================
     //                            ERRORS
@@ -45,18 +47,18 @@ interface IDealerRendererSVG {
 
     function getCharacterType(uint256 tokenId) external view returns (uint8);
 
-    function revealed() external view returns (bool);
-
     function placeholderSvgPointer() external view returns (address);
 
-    function getOneOfOneInfo(uint256 tokenId)
+    function dealersNFT() external view returns (address);
+
+    function getOneOfOneInfo(uint256 poolIndex)
         external
         view
         returns (string memory characterName, address svgContract, bool exists);
 
-    function getStoredTraits(uint256 tokenId) external view returns (uint8[12] memory);
+    function getStoredTraits(uint256 poolIndex) external view returns (uint8[12] memory);
 
-    function isTraitStored(uint256 tokenId) external view returns (bool);
+    function isTraitStored(uint256 poolIndex) external view returns (bool);
 
     function traitCount(uint8 characterType, uint8 category) external view returns (uint256);
 
@@ -64,9 +66,9 @@ interface IDealerRendererSVG {
     //                    STATE-MODIFYING FUNCTIONS
     // =============================================================
 
-    function batchSetTraits(uint256[] calldata tokenIds, bytes32[] calldata packedTraits) external;
+    function batchSetTraits(uint256[] calldata poolIndices, bytes32[] calldata packedTraits) external;
 
-    function setTraitForToken(uint256 tokenId, uint8 category, uint8 traitIndex) external;
+    function setTraitForToken(uint256 poolIndex, uint8 category, uint8 traitIndex) external;
 
     // =============================================================
     //                      TRAIT MANAGEMENT
@@ -84,10 +86,10 @@ interface IDealerRendererSVG {
     function updateTraitPointer(uint8 characterType, uint8 category, uint256 traitIndex, address newFileStorePointer)
         external;
 
-    function setOneOfOne(uint256 tokenId, string calldata characterName, address fileStorePointer) external;
+    function setOneOfOne(uint256 poolIndex, string calldata characterName, address fileStorePointer) external;
 
     function batchSetOneOfOnes(
-        uint256[] calldata tokenIds,
+        uint256[] calldata poolIndices,
         string[] calldata characterNames,
         address[] calldata fileStorePointers
     ) external;
@@ -99,8 +101,8 @@ interface IDealerRendererSVG {
     function setPlaceholderSvg(address pointer) external;
 
     // =============================================================
-    //                      REVEAL MANAGEMENT
+    //                       NFT INTEGRATION
     // =============================================================
 
-    function reveal() external;
+    function setDealersNFT(address _dealersNFT) external;
 }

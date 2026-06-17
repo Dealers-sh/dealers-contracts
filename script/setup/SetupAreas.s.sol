@@ -63,11 +63,11 @@ contract SetupAreas is DeployBase {
         _configureDrugs(reg, 2, _arr(WEED, SHROOMS, HEROIN), _arr(3, 15, 180), _arr(2, 12, 150));
 
         // Area 3: Colombia (Dealer entry - first paid area, also PVP unlock)
-        reg.createArea("Colombia", MOVEMENT_FEE, 250, false, false);
+        reg.createArea("Colombia", MOVEMENT_FEE, 500, false, false);
         _configureDrugs(reg, 3, _arr(WEED, COCAINE, HEROIN), _arr(1, 60, 90), _arr(1, 50, 75));
 
         // Area 4: Hong Kong (Soldier entry - premium heroin sink, heist gate)
-        reg.createArea("Hong Kong", MOVEMENT_FEE, 600, false, false);
+        reg.createArea("Hong Kong", MOVEMENT_FEE, 800, false, false);
         _configureDrugs(reg, 4, _arr(OPIOIDS, METH, HEROIN), _arr(22, 30, 175), _arr(18, 25, 160));
 
         // Area 5: Seoul (Capo entry - Asian farm zone, cheap opioids/meth/fentanyl)

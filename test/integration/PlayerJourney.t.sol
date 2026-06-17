@@ -163,7 +163,7 @@ contract PlayerJourneyTest is BaseTest {
     function test_journey_multipleNFTsPerPlayer() public {
         vm.startPrank(player1);
 
-        nft.mintPublic{value: MINT_PRICE * 3}(player1, 3);
+        nft.mint{value: MINT_PRICE * 3}(player1, 3);
 
         vm.stopPrank();
 

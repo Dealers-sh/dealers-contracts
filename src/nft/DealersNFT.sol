@@ -8,7 +8,6 @@ import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {LibString} from "solady/src/utils/LibString.sol";
 import {Base64} from "solady/src/utils/Base64.sol";
-import {MerkleProofLib} from "solady/src/utils/MerkleProofLib.sol";
 import "../core/IDealersCore.sol";
 import "../utils/IAreaRegistry.sol";
 
@@ -28,7 +27,18 @@ interface IDealerRendererHTML {
  * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀ █░█
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ▄█ █▀█
  *
- * @dev ERC721 with dynamic on-chain metadata and embedded HTML gameplay UI
+ * @dev ERC721 dealer with dynamic on-chain metadata and embedded HTML gameplay UI.
+ *      Buying a dealer is a single public mint: the token (and its game state) is
+ *      created immediately, while the artwork is assigned later via a commit-reveal so
+ *      no one can cherry-pick rare characters from the pre-uploaded pool.
+ *
+ *      Mint = commit: the token is minted and `initializeDealer` runs, so gameplay is
+ *      live at once. A future-block anchor is recorded in `revealBlockOf`.
+ *      resolve = reveal: once the anchor block exists, anyone (session key, the player,
+ *      or a keeper) draws an unused pool index from `blockhash(revealBlock)` and binds
+ *      it to the token. The seed omits the caller, so every reveal path is identical.
+ *      A stale anchor (>256 blocks) re-anchors instead of bricking, so expiry can never
+ *      strand a paid mint.
  * @author Berny0x
  */
 contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
@@ -43,18 +53,16 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     uint256 public constant ROYALTY_PERCENTAGE = 500; // 5%
     uint256 public constant MAX_PER_WALLET = 10;
 
+    /**
+     * @dev Blocks between a mint (commit) and the block its artwork is drawn from.
+     */
+    uint64 public constant REVEAL_DELAY = 2;
+
     // =============================================================
     //                            STORAGE
     // =============================================================
 
-    enum MintStatus {
-        DISABLED,
-        FAMILY,
-        WHITELIST,
-        PUBLIC
-    }
-
-    MintStatus public mintStatus = MintStatus.DISABLED;
+    bool public mintOpen;
     bool public paused;
 
     uint32 public totalMinted; // fits in 32 bits
@@ -63,12 +71,28 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     address public dealersCore;
     address public royaltyReceiver;
 
-    bytes32 public familyMerkleRoot;
-    bytes32 public whitelistMerkleRoot;
-
     mapping(address => uint256) private mintCount;
-    mapping(address => uint256) private familyClaimed;
-    mapping(address => uint256) private whitelistClaimed;
+
+    /**
+     * @notice Pool index (1..MAX_SUPPLY) of the artwork bound to a token; 0 = unrevealed.
+     * @dev The renderer reads this to map a tokenId to its pre-uploaded character.
+     */
+    mapping(uint256 => uint32) public tokenToPool;
+
+    /**
+     * @notice Block whose hash seeds a token's reveal; 0 once the token is revealed.
+     */
+    mapping(uint256 => uint64) public revealBlockOf;
+
+    /**
+     * @dev Lazy Fisher-Yates state: count of pool slots not yet drawn.
+     */
+    uint32 public poolRemaining;
+
+    /**
+     * @dev Lazy Fisher-Yates cache. Slot k holds (value+1) when moved; 0 means value==k.
+     */
+    mapping(uint32 => uint32) private poolCache;
 
     IDealerRendererSVG public contractRendererSVG;
     IDealerRendererHTML public contractRendererHTML;
@@ -85,15 +109,16 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     //                            EVENTS
     // =============================================================
 
-    event MintStatusChanged(MintStatus newStatus);
+    event MintOpenChanged(bool open);
     event MintPriceChanged(uint256 oldPrice, uint256 newPrice);
     event DealerInitialized(uint256 indexed tokenId, address indexed owner);
+    event MintCommitted(uint256 indexed tokenId, address indexed owner, uint64 revealBlock);
+    event DealerRevealed(uint256 indexed tokenId, uint32 poolIndex);
+    event RevealReAnchored(uint256 indexed tokenId, uint64 newRevealBlock);
     event RendererSVGChanged(address indexed newAddress);
     event RendererHTMLChanged(address indexed newAddress);
     event DealersCoreUpdated(address indexed newCore);
     event BatchMetadataUpdate(uint256 _fromTokenId, uint256 _toTokenId);
-    event FamilyMerkleRootSet(bytes32 indexed root);
-    event WhitelistMerkleRootSet(bytes32 indexed root);
     event RoyaltyReceiverChanged(address indexed oldReceiver, address indexed newReceiver);
     event Paused(address account);
     event Unpaused(address account);
@@ -105,14 +130,12 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
 
     error InvalidMint();
     error TotalSupplyReached();
-    error NotFamilyMint();
-    error NotWhitelistMint();
-    error NotPublicMint();
+    error MintNotOpen();
     error InsufficientETH();
-    error InvalidMerkleProof();
-    error MerkleRootNotSet();
-    error ExceedsAllocation();
     error TokenDoesNotExist();
+    error AlreadyRevealed();
+    error TooEarly();
+    error PoolExhausted();
     error InvalidAddress();
     error TransferFailed();
     error InsufficientBalance();
@@ -126,6 +149,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     constructor(address _royaltyReceiver) ERC721("dealers.sh", "DEALER") {
         _initializeOwner(msg.sender);
         royaltyReceiver = _royaltyReceiver;
+        poolRemaining = uint32(MAX_SUPPLY);
     }
 
     // =============================================================
@@ -134,21 +158,6 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
 
     modifier whenNotPaused() {
         if (paused) revert ContractPaused();
-        _;
-    }
-
-    modifier onlyFamilyMint() {
-        if (mintStatus != MintStatus.FAMILY) revert NotFamilyMint();
-        _;
-    }
-
-    modifier onlyWhitelistMint() {
-        if (mintStatus != MintStatus.WHITELIST) revert NotWhitelistMint();
-        _;
-    }
-
-    modifier onlyPublicMint() {
-        if (mintStatus != MintStatus.PUBLIC) revert NotPublicMint();
         _;
     }
 
@@ -213,88 +222,23 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     }
 
     /**
-     * @notice Mint NFTs during family phase with merkle proof verification
-     * @dev Family mint is FREE - no payment required
-     * @param count Number of NFTs to mint
-     * @param maxAllocation Maximum allocation for this address in merkle tree
-     * @param proof Merkle proof for family list inclusion
+     * @notice Buy one or more dealers (commit). Mints + initializes gameplay immediately;
+     *         the artwork is assigned afterwards via resolve().
+     * @param dest Destination address for the minted dealers
+     * @param count Number of dealers to buy
      */
-    function mintFamily(uint256 count, uint256 maxAllocation, bytes32[] calldata proof)
-        external
-        nonReentrant
-        whenNotPaused
-        onlyFamilyMint
-        checkAndUpdateBuyerMintCount(count)
-        checkAndUpdateTotalMinted(count)
-    {
-        if (familyMerkleRoot == bytes32(0)) revert MerkleRootNotSet();
-
-        uint256 alreadyClaimed = familyClaimed[msg.sender];
-        if (alreadyClaimed + count > maxAllocation) revert ExceedsAllocation();
-
-        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(msg.sender, maxAllocation))));
-        if (!MerkleProofLib.verifyCalldata(proof, familyMerkleRoot, leaf)) {
-            revert InvalidMerkleProof();
-        }
-
-        familyClaimed[msg.sender] = alreadyClaimed + count;
-        _mintDealer(msg.sender, count);
-    }
-
-    /**
-     * @notice Mint NFTs during whitelist phase with merkle proof verification
-     * @dev Whitelist mint requires payment at mintPrice per NFT
-     * @param count Number of NFTs to mint
-     * @param maxAllocation Maximum allocation for this address in merkle tree
-     * @param proof Merkle proof for whitelist inclusion
-     */
-    function mintWhitelist(uint256 count, uint256 maxAllocation, bytes32[] calldata proof)
+    function mint(address dest, uint256 count)
         external
         payable
         nonReentrant
         whenNotPaused
-        onlyWhitelistMint
         checkAndUpdateBuyerMintCount(count)
         checkAndUpdateTotalMinted(count)
     {
+        if (!mintOpen) revert MintNotOpen();
         uint256 requiredPayment = mintPrice * count;
         if (msg.value < requiredPayment) revert InsufficientETH();
 
-        if (whitelistMerkleRoot == bytes32(0)) revert MerkleRootNotSet();
-
-        uint256 alreadyClaimed = whitelistClaimed[msg.sender];
-        if (alreadyClaimed + count > maxAllocation) revert ExceedsAllocation();
-
-        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(msg.sender, maxAllocation))));
-        if (!MerkleProofLib.verifyCalldata(proof, whitelistMerkleRoot, leaf)) {
-            revert InvalidMerkleProof();
-        }
-
-        whitelistClaimed[msg.sender] = alreadyClaimed + count;
-        _mintDealer(msg.sender, count);
-
-        if (msg.value > requiredPayment) {
-            (bool success,) = msg.sender.call{value: msg.value - requiredPayment}("");
-            if (!success) revert ETHTransferFailed();
-        }
-    }
-
-    /**
-     * @notice Mint NFTs during public phase
-     * @param dest Destination address for minted NFTs
-     * @param count Number of NFTs to mint
-     */
-    function mintPublic(address dest, uint256 count)
-        external
-        payable
-        nonReentrant
-        whenNotPaused
-        onlyPublicMint
-        checkAndUpdateBuyerMintCount(count)
-        checkAndUpdateTotalMinted(count)
-    {
-        uint256 requiredPayment = mintPrice * count;
-        if (msg.value < requiredPayment) revert InsufficientETH();
         _mintDealer(dest, count);
 
         if (msg.value > requiredPayment) {
@@ -306,21 +250,112 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     function _mintDealer(address to, uint256 nftAmount) private {
         address core = dealersCore;
         uint256 id = currentTokenId;
+        uint64 revealBlock = uint64(block.number) + REVEAL_DELAY;
 
         for (uint256 i; i < nftAmount;) {
             uint256 tokenId = id;
             _safeMint(to, tokenId);
-            unchecked {
-                ++id;
-                ++i;
-            }
+
+            revealBlockOf[tokenId] = revealBlock;
+            emit MintCommitted(tokenId, to, revealBlock);
 
             if (core != address(0)) {
                 IDealersCore(core).initializeDealer(tokenId);
                 emit DealerInitialized(tokenId, to);
             }
+
+            unchecked {
+                ++id;
+                ++i;
+            }
         }
         currentTokenId = id;
+    }
+
+    // =============================================================
+    //                           REVEAL
+    // =============================================================
+
+    /**
+     * @notice Reveal a token's artwork by drawing an unused pool index. Permissionless:
+     *         the outcome depends only on the committed block and the token id, so a
+     *         session key, the player, or a keeper all produce the same result.
+     * @dev If the committed block hash is no longer available (>256 blocks old) the token
+     *      is re-anchored to a fresh block instead of failing, so it can always be revealed
+     *      on a later call.
+     * @param tokenId The token to reveal
+     */
+    function resolve(uint256 tokenId) external {
+        if (!_exists(tokenId)) revert TokenDoesNotExist();
+        if (tokenToPool[tokenId] != 0) revert AlreadyRevealed();
+        uint64 rb = revealBlockOf[tokenId];
+        if (block.number <= rb) revert TooEarly();
+        _revealOrReanchor(tokenId, rb);
+    }
+
+    /**
+     * @notice Reveal many tokens in one call. Tokens that are not yet revealable
+     *         (already revealed, or still before their anchor block) are skipped rather
+     *         than reverting, so a keeper can sweep freely.
+     * @param tokenIds Tokens to attempt to reveal
+     */
+    function resolveMany(uint256[] calldata tokenIds) external {
+        uint256 len = tokenIds.length;
+        for (uint256 i; i < len;) {
+            uint256 tokenId = tokenIds[i];
+            if (_exists(tokenId) && tokenToPool[tokenId] == 0) {
+                uint64 rb = revealBlockOf[tokenId];
+                if (block.number > rb) _revealOrReanchor(tokenId, rb);
+            }
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /**
+     * @dev Reveals from blockhash(rb) when available; otherwise re-anchors to a new block.
+     *      Seed deliberately excludes msg.sender so the result is caller-independent.
+     */
+    function _revealOrReanchor(uint256 tokenId, uint64 rb) private {
+        bytes32 bh = blockhash(rb);
+        if (bh == bytes32(0)) {
+            uint64 newRevealBlock = uint64(block.number) + REVEAL_DELAY;
+            revealBlockOf[tokenId] = newRevealBlock;
+            emit RevealReAnchored(tokenId, newRevealBlock);
+            return;
+        }
+
+        uint32 poolIndex = _drawPool(uint256(keccak256(abi.encodePacked(bh, tokenId))));
+        tokenToPool[tokenId] = poolIndex;
+        delete revealBlockOf[tokenId];
+
+        emit DealerRevealed(tokenId, poolIndex);
+        emit BatchMetadataUpdate(tokenId, tokenId);
+    }
+
+    /**
+     * @dev Draws one of the remaining pool slots uniformly via lazy Fisher-Yates and
+     *      returns a 1-based pool index in [1, MAX_SUPPLY]. Each slot is dealt exactly once.
+     */
+    function _drawPool(uint256 seed) private returns (uint32 poolIndex) {
+        uint32 n = poolRemaining;
+        if (n == 0) revert PoolExhausted();
+
+        uint32 i = uint32(seed % n);
+        uint32 last = n - 1;
+
+        uint32 vi = poolCache[i];
+        uint32 valI = vi == 0 ? i : vi - 1;
+
+        if (i != last) {
+            uint32 vl = poolCache[last];
+            uint32 valLast = vl == 0 ? last : vl - 1;
+            poolCache[i] = valLast + 1;
+        }
+
+        poolRemaining = last;
+        poolIndex = valI + 1;
     }
 
     // =============================================================
@@ -598,16 +633,16 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     }
 
     /**
-     * @notice Set the current minting phase status
-     * @param newStatus New mint status (DISABLED, FAMILY, WHITELIST, PUBLIC)
+     * @notice Open or close public minting
+     * @param open True to open minting, false to close
      */
-    function setMintStatus(MintStatus newStatus) external onlyOwner {
-        mintStatus = newStatus;
-        emit MintStatusChanged(newStatus);
+    function setMintOpen(bool open) external onlyOwner {
+        mintOpen = open;
+        emit MintOpenChanged(open);
     }
 
     /**
-     * @notice Set the mint price for whitelist and public minting
+     * @notice Set the mint price per NFT
      * @param newPrice New mint price in wei (per NFT)
      */
     function setMintPrice(uint256 newPrice) external onlyOwner {
@@ -630,24 +665,6 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     function unpause() external onlyOwner {
         paused = false;
         emit Unpaused(msg.sender);
-    }
-
-    /**
-     * @notice Set the merkle root for family list
-     * @param _root Merkle root hash
-     */
-    function setFamilyMerkleRoot(bytes32 _root) external onlyOwner {
-        familyMerkleRoot = _root;
-        emit FamilyMerkleRootSet(_root);
-    }
-
-    /**
-     * @notice Set the merkle root for whitelist
-     * @param _root Merkle root hash
-     */
-    function setWhitelistMerkleRoot(bytes32 _root) external onlyOwner {
-        whitelistMerkleRoot = _root;
-        emit WhitelistMerkleRootSet(_root);
     }
 
     /**
@@ -723,7 +740,7 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
 
     /**
      * @notice Get the current mint configuration
-     * @return status Current mint phase status
+     * @return open Whether public minting is open
      * @return price Mint price in wei
      * @return maxPerWallet Maximum NFTs per wallet
      * @return currentSupply Current total supply
@@ -732,9 +749,9 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     function getMintConfig()
         external
         view
-        returns (MintStatus status, uint256 price, uint256 maxPerWallet, uint256 currentSupply, uint256 maxSupply)
+        returns (bool open, uint256 price, uint256 maxPerWallet, uint256 currentSupply, uint256 maxSupply)
     {
-        status = mintStatus;
+        open = mintOpen;
         price = mintPrice;
         maxPerWallet = MAX_PER_WALLET;
         currentSupply = totalSupply();
@@ -742,21 +759,44 @@ contract DealersNFT is ERC721Enumerable, ReentrancyGuard, Ownable, IERC2981 {
     }
 
     /**
-     * @notice Get the number of NFTs claimed by an address in family phase
-     * @param account Address to check
-     * @return Number of NFTs claimed
+     * @notice Whether resolve(tokenId) will run (anchor block reached and not yet revealed)
+     * @param tokenId The token to check
+     * @return True if the token can be resolved now
      */
-    function getFamilyClaimed(address account) external view returns (uint256) {
-        return familyClaimed[account];
+    function isRevealable(uint256 tokenId) external view returns (bool) {
+        return _exists(tokenId) && tokenToPool[tokenId] == 0 && block.number > revealBlockOf[tokenId];
     }
 
     /**
-     * @notice Get the number of NFTs claimed by an address in whitelist phase
-     * @param account Address to check
-     * @return Number of NFTs claimed
+     * @notice Get the unrevealed token IDs owned by an address
+     * @param owner_ Address to query
+     * @return Array of token IDs that still need a reveal
      */
-    function getWhitelistClaimed(address account) external view returns (uint256) {
-        return whitelistClaimed[account];
+    function pendingTokensOf(address owner_) external view returns (uint256[] memory) {
+        uint256 n = balanceOf(owner_);
+        uint256[] memory buffer = new uint256[](n);
+        uint256 count;
+        for (uint256 i; i < n;) {
+            uint256 tokenId = tokenOfOwnerByIndex(owner_, i);
+            if (tokenToPool[tokenId] == 0) {
+                buffer[count] = tokenId;
+                unchecked {
+                    ++count;
+                }
+            }
+            unchecked {
+                ++i;
+            }
+        }
+
+        uint256[] memory ids = new uint256[](count);
+        for (uint256 i; i < count;) {
+            ids[i] = buffer[i];
+            unchecked {
+                ++i;
+            }
+        }
+        return ids;
     }
 
     /**

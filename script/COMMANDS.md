@@ -1,17 +1,25 @@
-# mint for someone
-cast send 0xCa4BC92b565A110952933C90f581A7765415e6Ed "reserveTo(uint256,address)" 1 0x2f4e1B00b40aDe60F69DD0D93c6060144e0690ea --rpc-url https://api.testnet.abs.xyz --account dealersKeystore
+# Dealers NFT — reserve & reveal cast commands (testnet)
 
-# set appUrl on renderer
-cast send 0xECD68943649cdd75679f6eba1d426593dC839022 "setAppUrl(string)" "https://dealers.sh" --rpc-url https://api.testnet.abs.xyz --account dealersKeystore
+# Resolve the current NFT address from the deployment file (or paste it inline).
+DEALERS_NFT=$(jq -r .nft script/data/deployments/testnet.json)
+RPC=https://api.testnet.abs.xyz
 
-source .env && cast send 0x026fE01BC06Bc56e52cdB77BF0Aba6c119d32583 "reveal()" --rpc-url $ABSTRACT_TESTNET_RPC --account dealersKeystore 
+# === Reserve (owner-only, no payment) ===
 
-source .env && cast send 0x026fE01BC06Bc56e52cdB77BF0Aba6c119d32583 \
-    "setTraitForToken(uint256,uint8,uint8)" 1 2 18 \
-    --rpc-url $ABSTRACT_TESTNET_RPC --account dealersKeystore 
+# mint N to the owner
+cast send $DEALERS_NFT "reserve(uint256)" 1 --rpc-url $RPC --account dealersKeystore
 
+# mint N to a specific recipient
+cast send $DEALERS_NFT "reserveTo(uint256,address)" 50 0x8a0C4e96a7456032F647780f0DA82f66C9070418 --rpc-url $RPC --account dealersKeystore
 
- cast send 0x8dC006a61012F1a6f3EAd24eEfaf0e634d0635f4 "authorizeContract(address,bool)" 0xacEB129b6b2928dE29FD21b09D508cEc03D64ffA true --rpc-url https://api.testnet.abs.xyz --account dealersKeystore
+# mint N to each of several recipients
+cast send $DEALERS_NFT "reserveToMany(uint256,address[])" 1 "[0x6298949CE2477ea8D059C2637D468B7Ee9Cbb680,0x...]" --rpc-url $RPC --account dealersKeystore
 
- Coffee: 0x917a67DE1a4e29d8820E1AeAfd1E7e53F19F2Df7
- Mason: 0x2f4e1B00b40aDe60F69DD0D93c6060144e0690ea
+# === Reveal (permissionless; assigns the token's pool art) ===
+# Wait REVEAL_DELAY (2) blocks after minting before resolving — resolve reverts TooEarly otherwise.
+
+# reveal one token
+cast send $DEALERS_NFT "resolve(uint256)" 52 --rpc-url $RPC --account dealersKeystore
+
+# reveal many in one tx (skips tokens that are already revealed or not yet revealable)
+cast send $DEALERS_NFT "resolveMany(uint256[])" "[57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107]" --rpc-url $RPC --account dealersKeystore

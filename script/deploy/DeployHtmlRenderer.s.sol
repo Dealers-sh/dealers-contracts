@@ -32,6 +32,7 @@ contract DeployHtmlRenderer is DeployBase {
         _requireAddress(rendererSvg, "RENDERER_SVG");
 
         string memory targetRpcUrl = _getRpcUrl();
+        string memory targetAppUrl = _getAppUrl();
         string memory gzip = bytes(gzipFilename).length > 0 ? gzipFilename : "placeholder.js.gz";
 
         vm.startBroadcast();
@@ -62,6 +63,14 @@ contract DeployHtmlRenderer is DeployBase {
         html.setDealerGzipFilename(gzip);
         console.log("  Gzip filename:", gzip);
 
+        if (bytes(targetAppUrl).length > 0) {
+            html.setAppUrl(targetAppUrl);
+            console.log("  App URL:", targetAppUrl);
+        } else {
+            console.log("  App URL: SKIPPED (set APP_URL in .env, or call setAppUrl later)");
+            console.log("    -> the app uses it to route users out when iframe-sandboxed");
+        }
+
         INFTSetRenderer nftContract = INFTSetRenderer(nft);
         if (nftContract.contractRendererHTML() != rendererHtml) {
             nftContract.setContractRendererHTML(rendererHtml);
@@ -83,5 +92,18 @@ contract DeployHtmlRenderer is DeployBase {
         if (chainId == 2741) return "https://api.mainnet.abs.xyz";
         if (chainId == 11124) return "https://api.testnet.abs.xyz";
         revert("Unsupported chain");
+    }
+
+    /**
+     * @dev App URL the embedded game opens to escape an iframe sandbox. Network-prefixed env
+     *      (MAINNET_/TESTNET_APP_URL, unprefixed fallback); empty if unset so the deploy skips it.
+     */
+    function _getAppUrl() internal view returns (string memory) {
+        if (block.chainid == 2741) return vm.envOr("MAINNET_APP_URL", string(""));
+        if (block.chainid == 11124) {
+            string memory v = vm.envOr("TESTNET_APP_URL", string(""));
+            if (bytes(v).length > 0) return v;
+        }
+        return vm.envOr("APP_URL", string(""));
     }
 }

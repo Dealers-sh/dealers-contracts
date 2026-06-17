@@ -7,15 +7,23 @@ import {LibString} from "solady/src/utils/LibString.sol";
 import {SSTORE2} from "solady/src/utils/SSTORE2.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 
+interface IDealersNFTPool {
+    function tokenToPool(uint256 tokenId) external view returns (uint32);
+}
+
 /**
  * @title DealerRendererSVG - On-Chain SVG Generator
  *
  * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀ █░█
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ▄█ █▀█
  *
- * @dev Renders dynamic SVG art for dealers from stored trait indices.
- *      Traits are generated off-chain and uploaded via batchSetTraits.
- *      Character type is packed in byte 13 (bits 96-103) of storedTraits.
+ * @dev Renders dynamic SVG art for dealers from a pre-uploaded pool of characters.
+ *      Traits are generated off-chain and uploaded via batchSetTraits, keyed by POOL
+ *      INDEX (1..MAX_SUPPLY), not by token id. The token-facing views (getSVG,
+ *      getTraitsMetadataForToken, getCharacterType) resolve a tokenId to its assigned
+ *      pool index through DealersNFT.tokenToPool: a token with no assignment yet (0)
+ *      renders the placeholder, which is the per-token "unrevealed" state.
+ *      Character type is packed in byte 12 (bits 96-103) of storedTraits.
  *      One-of-ones have their own complete SVG via oneOfOnes mapping.
  *      Uses SSTORE2 for gas-efficient on-chain SVG storage.
  * @author Berny0x
@@ -69,7 +77,11 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     mapping(uint256 => OneOfOneData) public oneOfOnes;
 
     address public placeholderSvgPointer;
-    bool public revealed;
+
+    /**
+     * @notice DealersNFT used to resolve a tokenId to its assigned pool index.
+     */
+    address public dealersNFT;
 
     string[12] public categoryNames = [
         "Backdrop",
@@ -87,7 +99,7 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     ];
 
     // Packed: 12 trait uint8s (bytes 0-11) + charType uint8 (byte 12) = 13 bytes in one slot.
-    // bytes32(0) = not stored.
+    // Keyed by pool index. bytes32(0) = not stored.
     mapping(uint256 => bytes32) public storedTraits;
 
     // =============================================================
@@ -98,18 +110,20 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     event TraitPointerUpdated(
         uint8 indexed characterType, uint8 indexed category, uint256 indexed traitIndex, address newPointer
     );
-    event OneOfOneSet(uint256 indexed tokenId, string characterName);
+    event OneOfOneSet(uint256 indexed poolIndex, string characterName);
     event PlaceholderSvgSet(address indexed pointer);
-    event Revealed();
+    event DealersNFTSet(address indexed dealersNFT);
 
     // =============================================================
     //                            ERRORS
     // =============================================================
 
     error InvalidTokenId();
+    error InvalidPoolIndex();
     error InvalidCharacterType();
     error InvalidCategory();
     error InvalidTraitIndex();
+    error InvalidAddress();
     error ArrayLengthMismatch();
 
     // =============================================================
@@ -126,45 +140,47 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
 
     function getCharacterType(uint256 tokenId) public view returns (uint8) {
         if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
-        if (oneOfOnes[tokenId].exists) return uint8(CharacterType.ONE_OF_ONE);
-        return uint8(uint256(storedTraits[tokenId]) >> 96);
+        uint256 poolIndex = _poolIndexOf(tokenId);
+        if (poolIndex == 0) return uint8(CharacterType.NORMAL);
+        if (oneOfOnes[poolIndex].exists) return uint8(CharacterType.ONE_OF_ONE);
+        return uint8(uint256(storedTraits[poolIndex]) >> 96);
     }
 
     // =============================================================
     //                        STORED TRAITS
     // =============================================================
 
-    function batchSetTraits(uint256[] calldata tokenIds, bytes32[] calldata packedTraits) external onlyOwner {
-        uint256 len = tokenIds.length;
+    function batchSetTraits(uint256[] calldata poolIndices, bytes32[] calldata packedTraits) external onlyOwner {
+        uint256 len = poolIndices.length;
         if (len != packedTraits.length) revert ArrayLengthMismatch();
 
         for (uint256 i; i < len;) {
-            uint256 tokenId = tokenIds[i];
-            if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
+            uint256 poolIndex = poolIndices[i];
+            if (poolIndex == 0 || poolIndex > MAX_SUPPLY) revert InvalidPoolIndex();
 
-            storedTraits[tokenId] = packedTraits[i];
-            emit TraitsStored(tokenId);
+            storedTraits[poolIndex] = packedTraits[i];
+            emit TraitsStored(poolIndex);
             unchecked {
                 ++i;
             }
         }
     }
 
-    function setTraitForToken(uint256 tokenId, uint8 category, uint8 traitIndex) external onlyOwner {
-        if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
+    function setTraitForToken(uint256 poolIndex, uint8 category, uint8 traitIndex) external onlyOwner {
+        if (poolIndex == 0 || poolIndex > MAX_SUPPLY) revert InvalidPoolIndex();
         if (category >= CATEGORY_COUNT) revert InvalidCategory();
 
-        bytes32 packed = storedTraits[tokenId];
+        bytes32 packed = storedTraits[poolIndex];
         uint256 shift = uint256(category) * 8;
         uint256 mask = ~(uint256(0xFF) << shift);
         packed = bytes32((uint256(packed) & mask) | (uint256(traitIndex) << shift));
 
-        storedTraits[tokenId] = packed;
-        emit TraitUpdated(tokenId, category, traitIndex);
+        storedTraits[poolIndex] = packed;
+        emit TraitUpdated(poolIndex, category, traitIndex);
     }
 
-    function getStoredTraits(uint256 tokenId) external view returns (uint8[12] memory result) {
-        CharacterData memory d = _unpackCharacterData(storedTraits[tokenId]);
+    function getStoredTraits(uint256 poolIndex) external view returns (uint8[12] memory result) {
+        CharacterData memory d = _unpackCharacterData(storedTraits[poolIndex]);
         result[0] = d.backdrop;
         result[1] = d.head;
         result[2] = d.expression;
@@ -179,8 +195,8 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         result[11] = d.accessory;
     }
 
-    function isTraitStored(uint256 tokenId) external view returns (bool) {
-        return storedTraits[tokenId] != bytes32(0);
+    function isTraitStored(uint256 poolIndex) external view returns (bool) {
+        return storedTraits[poolIndex] != bytes32(0);
     }
 
     // =============================================================
@@ -189,14 +205,15 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
 
     function getSVG(uint256 tokenId) external view returns (string memory) {
         bytes memory inner;
+        uint256 poolIndex = _poolIndexOf(tokenId);
 
-        if (!revealed) {
+        if (poolIndex == 0) {
             if (placeholderSvgPointer == address(0)) revert TraitsNotStored();
             inner = _readFileStorePointer(placeholderSvgPointer);
-        } else if (oneOfOnes[tokenId].exists) {
-            inner = _readFileStorePointer(oneOfOnes[tokenId].completeSvgContract);
+        } else if (oneOfOnes[poolIndex].exists) {
+            inner = _readFileStorePointer(oneOfOnes[poolIndex].completeSvgContract);
         } else {
-            bytes32 packed = storedTraits[tokenId];
+            bytes32 packed = storedTraits[poolIndex];
             if (packed == bytes32(0)) {
                 if (placeholderSvgPointer != address(0)) {
                     inner = _readFileStorePointer(placeholderSvgPointer);
@@ -223,15 +240,16 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     }
 
     function getTraitsMetadataForToken(uint256 tokenId) public view returns (string memory) {
-        if (!revealed) {
+        uint256 poolIndex = _poolIndexOf(tokenId);
+        if (poolIndex == 0) {
             return '{"trait_type":"Status","value":"Unrevealed"}';
         }
 
-        if (oneOfOnes[tokenId].exists) {
-            return _formatOneOfOneMetadata(oneOfOnes[tokenId].characterName);
+        if (oneOfOnes[poolIndex].exists) {
+            return _formatOneOfOneMetadata(oneOfOnes[poolIndex].characterName);
         }
 
-        bytes32 packed = storedTraits[tokenId];
+        bytes32 packed = storedTraits[poolIndex];
         if (packed == bytes32(0)) {
             return '{"trait_type":"Status","value":"Unrevealed"}';
         }
@@ -301,36 +319,39 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
         emit TraitPointerUpdated(characterType, category, traitIndex, newFileStorePointer);
     }
 
-    function setOneOfOne(uint256 tokenId, string calldata characterName, address fileStorePointer) external onlyOwner {
-        if (tokenId == 0 || tokenId > MAX_SUPPLY) revert InvalidTokenId();
+    function setOneOfOne(uint256 poolIndex, string calldata characterName, address fileStorePointer)
+        external
+        onlyOwner
+    {
+        if (poolIndex == 0 || poolIndex > MAX_SUPPLY) revert InvalidPoolIndex();
         if (fileStorePointer == address(0)) revert InvalidPointer();
 
-        oneOfOnes[tokenId] =
+        oneOfOnes[poolIndex] =
             OneOfOneData({characterName: characterName, completeSvgContract: fileStorePointer, exists: true});
 
-        emit OneOfOneSet(tokenId, characterName);
+        emit OneOfOneSet(poolIndex, characterName);
     }
 
     function batchSetOneOfOnes(
-        uint256[] calldata tokenIds,
+        uint256[] calldata poolIndices,
         string[] calldata characterNames,
         address[] calldata fileStorePointers
     ) external onlyOwner {
-        uint256 len = tokenIds.length;
+        uint256 len = poolIndices.length;
         if (len != characterNames.length || len != fileStorePointers.length) revert ArrayLengthMismatch();
 
         for (uint256 i; i < len;) {
-            uint256 tid = tokenIds[i];
-            if (tid == 0 || tid > MAX_SUPPLY) revert InvalidTokenId();
+            uint256 poolIndex = poolIndices[i];
+            if (poolIndex == 0 || poolIndex > MAX_SUPPLY) revert InvalidPoolIndex();
             if (fileStorePointers[i] == address(0)) revert InvalidPointer();
 
-            oneOfOnes[tid] = OneOfOneData({
+            oneOfOnes[poolIndex] = OneOfOneData({
                 characterName: characterNames[i],
                 completeSvgContract: fileStorePointers[i],
                 exists: true
             });
 
-            emit OneOfOneSet(tid, characterNames[i]);
+            emit OneOfOneSet(poolIndex, characterNames[i]);
             unchecked {
                 ++i;
             }
@@ -348,24 +369,25 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     }
 
     // =============================================================
-    //                      REVEAL MANAGEMENT
+    //                       NFT INTEGRATION
     // =============================================================
 
-    function reveal() external onlyOwner {
-        revealed = true;
-        emit Revealed();
+    function setDealersNFT(address _dealersNFT) external onlyOwner {
+        if (_dealersNFT == address(0)) revert InvalidAddress();
+        dealersNFT = _dealersNFT;
+        emit DealersNFTSet(_dealersNFT);
     }
 
     // =============================================================
     //                         VIEW FUNCTIONS
     // =============================================================
 
-    function getOneOfOneInfo(uint256 tokenId)
+    function getOneOfOneInfo(uint256 poolIndex)
         external
         view
         returns (string memory characterName, address svgContract, bool exists)
     {
-        OneOfOneData storage ooo = oneOfOnes[tokenId];
+        OneOfOneData storage ooo = oneOfOnes[poolIndex];
         return (ooo.characterName, ooo.completeSvgContract, ooo.exists);
     }
 
@@ -376,6 +398,15 @@ contract DealerRendererSVG is IDealerRendererSVG, Ownable {
     // =============================================================
     //                    INTERNAL HELPER FUNCTIONS
     // =============================================================
+
+    /**
+     * @dev Resolves a tokenId to its assigned pool index; 0 means unrevealed.
+     */
+    function _poolIndexOf(uint256 tokenId) internal view returns (uint256) {
+        address nft = dealersNFT;
+        if (nft == address(0)) return 0;
+        return uint256(IDealersNFTPool(nft).tokenToPool(tokenId));
+    }
 
     function _readFileStorePointer(address ptr) internal view returns (bytes memory) {
         if (ptr == address(0)) revert InvalidPointer();

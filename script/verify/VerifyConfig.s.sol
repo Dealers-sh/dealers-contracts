@@ -28,7 +28,7 @@ interface IVerifyNFT {
     function contractRendererSVG() external view returns (address);
     function contractRendererHTML() external view returns (address);
     function owner() external view returns (address);
-    function mintStatus() external view returns (uint8);
+    function mintOpen() external view returns (bool);
     function totalSupply() external view returns (uint256);
     function MAX_SUPPLY() external view returns (uint256);
 }
@@ -244,7 +244,7 @@ contract VerifyConfig is DeployBase {
         _checkRenderer("    rendererHtml", n.contractRendererHTML(), rendererHtml);
 
         console.log("  Status:");
-        console.log("    mintStatus:", _mintStatusString(n.mintStatus()));
+        console.log("    mintOpen:", n.mintOpen());
         console.log("    totalSupply:", n.totalSupply());
         console.log("    maxSupply:", n.MAX_SUPPLY());
 
@@ -648,14 +648,6 @@ contract VerifyConfig is DeployBase {
         } else {
             console.log(label, "NOT AUTHORIZED [NEEDS CONFIG]");
         }
-    }
-
-    function _mintStatusString(uint8 status) internal pure returns (string memory) {
-        if (status == 0) return "DISABLED";
-        if (status == 1) return "FAMILY";
-        if (status == 2) return "WHITELIST";
-        if (status == 3) return "PUBLIC";
-        return "UNKNOWN";
     }
 
     function _printSummary() internal pure {

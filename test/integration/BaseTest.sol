@@ -106,7 +106,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
         core.setAreaRegistry(address(areaRegistry));
 
         nft.setDealersCore(address(core));
-        nft.setMintStatus(DealersNFT.MintStatus.PUBLIC);
+        nft.setMintOpen(true);
 
         pve.setRandomness(address(randomness));
         pve.setActions(address(actions));
@@ -143,10 +143,10 @@ abstract contract BaseTest is Test, IERC721Receiver {
         areaRegistry.createArea("Amsterdam", 0.001 ether, 150, false, false);
         _batchDrugs(2, _arr(4, 7, 8), _arr(3, 15, 180), _arr(2, 12, 150));
 
-        areaRegistry.createArea("Colombia", 0.001 ether, 250, false, false);
+        areaRegistry.createArea("Colombia", 0.001 ether, 500, false, false);
         _batchDrugs(3, _arr(4, 6, 8), _arr(1, 60, 90), _arr(1, 50, 75));
 
-        areaRegistry.createArea("Hong Kong", 0.001 ether, 500, false, false);
+        areaRegistry.createArea("Hong Kong", 0.001 ether, 800, false, false);
         _batchDrugs(4, _arr(9, 10, 8), _arr(18, 28, 140), _arr(15, 22, 110));
 
         areaRegistry.createArea("Seoul", 0.001 ether, 1000, false, false);
@@ -339,7 +339,7 @@ abstract contract BaseTest is Test, IERC721Receiver {
 
     function _mintNFT(address player) internal returns (uint256 tokenId) {
         vm.prank(player);
-        nft.mintPublic{value: MINT_PRICE}(player, 1);
+        nft.mint{value: MINT_PRICE}(player, 1);
         tokenId = nft.currentTokenId() - 1;
     }
 
