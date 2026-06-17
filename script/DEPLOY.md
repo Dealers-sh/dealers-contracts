@@ -16,7 +16,7 @@ For Solidity scripts the network is detected from `block.chainid` via the `--rpc
 
 ```
  1. cast wallet import dealersKeystore --interactive     (one-time)
- 2. Create .env (per-network MAINNET_/TESTNET_): DEV_WALLET, BANK_VAULT, ROYALTY_RECEIVER, PYTH_ENTROPY, ETHERSCAN_API_KEY
+ 2. Create .env (per-network MAINNET_/TESTNET_): DEV_WALLET, BANK_VAULT, ROYALTY_RECEIVER, PYTH_ENTROPY, APP_URL (HTML iframe-escape, optional), ETHERSCAN_API_KEY
  3. forge build && forge build --zksync --skip "RendererSVG" --skip "UploadTraits"  (EVM + zkSync)
  4. DeployAll.s.sol            --zksync                  (14 contracts incl. heists + drugs/areas + wire + tiers + claims + chat)
     (or: DeployAll --sig "runGameOnly()"                  game contracts only — defer NFT/renderers/heists)
@@ -56,6 +56,7 @@ MAINNET_DEV_WALLET=0x...
 MAINNET_BANK_VAULT=0x...            # PaymentHandler bank-fee vault (treasury/multisig, must receive ETH)
 MAINNET_ROYALTY_RECEIVER=0x...
 MAINNET_PYTH_ENTROPY=0x...          # heist module (required)
+MAINNET_APP_URL=https://...         # HTML renderer: iframe-sandbox escape target (optional; settable later)
 ETHERSCAN_API_KEY=your_key
 ABSTRACT_TESTNET_RPC=https://api.testnet.abs.xyz
 ```
@@ -150,7 +151,14 @@ cast send $DEALERS_NFT "setContractRendererSVG(address)" $RENDERER_SVG --rpc-url
 
 ## 4. Deploy HTML Renderer
 
-Deploys as zkSync-native. Configures RPC URL, SVG renderer reference, and links to NFT in one step. Uses a placeholder gzip filename if none is set — update it after uploading the actual gzip (step 8).
+Deploys as zkSync-native. Configures RPC URL (chain-derived), SVG renderer reference, and links to NFT in one step. Uses a placeholder gzip filename if none is set — update it after uploading the actual gzip (step 8).
+
+It also sets the **App URL** from `APP_URL` in `.env` (network-prefixed: `MAINNET_APP_URL` / `TESTNET_APP_URL`). The embedded game opens this URL to route users out when it's running inside a restrictive iframe sandbox. If `APP_URL` is unset the deploy skips it with a warning — set it later with:
+
+```bash
+DEALERS_HTML=$(jq -r .rendererHtml script/data/deployments/testnet.json)
+cast send $DEALERS_HTML "setAppUrl(string)" "https://your.app.url" --rpc-url $ABSTRACT_TESTNET_RPC --account dealersKeystore
+```
 
 ```bash
 source .env && forge script script/deploy/DeployHtmlRenderer.s.sol:DeployHtmlRenderer --zksync --skip "RendererSVG" --skip "UploadTraits" --rpc-url https://api.testnet.abs.xyz --account dealersKeystore --broadcast
