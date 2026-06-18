@@ -44,6 +44,7 @@ contract DealersChatFactory is Ownable {
     // =============================================================
 
     event RoomCreated(RoomType indexed roomType, uint8 indexed id, address room, address gate);
+    event RoomGateUpdated(bytes32 indexed roomKey, address indexed oldGate, address indexed newGate);
     event MessageRouted(bytes32 indexed roomKey, uint16 indexed tokenId);
     event DealerBlocked(uint16 indexed tokenId, bool blocked);
     event CooldownUpdated(uint32 newCooldown);
@@ -112,6 +113,21 @@ contract DealersChatFactory is Ownable {
         rooms[key] = RoomInfo({room: room, gate: IDealersChatGate(gate), roomId: id});
 
         emit RoomCreated(roomType, id, room, gate);
+    }
+
+    /**
+     * @param _roomKey The room key (from roomKey()) of an existing room
+     * @param gate New access gate contract (address(0) clears the gate — unrestricted)
+     * @dev Re-points an existing room's gate without recreating the room. Gates bind their
+     *      dependencies immutably (e.g. AreaChatGate's core) and rooms are write-once, so this is
+     *      the only way to swap a gate after its dependency is redeployed.
+     */
+    function setRoomGate(bytes32 _roomKey, address gate) external onlyOwner {
+        RoomInfo storage info = rooms[_roomKey];
+        if (info.room == address(0)) revert RoomDoesNotExist();
+        address old = address(info.gate);
+        info.gate = IDealersChatGate(gate);
+        emit RoomGateUpdated(_roomKey, old, gate);
     }
 
     /**
