@@ -354,7 +354,10 @@ verify_heists() {
 }
 
 verify_chat_factory() {
-    local args=$(cast abi-encode "constructor(address)" "$NFT_FOR_CTOR")
+    # ChatFactory's ctor takes the REAL nft, not nftCtor. When ChatFactory is (re)deployed
+    # by a full DeployAll after the NFT exists, _nftForCtor() returns the real nft — so its
+    # ctor arg is $DEALERS_NFT, unlike the placeholder-era modules that still hold nftCtor.
+    local args=$(cast abi-encode "constructor(address)" "$DEALERS_NFT")
     verify_contract "$CHAT_FACTORY" \
         "src/social/DealersChatFactory.sol:DealersChatFactory" "$args" "true"
 }
