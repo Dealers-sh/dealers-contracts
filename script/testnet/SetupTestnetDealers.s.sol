@@ -40,27 +40,27 @@ contract SetupTestnetDealers is DeployBase {
 
         // Distribute dealers across the new convex 2.2x ladder.
         // STARTING_REPUTATION is 25, so reputation deltas land at:
-        //   delta +175  -> 200 rep  (Dealer)
-        //   delta +475  -> 500 rep  (Soldier)
-        //   delta +1175 -> 1,200 rep (Capo)
+        //   delta +225  -> 250 rep   (Dealer)
+        //   delta +575  -> 600 rep   (Soldier)
+        //   delta +1475 -> 1,500 rep (Capo)
         // Area gates (Amsterdam 150, Colombia 500) are unchanged.
 
         for (uint256 id = 2; id <= 31; id++) {
-            coreContract.updateReputation(id, 175);
+            coreContract.updateReputation(id, 225);
         }
-        console.log("Set rep delta +175 -> Dealer (200) for token IDs 2-31 (30 dealers in Manhattan)");
+        console.log("Set rep delta +225 -> Dealer (250) for token IDs 2-31 (30 dealers in Manhattan)");
 
         for (uint256 id = 42; id <= 46; id++) {
-            coreContract.updateReputation(id, 475);
+            coreContract.updateReputation(id, 575);
             coreContract.forceMove(id, AMSTERDAM);
         }
-        console.log("Set rep delta +475 -> Soldier (500) + Amsterdam for token IDs 42-46 (5 dealers)");
+        console.log("Set rep delta +575 -> Soldier (600) + Amsterdam for token IDs 42-46 (5 dealers)");
 
         for (uint256 id = 47; id <= 51; id++) {
-            coreContract.updateReputation(id, 1175);
+            coreContract.updateReputation(id, 1475);
             coreContract.forceMove(id, COLOMBIA);
         }
-        console.log("Set rep delta +1175 -> Capo (1,200) + Colombia for token IDs 47-51 (5 dealers)");
+        console.log("Set rep delta +1475 -> Capo (1,500) + Colombia for token IDs 47-51 (5 dealers)");
 
         coreContract.authorizeContract(tx.origin, false);
 

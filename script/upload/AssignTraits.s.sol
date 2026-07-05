@@ -15,6 +15,8 @@ import "../base/DeployBase.s.sol";
  *     - `assignOneOfOnesFromManifest()` -- all one-of-one entries, looks up
  *       each name in script/data/{network}/pointers.json, calls
  *       batchSetOneOfOnes.
+ *     - `assignOneOfOnesFromManifestRange(start, count)` -- chunked slice of
+ *       one-of-one entries, same lookup, calls batchSetOneOfOnes.
  *
  *   Low-level escape hatches (still useful for ad-hoc fixes):
  *     - `assignTokenTraits(uint256[], bytes32[])` -- raw passthrough.
@@ -71,9 +73,59 @@ contract AssignTraits is DeployBase {
     }
 
     function assignOneOfOnesFromManifest() external {
+        _assignOneOfOnesRange(0, type(uint256).max);
+    }
+
+    function assignOneOfOnesFromManifestRange(uint256 start, uint256 count) external {
+        _assignOneOfOnesRange(start, count);
+    }
+
+    function _assignOneOfOnesRange(uint256 start, uint256 count) internal {
         _loadAddresses();
         _requireAddress(rendererSvg, "RENDERER_SVG");
 
+        (uint256[] memory allIds, string[] memory allNames, address[] memory allPtrs) = _collectOneOfOnes();
+        uint256 total = allIds.length;
+
+        if (start > total) start = total;
+        uint256 end = start + count;
+        if (end < start || end > total) end = total;
+        uint256 len = end - start;
+
+        uint256[] memory tokenIds = new uint256[](len);
+        string[] memory names = new string[](len);
+        address[] memory pointers = new address[](len);
+        for (uint256 i = 0; i < len; i++) {
+            tokenIds[i] = allIds[start + i];
+            names[i] = allNames[start + i];
+            pointers[i] = allPtrs[start + i];
+        }
+
+        vm.startBroadcast();
+        console.log("==============================================");
+        console.log("   Assigning One-of-Ones (from manifest)");
+        console.log("==============================================");
+        console.log("Renderer:", rendererSvg);
+        console.log("Range start:", start);
+        console.log("Range count:", count);
+        console.log("In slice:", len);
+        console.log("");
+
+        if (len > 0) {
+            IDealerRendererSVG(rendererSvg).batchSetOneOfOnes(tokenIds, names, pointers);
+            for (uint256 i = 0; i < len; i++) {
+                console.log(string.concat("  ", names[i], " -> token ", vm.toString(tokenIds[i])));
+            }
+        }
+
+        vm.stopBroadcast();
+        console.log("Done.");
+    }
+
+    function _collectOneOfOnes()
+        internal
+        returns (uint256[] memory tokenIds, string[] memory names, address[] memory pointers)
+    {
         AssignmentEntry[] memory manifest = _readManifest();
         PointerEntry[] memory oneOfOnePointers = _loadPointerEntries(_readPointersJson(), "oneofone");
 
@@ -82,9 +134,9 @@ contract AssignTraits is DeployBase {
             if (_isOneOfOne(manifest[i].kind)) ooCount++;
         }
 
-        uint256[] memory tokenIds = new uint256[](ooCount);
-        string[] memory names = new string[](ooCount);
-        address[] memory pointers = new address[](ooCount);
+        tokenIds = new uint256[](ooCount);
+        names = new string[](ooCount);
+        pointers = new address[](ooCount);
         uint256 w = 0;
         for (uint256 i = 0; i < manifest.length; i++) {
             if (!_isOneOfOne(manifest[i].kind)) continue;
@@ -95,24 +147,6 @@ contract AssignTraits is DeployBase {
             pointers[w] = ptr;
             w++;
         }
-
-        vm.startBroadcast();
-        console.log("==============================================");
-        console.log("   Assigning One-of-Ones (from manifest)");
-        console.log("==============================================");
-        console.log("Renderer:", rendererSvg);
-        console.log("Count:", ooCount);
-        console.log("");
-
-        if (ooCount > 0) {
-            IDealerRendererSVG(rendererSvg).batchSetOneOfOnes(tokenIds, names, pointers);
-            for (uint256 i = 0; i < ooCount; i++) {
-                console.log(string.concat("  ", names[i], " -> token ", vm.toString(tokenIds[i])));
-            }
-        }
-
-        vm.stopBroadcast();
-        console.log("Done.");
     }
 
     function manifestNormalSpecialCount() external returns (uint256) {

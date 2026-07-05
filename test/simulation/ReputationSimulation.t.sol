@@ -120,13 +120,13 @@ contract ReputationSimulation is Test {
         tiers[2] = TierConfig({minRep: 250, winBonus: 60, tieBonus: 30, lossPenalty: -4, repCap: 60});
         tiers[3] = TierConfig({minRep: 600, winBonus: 36, tieBonus: 18, lossPenalty: -5, repCap: 40});
         tiers[4] = TierConfig({minRep: 1500, winBonus: 28, tieBonus: 14, lossPenalty: -6, repCap: 40});
-        tiers[5] = TierConfig({minRep: 3000, winBonus: 22, tieBonus: 11, lossPenalty: -6, repCap: 44});
-        tiers[6] = TierConfig({minRep: 5500, winBonus: 18, tieBonus: 9, lossPenalty: -7, repCap: 48});
-        tiers[7] = TierConfig({minRep: 10000, winBonus: 15, tieBonus: 7, lossPenalty: -6, repCap: 52});
-        tiers[8] = TierConfig({minRep: 22000, winBonus: 12, tieBonus: 6, lossPenalty: -8, repCap: 56});
+        tiers[5] = TierConfig({minRep: 3000, winBonus: 22, tieBonus: 11, lossPenalty: -6, repCap: 72});
+        tiers[6] = TierConfig({minRep: 5500, winBonus: 18, tieBonus: 9, lossPenalty: -7, repCap: 80});
+        tiers[7] = TierConfig({minRep: 10000, winBonus: 15, tieBonus: 7, lossPenalty: -6, repCap: 90});
+        tiers[8] = TierConfig({minRep: 22000, winBonus: 12, tieBonus: 6, lossPenalty: -8, repCap: 100});
         tiers[9] = TierConfig({minRep: 50000, winBonus: 4, tieBonus: 2, lossPenalty: -10, repCap: 8});
 
-        // Boosts from SetupBoosts.s.sol (Kingpin +6/1.25x, Godfather 2.25x/1.35x)
+        // Boosts from SetupBoosts.s.sol (trimmed drug/cash multipliers 1.10/1.15/1.20/1.25x)
         boosts[1] = BoostConfig({
             priceWei: 0.0025 ether,
             durationDays: 3,
@@ -175,9 +175,9 @@ contract ReputationSimulation is Test {
 
         // Area min reputation
         areaMinRep[1] = 0; // Manhattan
-        areaMinRep[2] = 100; // Amsterdam
-        areaMinRep[3] = 250; // Colombia
-        areaMinRep[4] = 600; // Hong Kong
+        areaMinRep[2] = 250; // Amsterdam
+        areaMinRep[3] = 500; // Colombia
+        areaMinRep[4] = 800; // Hong Kong
         areaMinRep[5] = 1500; // Seoul
         areaMinRep[6] = 3000; // Tokyo
 

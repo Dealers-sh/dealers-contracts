@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "../base/DeployBase.s.sol";
+import "../base/ClaimsAchievements.s.sol";
+import "../base/AreasConfig.s.sol";
+import "../base/TiersConfig.s.sol";
 
 /**
  * @title DeployAll - Deploy all game contracts + full setup
@@ -23,7 +25,7 @@ interface IHeistsWiring {
     function actions() external view returns (address);
 }
 
-contract DeployAll is DeployBase {
+contract DeployAll is ClaimsAchievements, AreasConfig, TiersConfig {
     bool internal skipNFT;
 
     function run() external {
@@ -437,55 +439,8 @@ contract DeployAll is DeployBase {
     }
 
     function _setupAreas() internal {
-        IAreaRegistry reg = IAreaRegistry(areaRegistry);
-
-        if (reg.getTotalAreas() > 0) {
-            console.log("Areas: already configured");
-            return;
-        }
-
-        console.log("Creating 7 game areas (Manhattan/Amsterdam free, Dubai premium)...");
-
-        // Manhattan: starter, FREE movement
-        reg.createArea("Manhattan", 0, 0, false, false);
-        reg.batchConfigureAreaDrugs(1, _d(4, 5, 6), _d(1, 12, 120), _d(1, 10, 100));
-
-        // Amsterdam: Associate entry, FREE movement
-        reg.createArea("Amsterdam", 0, 75, false, false);
-        reg.batchConfigureAreaDrugs(2, _d(4, 7, 8), _d(3, 15, 180), _d(2, 12, 150));
-
-        // Colombia: Dealer entry, first paid area (0.001 ETH), also PVP unlock
-        reg.createArea("Colombia", 0.001 ether, 500, false, false);
-        reg.batchConfigureAreaDrugs(3, _d(4, 6, 8), _d(1, 60, 90), _d(1, 50, 75));
-
-        // Hong Kong: Soldier entry
-        reg.createArea("Hong Kong", 0.001 ether, 800, false, false);
-        reg.batchConfigureAreaDrugs(4, _d(9, 10, 8), _d(18, 28, 140), _d(15, 22, 110));
-
-        // Seoul: Capo entry
-        reg.createArea("Seoul", 0.001 ether, 1200, false, false);
-        reg.batchConfigureAreaDrugs(5, _d(9, 10, 11), _d(8, 14, 90), _d(7, 12, 75));
-
-        // Tokyo: Consigliere entry, premium sell destination
-        reg.createArea("Tokyo", 0.001 ether, 2500, false, false);
-        reg.batchConfigureAreaDrugs(6, _d(9, 10, 11), _d(24, 32, 200), _d(20, 26, 160));
-
-        // Dubai: Don entry, endgame teaser (XTC/Cocaine/Heroin, asymmetric sell-heavy pricing)
-        reg.createArea("Dubai", 0.002 ether, 10000, false, false);
-        reg.batchConfigureAreaDrugs(7, _d(5, 6, 8), _d(14, 160, 200), _d(20, 200, 240));
-
-        // Black Market sell prices to 2x base (sell-only by contract design)
-        reg.batchConfigureAreaDrugs(254, _d(1, 2, 3), _d(75, 500, 2500), _d(150, 1200, 6500));
-
-        console.log("  7 areas created + Black Market sell premium configured");
+        _configureAreas(IAreaRegistry(areaRegistry));
         console.log("");
-    }
-
-    function _d(uint256 a, uint256 b, uint256 c) private pure returns (uint256[] memory arr) {
-        arr = new uint256[](3);
-        arr[0] = a;
-        arr[1] = b;
-        arr[2] = c;
     }
 
     // =========================================================================
@@ -493,100 +448,10 @@ contract DeployAll is DeployBase {
     // =========================================================================
 
     function _setupTiers() internal {
-        IDealersCore c = IDealersCore(core);
-        try c.reputationTiers(0) returns (uint256, int16, int16, int16, int16, string memory) {
-            console.log("Reputation tiers: already configured");
-            return;
-        } catch {}
-
-        console.log("Setting up 10-tier reputation system (sim-calibrated ladder)...");
-
-        // Mirrors SetupTiers.s.sol (single source of truth for rationale:
-        // docs/ECONOMY_BALANCE_SIM.md). Keep both in sync.
-        ReputationTier[] memory tiers = new ReputationTier[](10);
-        tiers[0] = ReputationTier({
-            minReputation: 0,
-            winBonus: 120,
-            tieBonus: 60,
-            lossPenalty: -3,
-            repCap: 120,
-            tierName: "Outsider"
-        });
-        tiers[1] = ReputationTier({
-            minReputation: 100,
-            winBonus: 90,
-            tieBonus: 45,
-            lossPenalty: -4,
-            repCap: 90,
-            tierName: "Associate"
-        });
-        tiers[2] = ReputationTier({
-            minReputation: 250,
-            winBonus: 60,
-            tieBonus: 30,
-            lossPenalty: -4,
-            repCap: 60,
-            tierName: "Dealer"
-        });
-        tiers[3] = ReputationTier({
-            minReputation: 600,
-            winBonus: 36,
-            tieBonus: 18,
-            lossPenalty: -5,
-            repCap: 40,
-            tierName: "Soldier"
-        });
-        tiers[4] = ReputationTier({
-            minReputation: 1500,
-            winBonus: 28,
-            tieBonus: 14,
-            lossPenalty: -6,
-            repCap: 40,
-            tierName: "Capo"
-        });
-        tiers[5] = ReputationTier({
-            minReputation: 3000,
-            winBonus: 22,
-            tieBonus: 11,
-            lossPenalty: -6,
-            repCap: 44,
-            tierName: "Consigliere"
-        });
-        tiers[6] = ReputationTier({
-            minReputation: 5500,
-            winBonus: 18,
-            tieBonus: 9,
-            lossPenalty: -7,
-            repCap: 48,
-            tierName: "Underboss"
-        });
-        tiers[7] = ReputationTier({
-            minReputation: 10000,
-            winBonus: 15,
-            tieBonus: 7,
-            lossPenalty: -6,
-            repCap: 52,
-            tierName: "Don"
-        });
-        tiers[8] = ReputationTier({
-            minReputation: 22000,
-            winBonus: 12,
-            tieBonus: 6,
-            lossPenalty: -8,
-            repCap: 56,
-            tierName: "Godfather"
-        });
-        tiers[9] = ReputationTier({
-            minReputation: 50000,
-            winBonus: 4,
-            tieBonus: 2,
-            lossPenalty: -10,
-            repCap: 8,
-            tierName: "Legend"
-        });
-
-        c.setReputationTiers(tiers);
-        c.setMaxReputation(75000);
+        // Core's constructor seeds a default ladder, so always re-apply the canonical caps
+        // (setReputationTiers overwrites) instead of skipping when tiers already exist —
+        // otherwise a fresh deploy would keep the constructor's stale upper caps.
+        _configureTiers(IDealersCore(core));
         console.log("  10 tiers + MAX_REPUTATION=75000 (Legend is soft-bleed +4/+2/-10 repCap=8)");
         console.log("");
     }
@@ -721,35 +586,6 @@ contract DeployAll is DeployBase {
     //                           CLAIMS
     // =========================================================================
 
-    uint8 constant PVE_WINS = 1;
-    uint8 constant PVE_LOSSES = 2;
-    uint8 constant PVE_TIES = 3;
-    uint8 constant PVE_TOTAL = 4;
-    uint8 constant PVP_ATTACK_WINS = 5;
-    uint8 constant PVP_DEFEND_WINS = 6;
-    uint8 constant PVP_TOTAL_WINS = 7;
-    uint8 constant REPUTATION = 8;
-    uint8 constant CASH_BALANCE = 9;
-    uint8 constant DRUG_BALANCE = 10;
-    uint8 constant PVE_DEAL_CHOICES = 11;
-    uint8 constant PVE_THREATEN_CHOICES = 12;
-    uint8 constant PVE_BAIL_CHOICES = 13;
-
-    uint8 constant REWARD_REP = 0;
-    uint8 constant REWARD_CASH = 1;
-    uint8 constant REWARD_DRUG = 2;
-
-    // Drug IDs (must match SetupDrugs registration order)
-    uint256 constant GENERAL_GOODS = 1;
-    uint256 constant CONTRABAND = 2;
-    uint256 constant JEWELS = 3;
-    uint256 constant WEED = 4;
-    uint256 constant XTC = 5;
-    uint256 constant COCAINE = 6;
-    uint256 constant SHROOMS = 7;
-    uint256 constant HEROIN = 8;
-    uint256 constant FENTANYL = 11;
-
     function _setupClaims() internal {
         IClaimsContract c = IClaimsContract(claims);
 
@@ -758,74 +594,7 @@ contract DeployAll is DeployBase {
             return;
         }
 
-        console.log("Configuring 33 achievements (rebalanced for new ladder)...");
-
-        // Early game (0-11)
-        c.setAchievement(0, _ach(PVE_TOTAL, 0, 1, REWARD_CASH, 0, 250));
-        c.setAchievement(1, _ach(PVE_TOTAL, 0, 10, REWARD_CASH, 0, 1000));
-        c.setAchievement(2, _ach(PVE_WINS, 0, 10, REWARD_DRUG, XTC, 5));
-        c.setAchievement(3, _ach(PVE_TIES, 0, 10, REWARD_DRUG, XTC, 5));
-        c.setAchievement(4, _ach(PVE_LOSSES, 0, 10, REWARD_CASH, 0, 1000));
-        c.setAchievement(5, _ach(PVE_DEAL_CHOICES, 0, 10, REWARD_DRUG, SHROOMS, 5));
-        c.setAchievement(6, _ach(PVE_THREATEN_CHOICES, 0, 10, REWARD_DRUG, SHROOMS, 5));
-        c.setAchievement(7, _ach(PVE_BAIL_CHOICES, 0, 10, REWARD_DRUG, SHROOMS, 5));
-        c.setAchievement(8, _ach(PVP_TOTAL_WINS, 0, 1, REWARD_REP, 0, 25));
-        c.setAchievement(9, _ach(PVP_ATTACK_WINS, 0, 10, REWARD_DRUG, GENERAL_GOODS, 3));
-        c.setAchievement(10, _ach(PVP_DEFEND_WINS, 0, 10, REWARD_DRUG, GENERAL_GOODS, 3));
-        c.setAchievement(11, _ach(REPUTATION, 0, 100, REWARD_DRUG, WEED, 100));
-
-        // Tier milestones (12-20) aligned with new convex ladder
-        c.setAchievement(12, _ach(REPUTATION, 0, 75, REWARD_CASH, 0, 500)); // Associate
-        c.setAchievement(13, _ach(REPUTATION, 0, 200, REWARD_CASH, 0, 2000)); // Dealer
-        c.setAchievement(14, _ach(REPUTATION, 0, 500, REWARD_CASH, 0, 10000)); // Soldier
-        c.setAchievement(15, _ach(REPUTATION, 0, 1200, REWARD_CASH, 0, 25000)); // Capo
-        c.setAchievement(16, _ach(REPUTATION, 0, 2500, REWARD_CASH, 0, 75000)); // Consigliere
-        c.setAchievement(17, _ach(REPUTATION, 0, 5000, REWARD_CASH, 0, 200000)); // Underboss
-        c.setAchievement(18, _ach(REPUTATION, 0, 10000, REWARD_CASH, 0, 500000)); // Don
-        c.setAchievement(19, _ach(REPUTATION, 0, 22000, REWARD_CASH, 0, 1000000)); // Godfather
-        c.setAchievement(20, _ach(REPUTATION, 0, 50000, REWARD_CASH, 0, 2000000)); // Legend
-
-        // Drug + PvP rewards (21-23)
-        c.setAchievement(21, _ach(REPUTATION, 0, 250, REWARD_DRUG, HEROIN, 5));
-        c.setAchievement(22, _ach(PVP_TOTAL_WINS, 0, 1, REWARD_DRUG, GENERAL_GOODS, 3));
-        c.setAchievement(23, _ach(PVP_TOTAL_WINS, 0, 10, REWARD_DRUG, CONTRABAND, 3));
-
-        // Cash thresholds (24-27)
-        c.setAchievement(24, _ach(CASH_BALANCE, 0, 10000, REWARD_DRUG, XTC, 1));
-        c.setAchievement(25, _ach(CASH_BALANCE, 0, 100000, REWARD_DRUG, COCAINE, 1));
-        c.setAchievement(26, _ach(CASH_BALANCE, 0, 500000, REWARD_DRUG, JEWELS, 1));
-        c.setAchievement(27, _ach(CASH_BALANCE, 0, 2000000, REWARD_DRUG, JEWELS, 3));
-
-        // Drug stockpiles (28-29)
-        c.setAchievement(28, _ach(DRUG_BALANCE, FENTANYL, 1000, REWARD_CASH, 0, 25000));
-        c.setAchievement(29, _ach(DRUG_BALANCE, COCAINE, 5000, REWARD_CASH, 0, 100000));
-
-        // Long grind (30-32)
-        c.setAchievement(30, _ach(PVE_TOTAL, 0, 100, REWARD_CASH, 0, 5000));
-        c.setAchievement(31, _ach(PVE_TOTAL, 0, 1000, REWARD_CASH, 0, 50000));
-        c.setAchievement(32, _ach(PVP_TOTAL_WINS, 0, 100, REWARD_CASH, 0, 100000));
-
-        console.log("  33 achievements configured");
-        console.log("");
-    }
-
-    function _ach(
-        uint8 conditionType,
-        uint256 conditionValue,
-        uint256 threshold,
-        uint8 rewardType,
-        uint256 rewardId,
-        uint256 rewardAmount
-    ) private pure returns (IClaimsContract.Achievement memory) {
-        return IClaimsContract.Achievement({
-            conditionType: conditionType,
-            conditionValue: conditionValue,
-            threshold: threshold,
-            rewardType: rewardType,
-            rewardId: rewardId,
-            rewardAmount: rewardAmount,
-            active: true
-        });
+        _configureAchievements(c, heists);
     }
 
     // =========================================================================

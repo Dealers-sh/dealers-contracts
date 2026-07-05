@@ -10,6 +10,7 @@
 #   RPC             (default: derived from NETWORK)
 #   ACCOUNT         (default: dealersKeystore)
 #   CHUNK           (default: 250)             tokens per batchSetTraits call
+#   OO_CHUNK        (default: 0)               one-of-ones per call; 0 = single call
 #   DO_TRAITS       (default: 1)               0 to skip the trait phase
 #   DO_ONEOFONES    (default: 1)               0 to skip the one-of-one phase
 
@@ -32,6 +33,7 @@ esac
 RPC="${RPC:-$DEFAULT_RPC}"
 ACCOUNT="${ACCOUNT:-dealersKeystore}"
 CHUNK="${CHUNK:-250}"
+OO_CHUNK="${OO_CHUNK:-0}"
 DO_TRAITS="${DO_TRAITS:-1}"
 DO_ONEOFONES="${DO_ONEOFONES:-1}"
 
@@ -59,6 +61,7 @@ if [ -z "$RENDERER_SVG" ] || [ "$RENDERER_SVG" = "null" ]; then
 fi
 
 NS_TOTAL=$(jq '[.tokens[] | select(.kind != "oneOfOne")] | length' "$ASSIGNMENTS_JSON")
+OO_TOTAL=$(jq '[.tokens[] | select(.kind == "oneOfOne")] | length' "$ASSIGNMENTS_JSON")
 
 PASS_FILE="$(mktemp -t dealers-keystore-pass.XXXXXX)"
 chmod 600 "$PASS_FILE"
@@ -82,7 +85,9 @@ echo "  POINTERS_JSON:  $POINTERS_JSON"
 echo "  ASSIGNMENTS:    $ASSIGNMENTS_JSON"
 echo "  RENDERER_SVG:   $RENDERER_SVG"
 echo "  CHUNK:          $CHUNK"
+echo "  OO_CHUNK:       $OO_CHUNK"
 echo "  N+S total:      $NS_TOTAL"
+echo "  1/1 total:      $OO_TOTAL"
 echo "  DO_TRAITS:      $DO_TRAITS"
 echo "  DO_ONEOFONES:   $DO_ONEOFONES"
 echo ""
@@ -105,10 +110,26 @@ if [ "$DO_TRAITS" = "1" ]; then
 fi
 
 if [ "$DO_ONEOFONES" = "1" ]; then
-  echo "---- one-of-ones ----"
-  forge script script/upload/AssignTraits.s.sol:AssignTraits \
-    --sig "assignOneOfOnesFromManifest()" \
-    --rpc-url "$RPC" $KEY --broadcast --slow
+  if [ "$OO_CHUNK" -gt 0 ]; then
+    s=0
+    while [ "$s" -lt "$OO_TOTAL" ]; do
+      c="$OO_CHUNK"
+      if [ $((s + c)) -gt "$OO_TOTAL" ]; then
+        c=$((OO_TOTAL - s))
+      fi
+      end=$((s + c))
+      echo "---- one-of-ones [$s, $end) ----"
+      forge script script/upload/AssignTraits.s.sol:AssignTraits \
+        --sig "assignOneOfOnesFromManifestRange(uint256,uint256)" "$s" "$c" \
+        --rpc-url "$RPC" $KEY --broadcast --slow
+      s=$end
+    done
+  else
+    echo "---- one-of-ones ----"
+    forge script script/upload/AssignTraits.s.sol:AssignTraits \
+      --sig "assignOneOfOnesFromManifest()" \
+      --rpc-url "$RPC" $KEY --broadcast --slow
+  fi
   echo ""
 fi
 

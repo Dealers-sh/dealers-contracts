@@ -96,7 +96,12 @@ interface IAreaRegistry {
         uint256[] calldata buyPrices,
         uint256[] calldata sellPrices
     ) external;
+    function updateMovementFee(uint8 areaId, uint256 newFee) external;
+    function updateMinReputation(uint8 areaId, uint256 newMinRep) external;
     function getTotalAreas() external view returns (uint8);
+    function getMovementFee(uint8 areaId) external view returns (uint256);
+    function getMinReputation(uint8 areaId) external view returns (uint256);
+    function getDrugPricing(uint8 areaId, uint256 drugId) external view returns (uint256 buyPrice, uint256 sellPrice);
 }
 
 interface IPVPContract {
@@ -200,6 +205,7 @@ interface IClaimsContract {
     }
 
     function setAchievement(uint256 achievementId, Achievement calldata achievement) external;
+    function getAchievement(uint256 achievementId) external view returns (Achievement memory);
     function setDealersCore(address _core) external;
     function setDealersNFT(address _nft) external;
     function setPVE(address _pve) external;
