@@ -18,6 +18,7 @@
 # Local debug artifacts
 /script/data/debug/
 /script/debug/
+/script/COMMANDS.md
 # Everything else under /script/data is critical state we DO track:
 #   - deployments/{network}.json (contract addresses per network)
 #   - {network}/pointers.json    (FileStore pointers per network)
