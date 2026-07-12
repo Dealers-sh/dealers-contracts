@@ -6,29 +6,15 @@ import "../base/DeployBase.s.sol";
 /**
  * @title DeployBankHeist - Deploy + wire the community bank-heist event (deferred launch step)
  *
- * @custom:status CONCEPT — OUT OF AUDIT SCOPE. Deploys the bank-heist concept module, which is not
- *      part of the audited mainnet rollout. Do not run against mainnet during the audited launch.
- *
- * @dev Run this only when launching the recurring community event — it is NOT part of the initial
- *      heist rollout (DeployHeists ships the daily module alone). Requires DealersHeists already
- *      deployed (the bank heist reads heistRuns for activity weighting).
- *
- *      Deploys DealersBankHeist, authorizes it on Core, repoints PaymentHandler.bankVault at it (so
- *      the 80% bank-fee share now accrues into the event vault instead of the launch treasury), and
- *      ships it PAUSED — entries are blocked until {unpause}, while ETH still accrues.
- *
- *      ETH already accrued at the previous bankVault (the launch treasury) stays there; migrate it
- *      into the new vault separately by sending to the contract's receive().
- *
- *      Constructor deps (must already be deployed): core, nft, pve, pvp, heists. Plus the external
- *      Pyth Entropy contract (PYTH_ENTROPY) and the prep-window length (BANK_HEIST_PREP_DURATION,
- *      default 7 days).
+ * @dev Requires DealersHeists already deployed (season scoring reads heistRuns). Deploys
+ *      DealersBankHeist, authorizes it on Core, repoints PaymentHandler.bankVault at it (the 80%
+ *      bank-fee share then accrues into the event vault), and ships it PAUSED — entries are
+ *      blocked until {unpause}, while ETH still accrues. ETH already accrued at the previous
+ *      bankVault stays there; migrate it separately by sending to the contract's receive().
  *
  * Usage:
  *   source .env && forge script script/deploy/DeployBankHeist.s.sol:DeployBankHeist \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG" --skip "UploadTraits"
- *
- *   Requires (besides the core addresses): TESTNET_PYTH_ENTROPY / MAINNET_PYTH_ENTROPY.
  */
 interface IPaymentHandlerVault {
     function setBankVault(address _bankVault) external;
@@ -50,16 +36,11 @@ contract DeployBankHeist is DeployBase {
         _requireAddress(paymentHandler, "PAYMENT_HANDLER");
         _requireAddress(heists, "DEALERS_HEISTS"); // DealersHeists must be deployed first
 
-        address entropy = _envAddrForNetwork("PYTH_ENTROPY");
-        _requireAddress(entropy, "PYTH_ENTROPY");
-        uint64 prepDuration = uint64(vm.envOr("BANK_HEIST_PREP_DURATION", uint256(7 days)));
-
         vm.startBroadcast();
 
         bankHeist = _zkCreate(
             abi.encodePacked(
-                vm.getCode("DealersBankHeist.sol:DealersBankHeist"),
-                abi.encode(core, nft, pve, pvp, heists, entropy, prepDuration)
+                vm.getCode("DealersBankHeist.sol:DealersBankHeist"), abi.encode(core, nft, pve, pvp, heists)
             )
         );
         console.log("DealersBankHeist deployed:", bankHeist);
@@ -93,6 +74,6 @@ contract DeployBankHeist is DeployBase {
         _saveAddresses();
 
         console.log("");
-        console.log("Bank heist deployed PAUSED. Migrate any prior bankVault ETH, then unpause to launch.");
+        console.log("Bank heist deployed PAUSED. Migrate any prior bankVault ETH, then unpause + openSeason to launch.");
     }
 }

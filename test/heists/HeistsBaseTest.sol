@@ -49,9 +49,7 @@ abstract contract HeistsBaseTest is BaseTest {
             address(mockEntropy)
         );
 
-        bankHeist = new DealersBankHeist(
-            address(core), address(nft), address(pve), address(pvp), address(heists), address(mockEntropy), 7 days
-        );
+        bankHeist = new DealersBankHeist(address(core), address(nft), address(pve), address(pvp), address(heists));
 
         // Registrations — additive, existing-pattern only.
         core.authorizeContract(address(heists), true);
@@ -71,14 +69,6 @@ abstract contract HeistsBaseTest is BaseTest {
         heists.setDifficultyConfig(
             DIFF_HUGE, IDealersHeists.DifficultyConfig({repGate: 1250, cashEntry: HUGE_CASH, active: true})
         );
-
-        // Bank heist: small thresholds for tests.
-        uint16[] memory split = new uint16[](3);
-        split[0] = 6000;
-        split[1] = 3000;
-        split[2] = 1000;
-        bankHeist.setCycleConfig(5000, 0);
-        bankHeist.setPrizeConfig(2500, 0.1 ether, 2, 5000, 0, 0, 7 days, split);
     }
 
     // ---- dealer funding helpers (authorize this test contract on core, act, revoke) ----
