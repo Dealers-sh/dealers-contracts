@@ -24,12 +24,15 @@ abstract contract TiersConfig is DeployBase {
 
     /**
      * @notice Apply the canonical reputation ladder + max reputation to a Core contract.
-     * @dev Upper repCaps (Consigliere..Godfather = 72/80/90/100) set the late-game pace: an
-     *      unboosted PvE grinder reaches Don ~day 90 and Godfather ~day 180, arriving rich
-     *      (~1.4M cash); boosted play is ~2.25x faster via extra attempts. Caps are the binding
-     *      throttle at high rep (cap-stake is only a few % of bankroll there). Outsider..Capo are
-     *      left fast so a fresh wallet clears the 600-rep heist gate in ~4 days. Legend is the
-     *      soft-bleed prestige tier (+4/+2/-10, repCap 8).
+     * @dev Upper repCaps (Consigliere..Godfather = 56/62/70/78) set the late-game pace: an
+     *      unboosted PvE grinder reaches Don ~day 105 and Godfather ~day 225; boosted play is
+     *      ~2.5x faster via extra attempts (Kingpin Godfather ~day 90 — the ~100d design target).
+     *      Trimmed from 72/80/90/100 (2026-07-12) after live play compressed the mid-game: the
+     *      old caps put casual Kingpin at Godfather ~day 74, and dedicated daily play with
+     *      attempt resets ran ~2-3x faster still. Caps are the binding throttle at high rep
+     *      (cap-stake is only a few % of bankroll there). Outsider..Capo are left fast so a
+     *      fresh wallet clears the 600-rep heist gate in ~4 days. Legend is the soft-bleed
+     *      prestige tier (+4/+2/-10, repCap 8).
      * @param core The Core contract to configure
      */
     function _configureTiers(IDealersCore core) internal {
@@ -39,10 +42,10 @@ abstract contract TiersConfig is DeployBase {
         tiers[2] = _tier(250, 60, 30, -4, 60, "Dealer");
         tiers[3] = _tier(600, 36, 18, -5, 40, "Soldier");
         tiers[4] = _tier(1500, 28, 14, -6, 40, "Capo");
-        tiers[5] = _tier(3000, 22, 11, -6, 72, "Consigliere");
-        tiers[6] = _tier(5500, 18, 9, -7, 80, "Underboss");
-        tiers[7] = _tier(10000, 15, 7, -6, 90, "Don");
-        tiers[8] = _tier(22000, 12, 6, -8, 100, "Godfather");
+        tiers[5] = _tier(3000, 22, 11, -6, 56, "Consigliere");
+        tiers[6] = _tier(5500, 18, 9, -7, 62, "Underboss");
+        tiers[7] = _tier(10000, 15, 7, -6, 70, "Don");
+        tiers[8] = _tier(22000, 12, 6, -8, 78, "Godfather");
         tiers[9] = _tier(50000, 4, 2, -10, 8, "Legend");
 
         core.setReputationTiers(tiers);

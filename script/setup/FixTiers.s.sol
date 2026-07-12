@@ -9,12 +9,16 @@ import "../base/TiersConfig.s.sol";
  * █▀▄ █▀▀ ▄▀█ █░░ █▀▀ █▀█ █▀ ░ █▀ █░█
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ▄█ █▀█
  *
- * @dev Both testnet and mainnet shipped the old upper repCaps (Consigliere..Godfather =
- *      44/48/52/56), which left no-boost PvE stalling at Don. This re-applies TiersConfig over
- *      the existing Core via setReputationTiers (the upper caps become 72/80/90/100). The setter
- *      replaces the tier config only — a dealer's stored reputation is untouched, so nobody is
- *      demoted or reset; the raised caps simply let future hustles climb faster. Target network
- *      is auto-resolved from chainid, so the same script corrects both — run it once per RPC.
+ * @dev Re-applies the canonical TiersConfig ladder over the existing Core via
+ *      setReputationTiers. The setter replaces the tier config only — a dealer's stored
+ *      reputation is untouched, so nobody is demoted or reset; new caps only change what future
+ *      hustles can earn per play. Target network is auto-resolved from chainid, so the same
+ *      script corrects both — run it once per RPC.
+ *
+ *      History: first run raised the upper repCaps 44/48/52/56 -> 72/80/90/100 (no-boost PvE
+ *      stalled at Don). Second run (2026-07-12) trims them to 56/62/70/78 — live play showed the
+ *      raised caps compressed the late game (casual Kingpin Godfather ~day 74 vs the ~100d
+ *      target, dedicated grinders 2-3x faster still).
  *
  *   Usage:
  *     source .env && forge script script/setup/FixTiers.s.sol:FixTiers \
@@ -44,11 +48,11 @@ contract FixTiers is TiersConfig {
      *      new ladder, so a partial broadcast aborts loudly instead of leaving caps half-raised.
      */
     function _verify(IDealersCore c) internal view {
-        _assertCap(c, 5, 72); // Consigliere
-        _assertCap(c, 6, 80); // Underboss
-        _assertCap(c, 7, 90); // Don
-        _assertCap(c, 8, 100); // Godfather
-        console.log("Verified: upper repCaps re-synced to 72/80/90/100 (Consigliere..Godfather)");
+        _assertCap(c, 5, 56); // Consigliere
+        _assertCap(c, 6, 62); // Underboss
+        _assertCap(c, 7, 70); // Don
+        _assertCap(c, 8, 78); // Godfather
+        console.log("Verified: upper repCaps re-synced to 56/62/70/78 (Consigliere..Godfather)");
     }
 
     function _assertCap(IDealersCore c, uint256 index, int16 expected) internal view {
