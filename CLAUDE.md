@@ -22,17 +22,23 @@ forge test -vvv  # verbose output
 ```
 
 ### Deployment
+Mainnet is live — there is no full-deploy path anymore. Each contract has a self-wiring
+redeploy script in `script/deploy/` (deploys the contract, then re-wires exactly the edges
+that touch it, idempotently). See `script/DEPLOY.md` for the per-contract runbook.
+
 ```bash
 # Set up encrypted keystore (one-time)
 cast wallet import dealersKeystore --interactive
 
-# Deploy all contracts to Abstract testnet
-./script/deploy-all.sh
+# Redeploy an individual contract (self-wiring; mainnet additionally requires CONFIRM=<ContractName>)
+source .env && forge script script/deploy/DeployPVE.s.sol:DeployPVE \
+  --rpc-url abstract --account dealersKeystore --broadcast --zksync \
+  --skip "RendererSVG" --skip "UploadTraits"
 
-# Deploy individual contracts
-./script/deploy-core.sh
-./script/deploy-nft.sh
-# etc.
+# Re-assert the full wiring graph (idempotent drift check)
+source .env && forge script script/setup/SetupWiring.s.sol:SetupWiring \
+  --rpc-url abstract --account dealersKeystore --broadcast --zksync \
+  --skip "RendererSVG" --skip "UploadTraits"
 ```
 
 ### Gas Snapshots

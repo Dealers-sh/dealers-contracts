@@ -25,7 +25,6 @@ import "../base/DeployBase.s.sol";
  *     - cashStealPercent 2 (was 1): sacking a Don-tier player takes ~20k $CASH per win.
  *   setCoreConfig/setPVPConfig take full structs — every other field below re-asserts the
  *   current deployed value; keep them in sync with the constructor defaults.
- *   DeployAll._setupRebalance mirrors these values for fresh deploys.
  */
 contract SetupRebalance is DeployBase {
     function run() external {

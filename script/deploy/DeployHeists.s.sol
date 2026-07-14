@@ -1,43 +1,27 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "../base/DeployBase.s.sol";
+import "../base/Wiring.s.sol";
 
 /**
- * @title DeployHeists - Deploy + wire the daily heist module (DealersHeists)
+ * @title DeployHeists - Redeploy the daily heist module and re-wire every edge that touches it
+ * @dev Constructor deps: DEALERS_CORE, DEALERS_NFT, RANDOMNESS, PAYMENT_HANDLER, DRUG_REGISTRY,
+ *      plus the external Pyth Entropy contract (PYTH_ENTROPY, network-prefixed env).
+ *      Wires (idempotent): Core auth, PaymentHandler auth, Randomness resolver, Actions jailer +
+ *      Heists.setActions, Claims.setHeists, BankHeist ref sync.
  *
- * @dev Standalone module deploy — intentionally NOT part of DeployAll. Deploys DealersHeists (daily
- *      push-your-luck supply/cash runs + optional ETH jackpot), persists its address, and wires it
- *      idempotently.
+ *      STATE ABANDONED on redeploy: the ETH jackpot reserve (stays in the old contract), pending
+ *      runs, and per-dealer lifetime heist stats — which feed Claims achievements and BankHeist
+ *      zero-baseline season scoring. Migrate/drain the jackpot reserve before switching.
  *
- *      The community bank heist (DealersBankHeist) is NOT deployed here — it ships later via
- *      DeployBankHeist.s.sol. Until then the PaymentHandler bank-fee share keeps accruing to
- *      whatever address PaymentHandler was deployed with (BANK_VAULT — a treasury/multisig).
- *      That address must be able to receive ETH, or fee processing will revert.
- *
- *      Constructor deps (must already be deployed): core, nft, randomness, paymentHandler,
- *      drugRegistry. Plus the external Pyth Entropy contract (PYTH_ENTROPY).
- *
- *      Post-deploy wiring (idempotent, safe to re-run):
- *        Core.authorizeContract:           Heists   (mutates core state)
- *        PaymentHandler.authorizeContract: Heists   (calls processMarketplaceFee for the ETH add-on)
- *        Randomness.authorizeResolver:     Heists   (commit/reveal)
- *        Actions.authorizeJailer + Heists.setActions: Heists  (arrest-on-bust, if Actions deployed)
- *        Claims.setHeists:                 Heists   (heist achievement conditions, if Claims deployed)
+ *      Mainnet requires CONFIRM=DealersHeists in the environment.
  *
  * Usage:
  *   source .env && forge script script/deploy/DeployHeists.s.sol:DeployHeists \
- *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG" --skip "UploadTraits"
- *
- *   Requires (besides the core addresses): TESTNET_PYTH_ENTROPY / MAINNET_PYTH_ENTROPY.
- *   Next: run SetupHeists.s.sol to configure difficulties + tuned tables.
+ *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync \
+ *     --skip "RendererSVG" --skip "UploadTraits"
  */
-interface IHeistsWiring {
-    function setActions(address _actions) external;
-    function actions() external view returns (address);
-}
-
-contract DeployHeists is DeployBase {
+contract DeployHeists is WiringBase {
     function run() external {
         _loadAddresses();
         _requireAddress(core, "DEALERS_CORE");
@@ -48,9 +32,12 @@ contract DeployHeists is DeployBase {
 
         address entropy = _envAddrForNetwork("PYTH_ENTROPY");
         _requireAddress(entropy, "PYTH_ENTROPY");
+        _guardMainnet("DealersHeists");
+
+        console.log("WARNING: jackpot reserve ETH stays in the old contract; lifetime heist stats reset.");
+        console.log("");
 
         vm.startBroadcast();
-
         heists = _zkCreate(
             abi.encodePacked(
                 vm.getCode("DealersHeists.sol:DealersHeists"),
@@ -58,74 +45,14 @@ contract DeployHeists is DeployBase {
             )
         );
         console.log("DealersHeists deployed:", heists);
-
-        _wire();
-
+        _wireHeists();
         vm.stopBroadcast();
 
         _saveAddresses();
 
-        console.log("");
-        console.log("Bank heist NOT deployed; bank-fee share keeps accruing to PaymentHandler.bankVault.");
-        console.log("Deploy it later via DeployBankHeist.s.sol when launching the community event.");
-        console.log("Next: run SetupHeists.s.sol to set difficulties + tuned tables.");
-    }
-
-    function _wire() internal {
-        console.log("Wiring DealersHeists:");
-
-        IDealersCore c = IDealersCore(core);
-        if (!c.authorizedContracts(heists)) {
-            c.authorizeContract(heists, true);
-            console.log("  Core -> Heists: AUTHORIZED");
-        } else {
-            console.log("  Core -> Heists: ok");
-        }
-
-        IPaymentHandler ph = IPaymentHandler(paymentHandler);
-        if (!ph.authorizedContracts(heists)) {
-            ph.authorizeContract(heists, true);
-            console.log("  PaymentHandler -> Heists: AUTHORIZED");
-        } else {
-            console.log("  PaymentHandler -> Heists: ok");
-        }
-
-        IRandomness rng = IRandomness(randomness);
-        if (!rng.isAuthorizedResolver(heists)) {
-            rng.authorizeResolver(heists, true);
-            console.log("  Randomness -> Heists: AUTHORIZED");
-        } else {
-            console.log("  Randomness -> Heists: ok");
-        }
-
-        // Optional heist achievements via Claims.
-        if (claims != address(0)) {
-            IClaimsContract cl = IClaimsContract(claims);
-            if (cl.heistsContract() != heists) {
-                cl.setHeists(heists);
-                console.log("  Claims -> Heists: SET");
-            } else {
-                console.log("  Claims -> Heists: ok");
-            }
-        }
-
-        // Optional arrest-on-bust integration.
-        if (actions != address(0)) {
-            if (IHeistsWiring(heists).actions() != actions) {
-                IHeistsWiring(heists).setActions(actions);
-                console.log("  Heists -> Actions: SET");
-            } else {
-                console.log("  Heists -> Actions: ok");
-            }
-            IActionsContract a = IActionsContract(actions);
-            if (!a.authorizedJailers(heists)) {
-                a.authorizeJailer(heists, true);
-                console.log("  Actions.jailer -> Heists: AUTHORIZED");
-            } else {
-                console.log("  Actions.jailer -> Heists: ok");
-            }
-        }
-
-        console.log("");
+        console.log("Follow-ups:");
+        console.log("  1. SetupHeists.s.sol only if retuning (constructor ships the sim-tuned config)");
+        console.log("  2. Fund/migrate the jackpot reserve if continuing the jackpot");
+        console.log("  3. Rebuild + re-upload app gzip (addresses are embedded)");
     }
 }

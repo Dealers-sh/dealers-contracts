@@ -5,9 +5,9 @@ import "../base/ClaimsAchievements.s.sol";
 
 /**
  * @title SetupClaims - Configure all achievements on an existing Claims contract
- * @dev Drives the canonical ladder in ClaimsAchievements so the standalone setup and the
- *      all-in-one DeployAll stay in lockstep. No idempotency guard: this overwrites, so it
- *      doubles as the re-sync path on a contract that was configured from an older ladder.
+ * @dev Drives the canonical ladder in ClaimsAchievements. No idempotency guard: this
+ *      overwrites, so it doubles as the re-sync path on a contract that was configured
+ *      from an older ladder.
  *
  *   Usage:
  *     source .env && forge script script/setup/SetupClaims.s.sol:SetupClaims \

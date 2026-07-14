@@ -83,6 +83,8 @@ interface IPaymentHandler {
 interface IAreaRegistry {
     function setCoreContract(address _coreContract) external;
     function coreContract() external view returns (address);
+    function setDrugRegistry(address _drugRegistry) external;
+    function drugRegistry() external view returns (address);
     function createArea(
         string calldata name,
         uint256 movementFee,
@@ -521,6 +523,26 @@ abstract contract DeployBase is Script {
 
     function _requireAddress(address addr, string memory name) internal pure {
         require(addr != address(0), string.concat(name, " not set"));
+    }
+
+    /**
+     * @dev Mainnet interlock for scripts that deploy a new contract instance. On chainid 2741 the
+     *      run reverts unless `CONFIRM=<contractName>` is set in the environment, so a fat-fingered
+     *      script name can never broadcast a mainnet redeploy. Testnet and local chains pass through.
+     */
+    function _guardMainnet(string memory contractName) internal {
+        if (block.chainid != 2741) return;
+        string memory confirmed = vm.envOr("CONFIRM", string(""));
+        if (keccak256(bytes(confirmed)) != keccak256(bytes(contractName))) {
+            revert(
+                string.concat(
+                    "Mainnet redeploy blocked: run with CONFIRM=",
+                    contractName,
+                    " in the environment to deploy a new ",
+                    contractName
+                )
+            );
+        }
     }
 
     function _zkCreate(bytes memory bytecode) internal returns (address deployed) {

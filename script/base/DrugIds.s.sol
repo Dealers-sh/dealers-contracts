@@ -11,7 +11,7 @@ import "./DeployBase.s.sol";
  *
  * @dev The drug ids (registration order in SetupDrugs) are referenced by both the achievement
  *      ladder (ClaimsAchievements) and the area ladder (AreasConfig). Declaring them once here
- *      lets DeployAll inherit both bases without a duplicate-identifier clash, and keeps the
+ *      lets a script inherit both bases without a duplicate-identifier clash, and keeps the
  *      ids from drifting between the two.
  * @author Berny0x
  */

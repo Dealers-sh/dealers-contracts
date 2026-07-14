@@ -10,10 +10,9 @@ import "./DrugIds.s.sol";
  * █▄▀ ██▄ █▀█ █▄▄ ██▄ █▀▄ ▄█ ▄ ▄█ █▀█
  *
  * @dev The full 52-achievement ladder, sim-aligned with the reputation tiers in
- *      SetupTiers. Every Claims configurator — the all-in-one deploy (DeployAll), the
- *      standalone setup (SetupClaims) and the live corrective (FixAchievements) — drives
- *      the contract through _configureAchievements, so the ladder can no longer drift
- *      between paths. Reputation milestones (#11-21) track the tier thresholds 1:1; that
+ *      SetupTiers. Every Claims configurator — the standalone setup (SetupClaims) and the
+ *      live corrective (FixAchievements) — drives the contract through
+ *      _configureAchievements, so the ladder can no longer drift between paths. Reputation milestones (#11-21) track the tier thresholds 1:1; that
  *      coupling is the whole reason this lives in one place.
  * @author Berny0x
  */

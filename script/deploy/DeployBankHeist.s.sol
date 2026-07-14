@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import "../base/DeployBase.s.sol";
+import "../base/Wiring.s.sol";
 
 /**
  * @title DeployBankHeist - Deploy + wire the community bank-heist event (deferred launch step)
@@ -12,21 +12,21 @@ import "../base/DeployBase.s.sol";
  *      blocked until {unpause}, while ETH still accrues. ETH already accrued at the previous
  *      bankVault stays there; migrate it separately by sending to the contract's receive().
  *
+ *      STATE ABANDONED on redeploy: the event vault ETH (stays in the old contract) and all
+ *      season history/scores. Settle or cancel the live season and migrate the vault first.
+ *
+ *      Mainnet requires CONFIRM=DealersBankHeist in the environment.
+ *
  * Usage:
  *   source .env && forge script script/deploy/DeployBankHeist.s.sol:DeployBankHeist \
  *     --rpc-url abstract-testnet --account dealersKeystore --broadcast --zksync --skip "RendererSVG" --skip "UploadTraits"
  */
-interface IPaymentHandlerVault {
-    function setBankVault(address _bankVault) external;
-    function bankVault() external view returns (address);
-}
-
-interface IBankHeistWiring {
+interface IBankHeistPause {
     function pause() external;
     function paused() external view returns (bool);
 }
 
-contract DeployBankHeist is DeployBase {
+contract DeployBankHeist is WiringBase {
     function run() external {
         _loadAddresses();
         _requireAddress(core, "DEALERS_CORE");
@@ -35,6 +35,7 @@ contract DeployBankHeist is DeployBase {
         _requireAddress(pvp, "DEALERS_PVP");
         _requireAddress(paymentHandler, "PAYMENT_HANDLER");
         _requireAddress(heists, "DEALERS_HEISTS"); // DealersHeists must be deployed first
+        _guardMainnet("DealersBankHeist");
 
         vm.startBroadcast();
 
@@ -45,15 +46,9 @@ contract DeployBankHeist is DeployBase {
         );
         console.log("DealersBankHeist deployed:", bankHeist);
 
-        IDealersCore c = IDealersCore(core);
-        if (!c.authorizedContracts(bankHeist)) {
-            c.authorizeContract(bankHeist, true);
-            console.log("  Core -> BankHeist: AUTHORIZED");
-        } else {
-            console.log("  Core -> BankHeist: ok");
-        }
+        _authCore(bankHeist, "Core auth BankHeist");
 
-        IPaymentHandlerVault ph = IPaymentHandlerVault(paymentHandler);
+        IPaymentVault ph = IPaymentVault(paymentHandler);
         if (ph.bankVault() != bankHeist) {
             ph.setBankVault(bankHeist);
             console.log("  PaymentHandler.bankVault -> BankHeist: SET");
@@ -61,7 +56,7 @@ contract DeployBankHeist is DeployBase {
             console.log("  PaymentHandler.bankVault -> BankHeist: ok");
         }
 
-        IBankHeistWiring bh = IBankHeistWiring(bankHeist);
+        IBankHeistPause bh = IBankHeistPause(bankHeist);
         if (!bh.paused()) {
             bh.pause();
             console.log("  BankHeist: PAUSED");

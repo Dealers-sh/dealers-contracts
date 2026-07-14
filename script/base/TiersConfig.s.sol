@@ -11,9 +11,9 @@ import "./DeployBase.s.sol";
  *
  * @dev Sim-calibrated ladder (test/simulation/economy_sim.py). Thresholds are pinned to the
  *      heist gates (600/1500/5500) and achievement milestones, so only the per-tier repCaps
- *      carry the pacing. Every configurator — the all-in-one deploy (DeployAll), the standalone
- *      setup (SetupTiers) and the live corrective (FixTiers) — drives Core through
- *      _configureTiers, so the ladder can no longer drift between paths.
+ *      carry the pacing. Every configurator — the standalone setup (SetupTiers) and the live
+ *      corrective (FixTiers) — drives Core through _configureTiers, so the ladder can no
+ *      longer drift between paths.
  *
  *      setReputationTiers replaces the whole array, so the same call serves a fresh deploy and a
  *      live re-tune; it touches only the tier config, never a dealer's stored reputation.

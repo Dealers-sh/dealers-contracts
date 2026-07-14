@@ -11,9 +11,8 @@ import "./DrugIds.s.sol";
  *
  * @dev The seven game areas plus the Black Market sell book, sim-aligned with
  *      test/simulation/economy_sim.py and the reputation tiers in SetupTiers. Every area
- *      configurator — the all-in-one deploy (DeployAll), the standalone setup (SetupAreas)
- *      and the live corrective (FixAreas) — reads the same _areaSpecs(), so the ladder can
- *      no longer drift between paths. createArea is creation-only, so the two paths split:
+ *      configurator — the standalone setup (SetupAreas) and the live corrective (FixAreas) —
+ *      reads the same _areaSpecs(), so the ladder can no longer drift between paths. createArea is creation-only, so the two paths split:
  *      _configureAreas creates on a fresh registry, _syncAreas re-pushes onto a live one
  *      through the update setters.
  * @author Berny0x

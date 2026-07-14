@@ -49,7 +49,7 @@ DEPLOY_JSON="script/data/deployments/${NETWORK}.json"
 # Per-network env-var resolution that mirrors DeployBase._envAddrForNetwork.
 # Looks up <PREFIX>_<KEY> first (MAINNET_/TESTNET_), falls back to <KEY> unprefixed.
 # DEV_WALLET / BANK_VAULT / ROYALTY_RECEIVER MUST come through this so the ctor
-# args we re-encode match what DeployAll actually broadcasted.
+# args we re-encode match what the deploy scripts actually broadcasted.
 _resolve_env() {
     local key="$1"
     local prefix="$2"
@@ -115,9 +115,9 @@ RENDERER_SVG="${RENDERER_SVG:-$(_addr rendererSvg)}"
 RENDERER_HTML="${RENDERER_HTML:-$(_addr rendererHtml)}"
 
 # nftCtor is the placeholder NFT address baked into Boosts/PVE/PVP/Claims/Actions/ChatFactory
-# constructors when DeployAll.runGameOnly() defers the real NFT. When present, verify-source.sh
-# must use it (NOT $DEALERS_NFT) for those 6 contracts' ctor args — Etherscan checks the
-# constructor-args bytes against the bytecode tail, which is immutable.
+# constructors by the historical game-only deploy (NFT deferred, devWallet as placeholder).
+# When present, verify-source.sh must use it (NOT $DEALERS_NFT) for those 6 contracts' ctor
+# args — Etherscan checks the constructor-args bytes against the bytecode tail, which is immutable.
 NFT_CTOR_FROM_JSON=$(_addr nftCtor)
 NFT_FOR_CTOR="${NFT_CTOR_FROM_JSON:-$DEALERS_NFT}"
 
@@ -354,9 +354,9 @@ verify_heists() {
 }
 
 verify_chat_factory() {
-    # ChatFactory's ctor takes the REAL nft, not nftCtor. When ChatFactory is (re)deployed
-    # by a full DeployAll after the NFT exists, _nftForCtor() returns the real nft — so its
-    # ctor arg is $DEALERS_NFT, unlike the placeholder-era modules that still hold nftCtor.
+    # ChatFactory's ctor takes the REAL nft, not nftCtor: it was (re)deployed after the NFT
+    # existed, so its ctor arg is $DEALERS_NFT, unlike the placeholder-era modules that still
+    # hold nftCtor.
     local args=$(cast abi-encode "constructor(address)" "$DEALERS_NFT")
     verify_contract "$CHAT_FACTORY" \
         "src/social/DealersChatFactory.sol:DealersChatFactory" "$args" "true"
