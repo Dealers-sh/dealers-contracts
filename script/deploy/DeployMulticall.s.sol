@@ -6,8 +6,8 @@ import "../base/Wiring.s.sol";
 /**
  * @title DeployMulticall - Redeploy the read-aggregation helper and point it at the live contracts
  * @dev Constructor deps: DEALERS_CORE, DEALERS_PVE, DEALERS_PVP, AREA_REGISTRY, DRUG_REGISTRY.
- *      Wires (idempotent): Multicall refs incl. setBoosts. Stateless views — nothing on-chain
- *      references Multicall, so this is the lowest-risk redeploy in the system.
+ *      Wires (idempotent): Multicall refs incl. setBoosts + setBankHeist. Stateless views —
+ *      nothing on-chain references Multicall, so this is the lowest-risk redeploy in the system.
  *
  *      Mainnet requires CONFIRM=DealersMulticall in the environment.
  *

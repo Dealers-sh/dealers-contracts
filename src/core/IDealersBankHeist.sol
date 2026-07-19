@@ -110,6 +110,39 @@ interface IDealersBankHeist {
     function getSeason(uint256 seasonId) external view returns (Season memory);
 
     /**
+     * @notice Entrant token ID at `index` in entry order (indices [0, entryCount)).
+     */
+    function entryAt(uint256 seasonId, uint256 index) external view returns (uint256);
+
+    /**
+     * @notice Whether a dealer has entered a season.
+     */
+    function entered(uint256 seasonId, uint256 tokenId) external view returns (bool);
+
+    /**
+     * @notice A dealer's raw daily-focus state for a season (see {Focus}).
+     */
+    function focusState(uint256 seasonId, uint256 tokenId)
+        external
+        view
+        returns (uint32 count, uint32 lastDay, uint32 entryDay);
+
+    /**
+     * @notice Whether a dealer's payout for a settled season has been claimed.
+     */
+    function claimed(uint256 seasonId, uint256 tokenId) external view returns (bool);
+
+    /**
+     * @notice Whether a dealer's $CASH entry for a season has been refunded.
+     */
+    function refunded(uint256 seasonId, uint256 tokenId) external view returns (bool);
+
+    /**
+     * @notice ETH tip paid to the {settle} caller, capped at 1% of the available vault.
+     */
+    function settleFee() external view returns (uint256);
+
+    /**
      * @notice A dealer's live lifetime counters for the three scored games.
      */
     function metricsOf(uint256 tokenId) external view returns (uint64 pveGames, uint64 pvpGames, uint64 heistRuns);

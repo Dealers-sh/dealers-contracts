@@ -5,6 +5,7 @@ import {Ownable} from "solady/src/auth/Ownable.sol";
 import {IDealersCore} from "./IDealersCore.sol";
 import {IDealersPVE} from "./IDealersPVE.sol";
 import {IDealersPVP} from "./IDealersPVP.sol";
+import {IDealersBankHeist} from "./IDealersBankHeist.sol";
 import {DealersBoosts} from "./DealersBoosts.sol";
 import {IAreaRegistry} from "../utils/IAreaRegistry.sol";
 import {IDrugRegistry} from "../utils/IDrugRegistry.sol";
@@ -116,12 +117,40 @@ contract DealersMulticall is Ownable {
         uint256 infamy;
     }
 
+    /**
+     * @notice One entrant's live standing in a bank-heist season (unsorted; rank is client-side)
+     */
+    struct HeistEntry {
+        uint256 tokenId;
+        uint256 pendingScore;
+        uint32 focus;
+    }
+
+    /**
+     * @notice A single dealer's full bank-heist season status (season-card view)
+     */
+    struct HeistDealerStatus {
+        bool entered;
+        uint256 pendingScore;
+        uint256 frozenScore;
+        uint32 focus;
+        bool checkedInToday;
+        bool claimed;
+        bool refunded;
+        uint256 claimableETH;
+        uint96 refundableCash;
+    }
+
     IDealersCore public core;
     IDealersPVE public pve;
     IDealersPVP public pvp;
     IAreaRegistry public areaRegistry;
     IDrugRegistry public drugRegistry;
     DealersBoosts public boosts;
+    IDealersBankHeist public bankHeist;
+
+    uint256 internal constant BPS = 10000;
+    uint256 internal constant MAX_SETTLE_FEE_BPS = 100;
 
     constructor(address _core, address _pve, address _pvp, address _areaRegistry, address _drugRegistry) {
         if (_core == address(0)) revert ZeroAddress("core");
@@ -191,6 +220,15 @@ contract DealersMulticall is Ownable {
     function setBoosts(address _boosts) external onlyOwner {
         if (_boosts == address(0)) revert InvalidAddress();
         boosts = DealersBoosts(_boosts);
+    }
+
+    /**
+     * @notice Set the bank-heist season contract
+     * @param _bankHeist Address of the DealersBankHeist contract
+     */
+    function setBankHeist(address _bankHeist) external onlyOwner {
+        if (_bankHeist == address(0)) revert InvalidAddress();
+        bankHeist = IDealersBankHeist(_bankHeist);
     }
 
     /**
@@ -638,5 +676,98 @@ contract DealersMulticall is Ownable {
      */
     function calculateBatchCost(uint256 dealerCount, uint256 tierId) external view returns (uint256 totalCost) {
         return boosts.getBoostTier(tierId).price * dealerCount;
+    }
+
+    // =============================================================
+    //                  BANK HEIST SEASON VIEWS
+    // =============================================================
+
+    /**
+     * @notice Paginated live standings for a bank-heist season, in entry order (unsorted).
+     * @dev Rank and cut are client-side: page until start >= entryCount, sort by pendingScore
+     *      descending, cut = pendingScore / sum(all pages) x estPot. Each entry costs three
+     *      cross-module staticcalls, so keep pages in the low hundreds to stay inside RPC
+     *      eth_call gas caps.
+     * @param seasonId The season identifier
+     * @param start First entry index (entry order)
+     * @param count Max entries to return
+     * @return entries Entrants [start, min(start + count, entryCount))
+     * @return entryCount Total entrants in the season
+     * @return sumPending Sum of pendingScore over the returned page only
+     * @return estPot Projected pot (live estimate until settle, then the reserved pot)
+     */
+    function getHeistStandings(uint256 seasonId, uint256 start, uint256 count)
+        external
+        view
+        returns (HeistEntry[] memory entries, uint256 entryCount, uint256 sumPending, uint256 estPot)
+    {
+        IDealersBankHeist.Season memory s = bankHeist.getSeason(seasonId);
+        entryCount = s.entryCount;
+        estPot = _estimatedPot(s);
+
+        if (start >= entryCount || count == 0) return (new HeistEntry[](0), entryCount, 0, estPot);
+        uint256 remaining = entryCount - start;
+        uint256 end = start + (count > remaining ? remaining : count);
+
+        entries = new HeistEntry[](end - start);
+        for (uint256 i = start; i < end;) {
+            uint256 tokenId = bankHeist.entryAt(seasonId, i);
+            uint256 score = bankHeist.pendingScore(seasonId, tokenId);
+            (uint32 focus,,) = bankHeist.focusState(seasonId, tokenId);
+            entries[i - start] = HeistEntry({tokenId: tokenId, pendingScore: score, focus: focus});
+            sumPending += score;
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /**
+     * @notice A dealer's full status for a bank-heist season in one read: live and frozen score,
+     *         focus, check-in state, and what is claimable or refundable right now.
+     * @dev claimableETH / refundableCash mirror the guards in BankHeist {claim} / {claimRefund},
+     *      so a non-zero value means the corresponding call would succeed for the dealer owner.
+     */
+    function getHeistDealerStatus(uint256 seasonId, uint256 tokenId)
+        external
+        view
+        returns (HeistDealerStatus memory status)
+    {
+        status.entered = bankHeist.entered(seasonId, tokenId);
+        if (!status.entered) return status;
+
+        IDealersBankHeist.Season memory s = bankHeist.getSeason(seasonId);
+
+        status.pendingScore = bankHeist.pendingScore(seasonId, tokenId);
+        status.frozenScore = bankHeist.scoreOf(seasonId, tokenId);
+        (uint32 focus, uint32 lastDay,) = bankHeist.focusState(seasonId, tokenId);
+        status.focus = focus;
+        status.checkedInToday = lastDay == uint32(block.timestamp / 1 days);
+        status.claimed = bankHeist.claimed(seasonId, tokenId);
+        status.refunded = bankHeist.refunded(seasonId, tokenId);
+
+        if (
+            s.settled && !status.claimed && status.frozenScore != 0
+                && block.timestamp <= uint256(s.settledAt) + s.config.claimWindow
+        ) {
+            status.claimableETH = (s.pot * status.frozenScore) / s.totalScore;
+        }
+
+        bool abandoned = !s.settled && block.timestamp > uint256(s.closesAt) + s.config.refundTimeout;
+        if (!status.refunded && (s.skipped || abandoned)) {
+            status.refundableCash = s.config.entryFee;
+        }
+    }
+
+    /** @dev Mirrors BankHeist {settle}: pot = (avail - tip) x potBps / BPS with the tip capped at
+     *       1% of avail. A settled season returns its reserved pot; a skipped one returns 0. */
+    function _estimatedPot(IDealersBankHeist.Season memory s) private view returns (uint256) {
+        if (s.settled) return s.pot;
+        if (s.skipped) return 0;
+        uint256 avail = bankHeist.availableVault();
+        uint256 maxFee = (avail * MAX_SETTLE_FEE_BPS) / BPS;
+        uint256 fee = bankHeist.settleFee();
+        if (fee > maxFee) fee = maxFee;
+        return ((avail - fee) * s.config.potBps) / BPS;
     }
 }

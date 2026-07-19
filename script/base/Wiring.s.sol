@@ -521,6 +521,7 @@ abstract contract WiringBase is DeployBase {
         _set(mc.areaRegistry(), areaRegistry, "Multicall -> AreaRegistry", mc.setAreaRegistry);
         _set(mc.drugRegistry(), drugRegistry, "Multicall -> DrugRegistry", mc.setDrugRegistry);
         _set(mc.boosts(), boosts, "Multicall -> Boosts", mc.setBoosts);
+        _set(mc.bankHeist(), bankHeist, "Multicall -> BankHeist", mc.setBankHeist);
         console.log("");
     }
 
@@ -560,6 +561,11 @@ abstract contract WiringBase is DeployBase {
 
         _authCore(bankHeist, "Core auth BankHeist");
         _syncBankHeistRefs();
+
+        if (multicall != address(0)) {
+            IMulticallContract mc = IMulticallContract(multicall);
+            _set(mc.bankHeist(), bankHeist, "Multicall -> BankHeist", mc.setBankHeist);
+        }
 
         if (paymentHandler != address(0) && IPaymentVault(paymentHandler).bankVault() != bankHeist) {
             console.log("  WARNING: PaymentHandler.bankVault does not point at BankHeist.");
