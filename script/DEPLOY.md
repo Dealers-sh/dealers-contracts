@@ -127,6 +127,7 @@ are re-assertion / live-tuning tools:
 | `SetupHeists` | Heists | Difficulties, stage tables, jackpot config |
 | `SetupClaims` | Claims | Achievement ladder (base/ClaimsAchievements) — overwrites |
 | `SetupAreas` | AreaRegistry | Create area ladder + pricing on a fresh registry |
+| `SetupSeason` | AreaRegistry | Apply a season's area ladder (drug shuffle + fees + gates) to a live registry |
 | `SetupDrugs` | DrugRegistry | Register the 11 drugs (order defines ids) |
 | `SetupChat` | ChatFactory | WORLD + area rooms with a fresh AreaChatGate |
 | `FixTiers` / `FixAreas` / `FixAchievements` | live correctives | Re-sync a live contract onto the canonical ladders |
@@ -134,6 +135,16 @@ are re-assertion / live-tuning tools:
 
 Canonical config lives in `script/base/` (`TiersConfig`, `AreasConfig`, `ClaimsAchievements`,
 `DrugIds`) — one source of truth shared by setup and corrective scripts.
+
+### Patch migrations
+
+One-shot scripts that migrate live prod state for a specific release live under `script/patch-<x-y-z>/`
+with a `RUNBOOK.md` documenting the ordered apply. Recurring tools (`SetupSeason`, season lifecycle,
+correctives) stay in `script/setup/`.
+
+| Patch | Folder | Contents |
+|-------|--------|----------|
+| 1.1.0 | `script/patch-1-1-0/` | Bank Heist launch, area shuffle + fees, +2 areas (Warsaw/Moscow), +3 drugs (Slivo/Krokodil/Speed), bribe/bail → 0.0006 ETH. See `RUNBOOK.md`. |
 
 ---
 

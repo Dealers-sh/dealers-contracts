@@ -27,4 +27,7 @@ abstract contract DrugIds is DeployBase {
     uint256 constant OPIOIDS = 9;
     uint256 constant METH = 10;
     uint256 constant FENTANYL = 11;
+    uint256 constant SLIVO = 12;
+    uint256 constant KROKODIL = 13;
+    uint256 constant SPEED = 14;
 }

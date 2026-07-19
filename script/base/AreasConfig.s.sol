@@ -23,8 +23,9 @@ abstract contract AreasConfig is DrugIds {
     // =============================================================
 
     uint256 constant FREE = 0;
-    uint256 constant MOVEMENT_FEE = 0.001 ether;
-    uint256 constant PREMIUM_FEE = 0.002 ether;
+    /** @dev Default hop ~$1; premium is the high-arbitrage sink surcharge (Tokyo/Dubai) at ~$1.67. */
+    uint256 constant MOVEMENT_FEE = 0.0006 ether;
+    uint256 constant PREMIUM_FEE = 0.001 ether;
 
     // Black Market is auto-created in DealersAreaRegistry (area 254).
     uint8 constant BLACK_MARKET_AREA = 254;
@@ -48,22 +49,38 @@ abstract contract AreasConfig is DrugIds {
     // =============================================================
 
     /**
-     * @notice The seven tradeable areas in createArea order (ids 1-7).
+     * @notice The nine tradeable areas in createArea order (ids 1-9).
      * @dev Gate rationale: Manhattan/Amsterdam onboard F2P; Amsterdam (250) and Colombia (500)
      *      sit between tier thresholds as deliberate "in-between" unlocks; Hong Kong (800) is
-     *      the heist gate; Seoul/Tokyo/Dubai track Capo/Consigliere/Underboss. Dubai is the
-     *      sell-heavy endgame zone (buy ~1.3x Tokyo, sell ~2x Tokyo). The Black Market book
-     *      lives in _configureBlackMarket — it is special (area 254) and ungated.
+     *      the heist gate; Seoul/Tokyo/Dubai track Capo/Consigliere/Underboss. Dubai is not a fixed
+     *      endgame — Moscow (7000) sits above it and the ladder keeps extending upward. Warsaw (2200)
+     *      is early Eastern-Europe mid-game (opened early for the EE player base), which leaves the
+     *      Tokyo(3000)->Dubai(5500) gap open by design. The Black Market book lives in
+     *      _configureBlackMarket — it is special (area 254) and ungated.
+     * @dev Season shuffle invariant: a new season rotates drug *identities* and arbitrage routes
+     *      while holding each area's price slots (buy/sell) and rarity mix fixed — since PVE rep
+     *      scales with stake value = amount x price, keeping the price ladder constant keeps the
+     *      progression pace pinned (see economy_sim.py) so only the meta moves. Current season:
+     *      Colombia is the double-rare cheap source (Fentanyl+Cocaine), Dubai's crown is Fentanyl,
+     *      Tokyo trades Cocaine, Hong Kong trades Fentanyl, Seoul sources Heroin.
+     * @dev Areas 8/9 (patch 1.1.0): Warsaw (2200) + Moscow (7000) share Slivo and Speed — cheap in
+     *      Warsaw, premium in Moscow, the two long Warsaw->Moscow arbitrage runs. Moscow also carries
+     *      Krokodil, a Moscow-only "buy-to-flex" (buy 500, sell 50) — a status hold, never a hustle
+     *      target, which keeps an edgeless F2P from over-leveraging on it at Moscow's high stakes (see
+     *      economy_sim). Prices sim-validated pace-neutral; the Slivo/Speed run margins vs Dubai farming
+     *      rely on a shuttle the parking sim doesn't model — the one open check before mainnet.
      */
     function _areaSpecs() internal pure returns (AreaSpec[] memory specs) {
-        specs = new AreaSpec[](7);
-        specs[0] = _spec(1, "Manhattan", FREE, 0, WEED, XTC, COCAINE, 1, 12, 120, 1, 10, 100);
-        specs[1] = _spec(2, "Amsterdam", FREE, 250, WEED, SHROOMS, HEROIN, 3, 15, 180, 2, 12, 150);
-        specs[2] = _spec(3, "Colombia", MOVEMENT_FEE, 500, WEED, COCAINE, HEROIN, 1, 60, 90, 1, 50, 75);
-        specs[3] = _spec(4, "Hong Kong", MOVEMENT_FEE, 800, OPIOIDS, METH, HEROIN, 22, 30, 175, 18, 25, 160);
-        specs[4] = _spec(5, "Seoul", MOVEMENT_FEE, 1500, OPIOIDS, METH, FENTANYL, 8, 14, 90, 7, 12, 75);
-        specs[5] = _spec(6, "Tokyo", MOVEMENT_FEE, 3000, OPIOIDS, METH, FENTANYL, 24, 32, 200, 20, 26, 160);
-        specs[6] = _spec(7, "Dubai", PREMIUM_FEE, 5500, XTC, COCAINE, HEROIN, 14, 160, 200, 20, 200, 240);
+        specs = new AreaSpec[](9);
+        specs[0] = _spec(1, "Manhattan", FREE, 0, WEED, METH, COCAINE, 1, 12, 120, 1, 10, 100);
+        specs[1] = _spec(2, "Amsterdam", FREE, 250, WEED, XTC, HEROIN, 3, 15, 180, 2, 12, 150);
+        specs[2] = _spec(3, "Colombia", MOVEMENT_FEE, 500, WEED, FENTANYL, COCAINE, 1, 60, 90, 1, 50, 75);
+        specs[3] = _spec(4, "Hong Kong", MOVEMENT_FEE, 800, OPIOIDS, METH, FENTANYL, 22, 30, 175, 18, 25, 160);
+        specs[4] = _spec(5, "Seoul", MOVEMENT_FEE, 1500, OPIOIDS, SHROOMS, HEROIN, 8, 14, 90, 7, 12, 75);
+        specs[5] = _spec(6, "Tokyo", PREMIUM_FEE, 3000, OPIOIDS, METH, COCAINE, 24, 32, 200, 20, 26, 160);
+        specs[6] = _spec(7, "Dubai", PREMIUM_FEE, 5500, XTC, HEROIN, FENTANYL, 14, 160, 200, 20, 200, 240);
+        specs[7] = _spec(8, "Warsaw", MOVEMENT_FEE, 2200, SLIVO, SPEED, HEROIN, 120, 45, 130, 100, 38, 115);
+        specs[8] = _spec(9, "Moscow", PREMIUM_FEE, 7000, SLIVO, SPEED, KROKODIL, 200, 90, 500, 250, 110, 50);
     }
 
     // =============================================================
@@ -92,7 +109,7 @@ abstract contract AreasConfig is DrugIds {
         }
 
         _configureBlackMarket(reg);
-        console.log("Areas: 7 created + Black Market sell book configured");
+        console.log("Areas created + Black Market sell book configured:", specs.length);
     }
 
     // =============================================================
@@ -101,10 +118,12 @@ abstract contract AreasConfig is DrugIds {
 
     /**
      * @notice Re-push the canonical ladder onto an already-populated registry.
-     * @dev For live correction: createArea would duplicate, so this drives the per-field update
-     *      setters instead. All setters are owner-only and non-destructive — they overwrite the
-     *      targeted field and leave dealer locations and untouched fields intact. Rewriting a
-     *      value that already matches is a harmless no-op write.
+     * @dev For live correction and per-season shuffles: createArea would duplicate, so this drives
+     *      the per-field update setters instead. batchConfigureAreaDrugs only adds/updates the
+     *      listed drugs — it never removes — so a season that rotates a drug out of an area must
+     *      first prune the stale entry, else the area keeps both books. _pruneStaleDrugs handles
+     *      that; the setters are owner-only and non-destructive (dealer locations and drug balances
+     *      in Core stand — a removed drug is only made non-tradeable in that area).
      */
     function _syncAreas(IAreaRegistry reg) internal {
         AreaSpec[] memory specs = _areaSpecs();
@@ -112,11 +131,33 @@ abstract contract AreasConfig is DrugIds {
             AreaSpec memory s = specs[i];
             reg.updateMovementFee(s.id, s.movementFee);
             reg.updateMinReputation(s.id, s.minReputation);
+            _pruneStaleDrugs(reg, s);
             reg.batchConfigureAreaDrugs(s.id, s.drugIds, s.buyPrices, s.sellPrices);
         }
 
         _configureBlackMarket(reg);
         console.log("Areas: ladder re-synced onto live registry");
+    }
+
+    /**
+     * @dev Remove any drug currently in the area that the new spec no longer lists. Iterates a
+     *      memory snapshot of the live ids, so the registry's swap-and-pop removal can't disturb
+     *      the walk. Ids present in both books are left for batchConfigureAreaDrugs to reprice.
+     */
+    function _pruneStaleDrugs(IAreaRegistry reg, AreaSpec memory s) internal {
+        uint256[] memory current = reg.getAreaDrugIds(s.id);
+        for (uint256 i; i < current.length; ++i) {
+            if (!_inSpec(s.drugIds, current[i])) {
+                reg.removeAreaDrug(s.id, current[i]);
+            }
+        }
+    }
+
+    function _inSpec(uint256[] memory ids, uint256 drugId) private pure returns (bool) {
+        for (uint256 i; i < ids.length; ++i) {
+            if (ids[i] == drugId) return true;
+        }
+        return false;
     }
 
     // =============================================================

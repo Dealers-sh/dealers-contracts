@@ -34,7 +34,7 @@ contract SetupDrugs is DeployBase {
             return;
         }
 
-        console.log("Registering 11 drugs...");
+        console.log("Registering 14 drugs...");
 
         reg.createDrug("Goods", COMMON, 75);
         reg.createDrug("Contraband", UNCOMMON, 500);
@@ -47,7 +47,10 @@ contract SetupDrugs is DeployBase {
         reg.createDrug("Opioids", COMMON, 18);
         reg.createDrug("Meth", UNCOMMON, 25);
         reg.createDrug("Fentanyl", RARE, 200);
+        reg.createDrug("Slivo", COMMON, 8);
+        reg.createDrug("Krokodil", RARE, 500);
+        reg.createDrug("Speed", UNCOMMON, 30);
 
-        console.log("  11 drugs registered");
+        console.log("  14 drugs registered");
     }
 }

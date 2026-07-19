@@ -44,6 +44,7 @@ interface IDealersCore {
     function setReputationTiers(ReputationTier[] calldata _tiers) external;
     function setMaxReputation(uint256 newMax) external;
     function setCoreConfig(CoreConfig calldata newConfig) external;
+    function config() external view returns (CoreConfig memory);
     function drugRegistry() external view returns (address);
     function areaRegistry() external view returns (address);
     function nftContract() external view returns (address);
@@ -98,12 +99,15 @@ interface IAreaRegistry {
         uint256[] calldata buyPrices,
         uint256[] calldata sellPrices
     ) external;
+    function removeAreaDrug(uint8 areaId, uint256 drugId) external;
     function updateMovementFee(uint8 areaId, uint256 newFee) external;
     function updateMinReputation(uint8 areaId, uint256 newMinRep) external;
     function getTotalAreas() external view returns (uint8);
     function getMovementFee(uint8 areaId) external view returns (uint256);
     function getMinReputation(uint8 areaId) external view returns (uint256);
     function getDrugPricing(uint8 areaId, uint256 drugId) external view returns (uint256 buyPrice, uint256 sellPrice);
+    function getAreaDrugIds(uint8 areaId) external view returns (uint256[] memory);
+    function getAreaDrugCount(uint8 areaId) external view returns (uint256);
 }
 
 interface IPVPContract {
@@ -241,10 +245,12 @@ interface IMulticallContract {
     function setAreaRegistry(address _areaRegistry) external;
     function setDrugRegistry(address _drugRegistry) external;
     function setBoosts(address _boosts) external;
+    function setBankHeist(address _bankHeist) external;
     function core() external view returns (address);
     function pve() external view returns (address);
     function pvp() external view returns (address);
     function boosts() external view returns (address);
+    function bankHeist() external view returns (address);
     function areaRegistry() external view returns (address);
     function drugRegistry() external view returns (address);
 }
