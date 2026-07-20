@@ -110,6 +110,7 @@ DEALERS_CLAIMS="${DEALERS_CLAIMS:-$(_addr claims)}"
 DEALERS_ACTIONS="${DEALERS_ACTIONS:-$(_addr actions)}"
 DEALERS_MULTICALL="${DEALERS_MULTICALL:-$(_addr multicall)}"
 DEALERS_HEISTS="${DEALERS_HEISTS:-$(_addr heists)}"
+DEALERS_BANK_HEIST="${DEALERS_BANK_HEIST:-$(_addr bankHeist)}"
 CHAT_FACTORY="${CHAT_FACTORY:-$(_addr chatFactory)}"
 RENDERER_SVG="${RENDERER_SVG:-$(_addr rendererSvg)}"
 RENDERER_HTML="${RENDERER_HTML:-$(_addr rendererHtml)}"
@@ -353,6 +354,14 @@ verify_heists() {
         "src/core/DealersHeists.sol:DealersHeists" "$args" "true"
 }
 
+verify_bank_heist() {
+    # Deployed after NFT existed (like heists/chat_factory) — ctor takes the REAL nft.
+    local args=$(cast abi-encode "constructor(address,address,address,address,address)" \
+        "$DEALERS_CORE" "$DEALERS_NFT" "$DEALERS_PVE" "$DEALERS_PVP" "$DEALERS_HEISTS")
+    verify_contract "$DEALERS_BANK_HEIST" \
+        "src/core/DealersBankHeist.sol:DealersBankHeist" "$args" "true"
+}
+
 verify_chat_factory() {
     # ChatFactory's ctor takes the REAL nft, not nftCtor: it was (re)deployed after the NFT
     # existed, so its ctor arg is $DEALERS_NFT, unlike the placeholder-era modules that still
@@ -384,7 +393,7 @@ echo "  Deploy:   $DEPLOY_JSON"
 echo "=============================================="
 echo ""
 
-ALL_GAME=(drug_registry area_registry core payment_handler randomness nft boosts pve pvp claims actions multicall heists chat_factory)
+ALL_GAME=(drug_registry area_registry core payment_handler randomness nft boosts pve pvp claims actions multicall heists bank_heist chat_factory)
 ALL_RENDERERS=(renderer_svg renderer_html)
 
 if [ $# -eq 0 ]; then
@@ -409,6 +418,7 @@ else
             action*|AC*) targets+=(actions) ;;
             multi*|MC*)  targets+=(multicall) ;;
             heist*|HE*)  targets+=(heists) ;;
+            bank*|BH*)   targets+=(bank_heist) ;;
             chat*|CF*)   targets+=(chat_factory) ;;
             svg)         targets+=(renderer_svg) ;;
             html)        targets+=(renderer_html) ;;
@@ -435,6 +445,7 @@ for target in "${targets[@]}"; do
         actions)         verify_actions ;;
         multicall)       verify_multicall ;;
         heists)          verify_heists ;;
+        bank_heist)      verify_bank_heist ;;
         chat_factory)    verify_chat_factory ;;
         renderer_svg)    verify_renderer_svg ;;
         renderer_html)   verify_renderer_html ;;
